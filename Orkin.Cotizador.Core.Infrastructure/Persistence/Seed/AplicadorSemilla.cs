@@ -106,7 +106,7 @@ public sealed class AplicadorSemilla
 
         throw new SemillaInvalidaException(
             $"{archivo.Ruta}: {archivo.Filas.Count} filas para '{archivo.Entidad}', que tiene clave " +
-            $"tinyint y admite {TechoFilasPorCatalogoTinyint} (ADR-018, §5.1). EF usa los valores " +
+            $"tinyint y admite {TechoFilasPorCatalogoTinyint} (ADR-018, §5.0). EF usa los valores " +
             "255 hacia abajo como clave temporal mientras la base no devuelve la real, así que un " +
             "catálogo más grande que eso termina con una clave repetida. La salida es pasar la " +
             "columna Id a int y con ella todas las claves foráneas que la apunten, o partir el " +

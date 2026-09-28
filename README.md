@@ -438,14 +438,22 @@ D:\repos\sinco-orkin\
 │   └── Application/  (Casos de uso CotizacionService, AprobacionService…)
 │
 ├── docs/                                    # documentación por módulo (patrón de la referencia)
+├── scripts/seed/                            # ★ la semilla: un JSON por catálogo, idempotente por Codigo (§5.20)
 ├── scripts/                                 # .sql de corrección, utilidades
 ├── .github/workflows/                       # deploy-staging.yml, deploy-production.yml
-├── .env.dev.example  .env.prod.example
+├── .env.Development.example  y .env.*.example por entorno   # ★ plantillas; la copia local es la que corre
+├── .env.Development  .env.local …             # NUNCA se versionan
 ├── docker-compose.yml  docker-compose.prod.yml
 ├── dev-start.ps1  dev-start.sh
 ├── nuget.config
 └── .gitignore  .dockerignore
 ```
+
+> **`.env` y `scripts/seed` viven en la raíz de la solución, no dentro de un proyecto.** Los `.env` se
+> cargan subiendo directorios hasta encontrar la raíz —los lee `CargadorArchivoEnv`, con
+> `.env.{ENTORNO}` pisando a `.env`—, y la semilla resuelve `scripts/seed` con la misma regla. Por eso
+> un `dotnet run` funciona desde la raíz y desde la carpeta de cualquier proyecto, y el contenedor
+> encuentra todo en `/app`.
 
 ### 4.3 Grafo de dependencias
 

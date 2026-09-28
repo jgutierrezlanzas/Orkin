@@ -167,6 +167,14 @@ aplica a cada caso, nunca *cómo* se calcula.
 Estas tablas **no** llevan las columnas base de §3.1 ni `rowversion`: son de solo lectura en runtime
 y una fila de catálogo no "se actualiza", se sustituye.
 
+**Techo de filas (ADR-018).** El `Id` es `tinyint`, y EF usa los valores `255` hacia abajo como clave
+temporal mientras la base no devuelve la real. Con 254 o menos filas reales hay margen; una vez que un
+catálogo roza el límite, la primera siembra pasa y la segunda —cuando una fila temporal pisa a una
+real— revienta con una clave duplicada imposible de rastrear. Por eso `AplicadorSemilla` corta la
+siembra con un mensaje claro llegando a **254 filas** (§7 de la siembra), y el aviso `30001` de EF
+sobre estas claves temporales se silencia en el arranque (los detalles en `CotizadorDbContext`).
+Llegar al techo significa pasar las claves a `int`, no estirar el `tinyint`.
+
 **Cómo las consulta el código.** Un `ICatalogoResolver` (capa de aplicación) resuelve
 `Codigo → Id` una vez al arrancar y lo cachea:
 
@@ -237,17 +245,21 @@ Además de las columnas de §5.0:
 
 ### 5.4 `dbo.ModalidadCatalogo`
 
-| Codigo | Nombre | Predeterminado |
+| Codigo | Nombre | `EsPredeterminado` |
 |---|---|---|
-| `EVENTUAL` | Eventual (una sola visita) | |
-| `MENSUAL` | Mensual | ✅ |
-| `BIMESTRAL` | Bimestral | |
-| `TRIMESTRAL` | Trimestral | |
-| `SEMESTRAL` | Semestral | |
-| `ANUAL` | Anual | |
+| `EVENTUAL` | Eventual (una sola visita) | `0` |
+| `MENSUAL` | Mensual | `1` |
+| `BIMESTRAL` | Bimestral | `0` |
+| `TRIMESTRAL` | Trimestral | `0` |
+| `SEMESTRAL` | Semestral | `0` |
+| `ANUAL` | Anual | `0` |
 
 > `dbo.Cotizacion.Modalidad` es `NOT NULL` **sin** `DEFAULT` de SQL: el valor lo resuelve el servicio
 > leyendo la fila con `EsActivo = 1` y el orden de la siembra. Nada de `DEFAULT 1` a ciegas.
+>
+> `EsPredeterminado` es una columna real del catálogo (como en §5.1), no una marca de la tabla de
+> abajo: la periodicidad que se sugiere al crear una cotización la define la siembra, `MENSUAL`,
+> y se puede administrar desde Administración.
 
 ### 5.5 `dbo.OrigenDatoCatalogo` — de dónde viene un dato maestro
 
@@ -1815,6 +1827,13 @@ Se deja anotado el diseño para que, si más adelante se decide, no haya que pen
 
 > Sin dependencia de `MerakodeSoft.Auth` ni de ninguna plataforma externa. ASP.NET Core Identity sobre
 > estas tablas + `JwtBearer` emitido por la propia API.
+>
+> **`AddIdentity` y no `AddIdentityCore`.** `AddIdentityCore` no registra el `SignInManager`, que es
+> justo lo que valida la contraseña y cuenta los intentos. El precio de `AddIdentity` son cuatro
+> esquemas de cookie que esta API no usa; se corrigen en dos puntos de `Program.cs`: se fijan los tres
+> esquemas por defecto en el JWT (si no, cada 401 termina en un `CookieAuthenticationHandler` del
+> log), y el ingreso usa `CheckPasswordSignInAsync` en vez de `PasswordSignInAsync`, que establece la
+> sesión —escribir una cookie de Identity— nada más validar.
 
 ### 8.1 `seg.Usuario`
 
@@ -1897,12 +1916,25 @@ Se deja anotado el diseño para que, si más adelante se decide, no haya que pen
 
 ### 8.4 Tablas de relación
 
+Dos de las cinco tablas puente de Identity más tres propias:
+
 | Tabla | Columnas | PK | Índices |
 |---|---|---|---|
 | `seg.RolPermiso` | `RolId` (FK→Rol, `CASCADE`), `PermisoId` (FK→Permiso, `CASCADE`), `AsignadoUtc`, `AsignadoPor` | `(RolId, PermisoId)` | `IX_RolPermiso_Permiso (PermisoId)` |
-| `seg.UsuarioRol` | `UsuarioId` (FK→Usuario, `CASCADE`), `RolId` (FK→Rol, `CASCADE`), `AsignadoUtc`, `AsignadoPor` | `(UsuarioId, RolId)` | `IX_UsuarioRol_Rol (RolId)` |
-| `seg.UsuarioPermiso` | `UsuarioId`, `PermisoId`, `Concedido` `bit`, `Motivo` `nvarchar(500)`, `VigenteHasta` `datetime2(3)` `NULL`, + base | `(UsuarioId, PermisoId)` | `IX_UsuarioPermiso_Permiso (PermisoId)` |
+| `seg.UsuarioRol` | `UserId`, `RoleId` | `(UserId, RoleId)` | `IX_UsuarioRol_RolId (RoleId)` |
+| `seg.UsuarioClaim` | `Id int IDENTITY`, `UserId`, `ClaimType`, `ClaimValue` | `Id` | `IX_UsuarioClaim_UserId (UserId)` |
+| `seg.UsuarioLogin` | `LoginProvider`, `ProviderKey`, `ProviderDisplayName`, `UserId` | `(LoginProvider, ProviderKey)` | `IX_UsuarioLogin_UserId (UserId)` |
+| `seg.UsuarioToken` | `UserId`, `LoginProvider`, `Name`, `Value` | `(UserId, LoginProvider, Name)` | `IX_UsuarioToken_LoginProvider (LoginProvider)` |
+| `seg.RolClaim` | `Id int IDENTITY`, `RoleId`, `ClaimType`, `ClaimValue` | `Id` | `IX_RolClaim_RoleId (RoleId)` |
+| `seg.UsuarioPermiso` | `UsuarioId`, `PermisoId`, `Concedido` `bit`, `Motivo` `nvarchar(500)`, `VigenteHasta` `datetime2(3)` `NULL`, + base | `(UsuarioId, PermisoId)` | `UX_UsuarioPermiso_Usuario_Permiso` · `IX_UsuarioPermiso_Permiso (PermisoId)` |
 
+> **`seg.UsuarioRol`, `seg.UsuarioClaim`, `seg.UsuarioLogin`, `seg.UsuarioToken` y `seg.RolClaim` son
+> de Identity y no se les puede agregar una columna propia.** `UserStore` las busca por el nombre del
+> tipo de C# (`IdentityUserRole<Guid>`, etc.), no por el de la tabla, de ahí que `seg.UsuarioRol`
+> no lleve `AsignadoUtc` ni `AsignadoPor`: quién asignó cada rol y cuándo lo responde
+> `aud.RegistroAuditoria` (§9.1), que además registra las revocaciones, cosa que una columna de la
+> tabla puente no recordaría.
+>
 > `seg.UsuarioPermiso` es el mecanismo de **permisos directos** (conceder o denegar). El proveedor de
 > políticas dinámicas (`DynamicPermissionAuthorizationPolicyProvider`) resuelve: permiso de rol →
 > permiso directo (`Concedido = 1`) → denegación directa (`Concedido = 0`, que manda).
@@ -1995,6 +2027,37 @@ Se deja anotado el diseño para que, si más adelante se decide, no haya que pen
 | `IX_Auditoria_Usuario` | Non-uniq | `UsuarioId, FechaUtc DESC` | "Qué hizo este usuario" |
 | `IX_Auditoria_Fecha` | Non-uniq | `FechaUtc DESC` | Reporte general, es la consulta más común |
 | `IX_Auditoria_Accion` | Non-uniq | `Accion, FechaUtc DESC` | Accesos denegados, exportaciones |
+
+### 9.2 Cómo se escribe la fila
+
+El `SaveChangesInterceptor` escribe con `DbCommand` sobre la **misma conexión y transacción del
+contexto**, no con entidades: una fila de bitácora no pasa por el `ChangeTracker` (se excluiría a sí
+misma). `EntidadId` nunca lo abandona la base. Los valores anteriores/nuevos van como JSON en las
+columnas correspondientes.
+
+### 9.3 Qué no se audita y por qué
+
+Solo se auditan entidades con clave de un solo valor `Guid`. Quedan fuera, a propósito:
+
+- **Los catálogos `dbo.*Catalogo`** (`Id tinyint`): son de solo lectura en runtime; los crea la
+  semilla, que corre en su propio contexto sin este interceptor.
+- **Las tablas puente de `seg` y los detalles del cotizador** (clave compuesta): no caben en
+  `EntidadId`. Su historia no se pierde del todo: la fila que las une a su padre sí se audita, y
+  para `seg.UsuarioRol` el cambio de rol además queda en el `SecurityStamp`, que se audita como
+  modificación.
+
+El interceptor avisa con un `LogWarning` cuando una de estas filas no auditable cambia **por otro
+camino** (que sí es una anomalía).
+
+### 9.4 La bitácora no es atómica con el guardado
+
+Si el `SaveChanges` corre dentro de una transacción explícita, la fila de bitácora entra en esa misma
+transacción y se confirma con ella. **Si no hay transacción, la fila entra sola, después**, porque
+EF confirma su transacción interna antes de disparar `SavedChanges`. El cambio de negocio podría estar
+confirmado sin su bitácora —es el costo de no poder volver atrás en un punto donde ya no hay
+transacción—. Es una decisión explícita: en los servicios que importa, el guardado y lo que lo
+acompaña se envuelven en una transacción (como hace `ConsecutivoService.SiguienteAsync`), y para el
+resto la bitácora pierde una entrada puntual antes que exigir una transacción que nadie abrió.
 
 **Trigger de protección**
 ```sql
