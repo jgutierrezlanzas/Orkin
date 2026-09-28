@@ -475,6 +475,25 @@ Orkin.Cotizador.Core.Domain  (hoja)
 
 Orkin.Cotizador.ApiClient  →  Orkin.Cotizador.Core.Application
                              (SDK tipado, fuera del .slnx, se empaqueta en build/LocalPackages)
+
+### 4.4 Cómo levantar el ambiente de desarrollo
+
+Requisitos: Docker, .NET 10 SDK, PowerShell 7.
+
+```powershell
+.\dev-start.ps1
+```
+
+El script hace:
+1. Levanta SQL Server con `docker compose`.
+2. Espera a que la base responda.
+3. Aplica las migraciones de EF Core.
+4. Lanza la API (`http://localhost:5031`) y la UI (`http://localhost:59793`) en ventanas separadas.
+
+Para detener:
+```powershell
+docker compose down
+```
 ```
 
 ### 4.4 Convenciones
@@ -598,7 +617,7 @@ ERP** sin cambiar el modelo (ver Fase 12).
 | 0.5 | `Api`: `Program.cs`, Swagger, `GlobalExceptionMiddleware`, `ApiResponse<T>`, `HealthController` | `/swagger` y `/health` verdes | ✅ |
 | 0.6 | `UI.Shared` + `UI.Web` + `UI.Web.Client`: layout base, tema MudBlazor con la paleta del Prototipo D, `Home` de humo | App carga y muestra el sidebar | ⬜ |
 | 0.7 | Migración inicial de EF Core (desde `docs/BASE-DE-DATOS.md`) + `DbInitializer` (catálogos vacíos, admin, roles, permisos, consecutivos) | BD creada con `dotnet ef` | ✅ |
-| 0.8 | `.env.dev.example`, `.env.dev`, `dev-start.ps1`, `dev-start.sh`, `docker-compose.yml` (SQL Server + API + web) | `dev-start` levanta todo | ⬜ |
+| 0.8 | `.env.Development.example`, `docker-compose.yml` (SQL Server), `dev-start.ps1` | `dev-start` levanta SQL Server + API + web | ✅ |
 | 0.9 | `nuget.config`, `.gitignore`, `.dockerignore`, `Dockerfile` × 2, `docker-compose.prod.yml` | Base de despliegue | ⬜ |
 | 0.10 | Git init + estructura de ramas (`main` / `staging`) + `.github/workflows` esqueleto | Repo listo | ⬜ |
 | 0.11 | `Orkin.Cotizador.Tests` con un test de humo del motor de cálculo | `dotnet test` verde | ⬜ |
