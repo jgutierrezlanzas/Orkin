@@ -494,6 +494,20 @@ Para detener:
 ```powershell
 docker compose down
 ```
+
+### 4.5 Tests
+
+xunit.v3 usa Microsoft Testing Platform. En el SDK 10.0.401 `dotnet test` todavía invoca el runner de VSTest, así que ejecutamos la suite con:
+
+```powershell
+.\test.ps1
+```
+
+O directamente:
+
+```powershell
+dotnet run --project Orkin.Cotizador.Tests\Orkin.Cotizador.Tests.csproj -c Release
+```
 ```
 
 ### 4.4 Convenciones
