@@ -47,6 +47,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TipoCambioService>();
         services.AddScoped<CotizacionService>();
 
+        // Proceso de carga desde origen externo (Fase 2.5): un cargador por catálogo.
+        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorProductos>();
+
         return services;
     }
 }

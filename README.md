@@ -594,9 +594,68 @@ int.ErpConexion ──1:N──► int.EventoRecibido   (webhooks = disparo inme
 **Estados de cotización** (alineados con los badges del Prototipo D):
 `Borrador` · `EnAprobacion` · `Aprobada` · `Rechazada` · `Enviada` · `Vencida` · `Anulada` · `ConvertidaEnServicio`
 
-**Principio de diseño clave:** toda fila de catálogo tiene `OrigenDato` (`Manual` | `Erp`) y
-`CodigoExterno` + `ErpConexionId`. Eso permite que mañana los catálogos se llenen **en vivo desde el
-ERP** sin cambiar el modelo (ver Fase 12).
+### Flujo de datos: el origen es externo
+
+```mermaid
+graph LR
+    subgraph "ORIGEN — sistema del cliente"
+        A[ERP<br/>SAP · Odoo · Dynamics · propio]
+        B[Excel · CSV · archivo]
+        C[Base de datos<br/>SQL · PostgreSQL · MySQL]
+        D[API REST]
+    end
+
+    subgraph "TRANSFORMACIÓN — nuestra"
+        E[Lector genérico<br/>+ transformación campo a campo<br/>+ validación con rechazos]
+    end
+
+    subgraph "DESTINO — catálogos del cotizador"
+        F[dbo.Cliente]
+        G[dbo.Producto]
+        H[dbo.UnidadMedida]
+        I[dbo.TipoServicio]
+        J[dbo.TipoCambio]
+        K[dbo.ActivoAmortizable]
+    end
+
+    A --> E
+    B --> E
+    C --> E
+    D --> E
+
+    E -->|upsert por CodigoExterno| F
+    E -->|upsert por CodigoExterno| G
+    E -->|upsert por CodigoExterno| H
+    E -->|upsert por CodigoExterno| I
+    E -->|upsert por CodigoExterno| J
+    E -->|upsert por CodigoExterno| K
+
+    subgraph "NACE EN LA PLATAFORMA"
+        L[dbo.Cotizacion<br/>consecutivo COT-2026-0001]
+    end
+
+    F & G & H & I & J & K --> L
+```
+
+**Reglas del flujo (aclaradas con el cliente):**
+
+1. **Los catálogos se llenan desde afuera.** Clientes, productos, unidades, tipos de servicio,
+   activos, tipo de cambio — todo llega mediante la **transformación** desde el sistema del
+   cliente, sea ERP, Excel, o cualquier origen. El cotizador es vendible a cualquier cliente:
+   el origen cambia, la transformación es nuestra.
+
+2. **Los códigos externos no se renumeran.** Un producto que llega del ERP con código `PRD-1234`
+   entra con ese `CodigoExterno`. Renumerarlo rompería el enlace con el sistema del que vino.
+
+3. **Solo se numera lo que nace acá (ADR-019).** Hoy: la cotización. Si mañana un módulo nuevo
+   genera documentos, se agrega una fila a `TipoConsecutivoCatalogo` — sin tocar código.
+
+4. **El CRUD manual es secundario.** Las pantallas de administración existen para corregir o
+   ajustar algo después de la carga, no son el camino principal.
+
+5. **Toda fila sabe de dónde vino.** `OrigenDato` (Manual | Excel | Erp) + `CodigoExterno` +
+   `ErpConexionId` + `HashContenido` — el mismo patrón que la Fase 12 generaliza en motor ETL
+   completo con webhooks y sincronización en vivo.
 
 ---
 
@@ -667,22 +726,39 @@ ERP** sin cambiar el modelo (ver Fase 12).
 
 ---
 
-### Fase 2 — Catálogos y migración de datos desde el Excel
+### Fase 2 — Catálogos y carga desde origen de datos externo
 
-> Objetivo: que la web tenga los mismos datos que el Excel, pero administrables.
+> **Principio arquitectural (aclarado con el cliente):** los catálogos del cotizador —clientes,
+> productos, unidades de medida, tipos de servicio, tipos de cambio, activos— **nacen de un origen
+> de datos externo** que puede ser un ERP, un Excel, o cualquier sistema donde el cliente tenga
+> sus datos. El cotizador es un producto vendible a cualquier cliente: el origen cambia, la
+> transformación es nuestra. El proceso de carga es el **camino principal** por el que los
+> catálogos se llenan; el CRUD manual que ya existe es para **correcciones y ajustes** después de
+> la carga, no el camino principal.
+>
+> **Consecutivos (ADR-019):** el sistema solo numera lo que **nace en la plataforma** —hoy, la
+> cotización—. Los códigos de clientes, productos y activos vienen del origen externo con su
+> propio identificador y **no se renumeran**. Consecutivos para catálogos solo aplicarían si se
+> metieran a mano de forma masiva, que no está en esta fase.
+>
+> El modelo ya está preparado: toda tabla de catálogo tiene `OrigenDato` (`Manual` | `Excel` |
+> `Erp`), `CodigoExterno` (clave de negocio para el *upsert*), `ErpConexionId` y `HashContenido`
+> (detecta cambios sin escribir nada). La Fase 12 generaliza esto en un motor ETL completo.
 
 | # | Tarea | Detalle | Estado |
 |---|---|---|---|
-| 2.1 | CRUD **Productos** (`Producto`, `UnidadMedida`, `CategoriaProducto`) | 164 filas de `Tabla1912` + 113 de `Tabla10` | ✅ API+UI |
-| 2.2 | CRUD **Activos amortizables** con `VidaUtilMeses` **obligatoria** | 19 filas de `Tabla9` | ⬜ (entidad existe) |
-| 2.3 | CRUD **Tipos de servicio** con `MargenSugerido` | 11 filas de `TablaServicios` | ✅ API+UI |
-| 2.4 | CRUD **Tipo de cambio** (alta manual + histórico) | 1 643 filas de `Tabla2` | ✅ API+UI |
-| 2.5 | **Proceso de importación** Excel → tablas (idempotente, con reporte de rechazos) | Carga los catálogos desde el origen | ⬜ **Siguiente paso** |
-| 2.6 | **Depuración H-10**: consolidar duplicados | Lista de decisiones con el cliente | ⬜ |
+| 2.1 | CRUD **Productos** (`Producto`, `UnidadMedida`, `CategoriaProducto`) — *para correcciones* | 164 filas de `Tabla1912` + 113 de `Tabla10` | ✅ API+UI |
+| 2.2 | CRUD **Activos amortizables** con `VidaUtilMeses` **obligatoria** — *para correcciones* | 19 filas de `Tabla9` | ⬜ (entidad existe) |
+| 2.3 | CRUD **Tipos de servicio** — *para correcciones* | 11 filas de `TablaServicios` | ✅ API+UI |
+| 2.4 | CRUD **Tipo de cambio** (alta manual + histórico) — *para correcciones* | 1 643 filas de `Tabla2` | ✅ API+UI |
+| 2.5 | **Proceso de carga desde origen externo**: lector genérico (Excel · SQL · API) + transformación campo a campo + *upsert* idempotente por `CodigoExterno` + reporte de rechazos. **Es el camino principal.** | Los catálogos se llenan desde el sistema del cliente | ⬜ **Siguiente paso** |
+| 2.5a | Lector **Excel** (`.xlsx`): `CargarOrigenExcelService` — primera implementación del lector | Para el arranque inicial de ORKIN | ⬜ |
+| 2.5b | Lector **SQL Server**: `CargarOrigenSqlService` — segunda implementación del lector | Para clientes con base de datos | ⬜ |
+| 2.6 | **Depuración H-10**: consolidar duplicados que lleguen del origen | Lista de decisiones con el cliente | ⬜ |
 | 2.7 | `PrecioHistorial` + pantalla de vigencia de precios (**H-09**) | Ver precio vigente e histórico | ⬜ |
 | 2.8 | **H-05**: validación que impide cotizar con producto sin precio | Bloqueo con mensaje claro | ⬜ |
 | 2.9 | `ParametroGeneral` (umbrales, flags, textos, identidad de empresa) | CRUD de parámetros | ⬜ |
-| 2.10 | `Consecutivo` + `ConsecutivoService` (plantilla configurable) | Numeración automática | ✅ |
+| 2.10 | `Consecutivo` + `ConsecutivoService` (plantilla configurable) | Numeración automática de lo que nace en la plataforma | ✅ |
 
 ---
 

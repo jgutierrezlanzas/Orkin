@@ -38,6 +38,12 @@
       UserStore<T> / RoleStore<T> / IdentityDbContext para mapearlos a seg.Usuario y seg.Rol.
     -->
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
+    <!--
+      ClosedXML: lee y escribe .xlsx. Se usa en el lector de origen Excel del proceso de
+      carga de catálogos (Fase 2.5) y en la exportación a Excel (Fase 4.16).
+      MIT license, sin restricciones comerciales.
+    -->
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
   </ItemGroup>
 
   <ItemGroup>

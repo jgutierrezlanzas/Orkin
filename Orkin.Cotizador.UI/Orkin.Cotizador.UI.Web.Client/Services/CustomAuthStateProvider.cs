@@ -60,14 +60,45 @@ public sealed class CustomAuthStateProvider : AuthenticationStateProvider
     {
         var payload = jwt.Split('.')[1];
         var jsonBytes = Convert.FromBase64String(PadBase64(payload));
-        var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
+        var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(jsonBytes);
 
         if (keyValuePairs is null)
         {
             return [];
         }
 
-        return keyValuePairs.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString() ?? string.Empty));
+        var claims = new List<Claim>();
+
+        foreach (var (clave, valor) in keyValuePairs)
+        {
+            switch (valor.ValueKind)
+            {
+                // Un valor simple (string, número, bool) → un claim
+                case JsonValueKind.String:
+                    claims.Add(new Claim(clave, valor.GetString() ?? string.Empty));
+                    break;
+
+                case JsonValueKind.Number:
+                case JsonValueKind.True:
+                case JsonValueKind.False:
+                    claims.Add(new Claim(clave, valor.ToString()));
+                    break;
+
+                // Un array (como "orkin:permiso": ["A","B","C"]) → un claim por elemento,
+                // para que FindAll("orkin:permiso") funcione como en el servidor.
+                case JsonValueKind.Array:
+                    foreach (var elemento in valor.EnumerateArray())
+                    {
+                        if (elemento.ValueKind == JsonValueKind.String)
+                        {
+                            claims.Add(new Claim(clave, elemento.GetString() ?? string.Empty));
+                        }
+                    }
+                    break;
+            }
+        }
+
+        return claims;
     }
 
     private static string PadBase64(string base64)

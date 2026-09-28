@@ -19,16 +19,36 @@
             </MudDrawerHeader>
             <MudNavMenu>
                 <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-                <MudNavLink Href="/cotizaciones" Icon="@Icons.Material.Filled.RequestQuote">Cotizaciones</MudNavLink>
-                <MudNavLink Href="/clientes" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
-                <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.Settings">Administración</MudNavLink>
-                <MudNavGroup Title="Catálogos" Icon="@Icons.Material.Filled.List" Expanded="true">
-                    <MudNavLink Href="/catalogos/unidades-medida" Icon="@Icons.Material.Filled.Straighten">Unidades de medida</MudNavLink>
-                    <MudNavLink Href="/catalogos/categorias-producto" Icon="@Icons.Material.Filled.Category">Categorías de producto</MudNavLink>
-                    <MudNavLink Href="/catalogos/tipos-servicio" Icon="@Icons.Material.Filled.CleaningServices">Tipos de servicio</MudNavLink>
-                    <MudNavLink Href="/catalogos/productos" Icon="@Icons.Material.Filled.Inventory">Productos</MudNavLink>
-                    <MudNavLink Href="/catalogos/tipos-cambio" Icon="@Icons.Material.Filled.CurrencyExchange">Tipos de cambio</MudNavLink>
-                </MudNavGroup>
+
+                @if (TienePermiso("COTIZACIONES.VER"))
+                {
+                    <MudNavLink Href="/cotizaciones" Icon="@Icons.Material.Filled.RequestQuote">Cotizaciones</MudNavLink>
+                }
+
+                @if (TienePermiso("CLIENTES.VER"))
+                {
+                    <MudNavLink Href="/clientes" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
+                }
+
+                @if (_permisosCatalogos.Count > 0)
+                {
+                    <MudNavGroup Title="Catálogos" Icon="@Icons.Material.Filled.List" Expanded="true">
+                        @if (TienePermiso("CATALOGOS.VER"))
+                        {
+                            <MudNavLink Href="/catalogos/unidades-medida" Icon="@Icons.Material.Filled.Straighten">Unidades de medida</MudNavLink>
+                            <MudNavLink Href="/catalogos/categorias-producto" Icon="@Icons.Material.Filled.Category">Categorías de producto</MudNavLink>
+                            <MudNavLink Href="/catalogos/tipos-servicio" Icon="@Icons.Material.Filled.CleaningServices">Tipos de servicio</MudNavLink>
+                            <MudNavLink Href="/catalogos/productos" Icon="@Icons.Material.Filled.Inventory">Productos</MudNavLink>
+                            <MudNavLink Href="/catalogos/tipos-cambio" Icon="@Icons.Material.Filled.CurrencyExchange">Tipos de cambio</MudNavLink>
+                        }
+                    </MudNavGroup>
+                }
+
+                @if (EsAdmin)
+                {
+                    <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.Settings">Administración</MudNavLink>
+                }
+
                 <MudNavLink Href="/cambiar-contrasena" Icon="@Icons.Material.Filled.Lock">Cambiar contraseña</MudNavLink>
             </MudNavMenu>
         </MudDrawer>
@@ -55,6 +75,20 @@
     private MudTheme Tema { get; set; } = OrkinTheme.Crear();
     private bool _drawerAbierto = true;
     private string _nombreUsuario = string.Empty;
+    private HashSet<string> _permisos = new(StringComparer.OrdinalIgnoreCase);
+    private List<string> _permisosCatalogos = [];
+
+    /// <summary>
+    /// Claims de permisos que el usuario tiene. El JWT los trae como claim "orkin:permiso".
+    /// La denegación explícita ("orkin:permiso:no") pisa la concesión.
+    /// </summary>
+    private bool TienePermiso(string codigo)
+        => _permisos.Contains(codigo) && !_permisos.Contains($"{codigo}__DENEGADO");
+
+    private bool EsAdmin =>
+        TienePermiso("ADMIN.USUARIOS") ||
+        TienePermiso("ADMIN.ROLES") ||
+        TienePermiso("ADMIN.PARAMETROS");
 
     protected override async Task OnInitializedAsync()
     {
@@ -62,6 +96,28 @@
         _nombreUsuario = estado.User.FindFirst("orkin:nombre")?.Value
             ?? estado.User.Identity?.Name
             ?? string.Empty;
+
+        // Permisos concedidos
+        _permisos = estado.User
+            .FindAll("orkin:permiso")
+            .Select(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Permisos denegados explícitamente: el claim "orkin:permiso:no" pisa al concedido
+        var denegados = estado.User
+            .FindAll("orkin:permiso:no")
+            .Select(c => c.Value)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var d in denegados)
+        {
+            _permisos.Add($"{d}__DENEGADO");
+        }
+
+        if (TienePermiso("CATALOGOS.VER"))
+        {
+            _permisosCatalogos.Add("CATALOGOS.VER");
+        }
     }
 
     private void ToggleDrawer() => _drawerAbierto = !_drawerAbierto;

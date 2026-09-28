@@ -123,6 +123,12 @@ public static class ServiceCollectionExtensions
         // AddHostedService, que lo resuelve como scoped.
         services.AddHostedService<DbInitializer>();
 
+        // ── Proceso de carga desde origen externo (Fase 2.5) ─────────────────────
+        // El orquestador es scoped porque depende de los cargadores, que a su vez
+        // dependen del DbContext. Los lectores se construyen por llamada, no por DI,
+        // porque cada carga puede tener su propio archivo o su propia conexión.
+        services.AddScoped<Carga.ProcesoCargaService>();
+
         return services;
     }
 
