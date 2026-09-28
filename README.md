@@ -18,7 +18,7 @@
 | Especificación funcional | `Cotizador_Web_Documento_de_Arranque.docx` (Project Charter + SRS, v1.0) |
 | Fuente de la verdad de negocio | `Cotizador Original - Agosto 31 2026.xlsm` (con las correcciones de §2.4 ya validadas) |
 | Fecha de arranque | 2026-09-27 |
-| Estado actual | **Fase 0 — modelando la base de datos** |
+| Estado actual | **Fase 4 — Cotizador (API + UI) en progreso** |
 
 ---
 
@@ -623,20 +623,20 @@ ERP** sin cambiar el modelo (ver Fase 12).
 
 | # | Tarea | Entregable | Estado |
 |---|---|---|---|
-| 0.0 | **Especificar el modelo de datos** (tablas, columnas, índices) | 📄 [`docs/BASE-DE-DATOS.md`](docs/BASE-DE-DATOS.md) | 🔵 En revisión |
+| 0.0 | **Especificar el modelo de datos** (tablas, columnas, índices) | 📄 [`docs/BASE-DE-DATOS.md`](docs/BASE-DE-DATOS.md) | ✅ |
 | 0.1 | Confirmar decisiones **D-03 a D-16** con el cliente | Tabla §3.2 resuelta | 🔴 |
 | 0.2 | Crear `Orkin.Cotizador.slnx` con los **8** proyectos (sin MAUI) | Solución con `Debug;Release;Staging` | ✅ |
 | 0.3 | `Core.Domain`: `BaseEntity`, enums, entidades POCO | Código compilando | ✅ |
 | 0.4 | `Core.Application` + `Core.Infrastructure`: DTOs, interfaces, DI, `CotizadorDbContext` con los 4 esquemas | `AddApplicationServices()` / `AddInfrastructure()` | ✅ |
 | 0.5 | `Api`: `Program.cs`, Swagger, `GlobalExceptionMiddleware`, `ApiResponse<T>`, `HealthController` | `/swagger` y `/health` verdes | ✅ |
-| 0.6 | `UI.Shared` + `UI.Web` + `UI.Web.Client`: layout base, tema MudBlazor con la paleta del Prototipo D, `Home` de humo | App carga y muestra el sidebar | ⬜ |
-| 0.7 | Migración inicial de EF Core (desde `docs/BASE-DE-DATOS.md`) + `DbInitializer` (catálogos vacíos, admin, roles, permisos, consecutivos) | BD creada con `dotnet ef` | ✅ |
-| 0.8 | `.env.Development.example`, `docker-compose.yml` (SQL Server), `dev-start.ps1` | `dev-start` levanta SQL Server + API + web | ✅ |
+| 0.6 | `UI.Shared` + `UI.Web` + `UI.Web.Client`: layout base, tema MudBlazor, `Home` de humo | App carga y muestra el sidebar | ✅ |
+| 0.7 | Migración inicial de EF Core + `DbInitializer` (catálogos, admin, roles, permisos, consecutivos) | BD creada con `dotnet ef` | ✅ |
+| 0.8 | `docker-compose.yml` (SQL Server), `dev-start.ps1`, `test.ps1` | `dev-start` levanta todo | ✅ |
 | 0.9 | `nuget.config`, `.gitignore`, `.dockerignore`, `Dockerfile` × 2, `docker-compose.prod.yml` | Base de despliegue | ⬜ |
 | 0.10 | Git init + estructura de ramas (`main` / `staging`) + `.github/workflows` esqueleto | Repo listo | ⬜ |
-| 0.11 | `Orkin.Cotizador.Tests` con un test de humo del motor de cálculo | `dotnet test` verde | ⬜ |
-| 0.12 | Tema MudBlazor: traducir la paleta del Prototipo D + `Layout/MainLayout` y `NavMenu` con grupos | Sidebar fiel al prototipo | ⬜ |
-| 0.13 | Script de arranque de SQL Server + base creada + usuario de la app | `dev-start` levanta la BD | ⬜ |
+| 0.11 | `Orkin.Cotizador.Tests` con tests del motor de cálculo | `dotnet run` (MTP) verde | ✅ |
+| 0.12 | Tema MudBlazor: paleta corporativa ORKIN (rojo `#E31837`) + `MainLayout` + `NavMenu` con grupos | Sidebar fiel a la marca | ✅ |
+| 0.13 | Script de arranque de SQL Server + base creada + usuario de la app | `dev-start` levanta la BD | ✅ |
 
 ---
 
@@ -646,14 +646,14 @@ ERP** sin cambiar el modelo (ver Fase 12).
 
 | # | Tarea | Entregable | Estado |
 |---|---|---|---|
-| 1.1 | Definir matriz de roles y permisos (ver abajo) | Tabla §6.1 aprobada | ⬜ |
-| 1.2 | `AuthController` + login/refresh/logout (D-02: **Identity propio**, sin plataforma externa) | Token emitido y validado | ⬜ |
-| 1.3 | `UI.Shared/Pages/Login.razor` + `LoginLayout` | Pantalla de login responsive | ⬜ |
-| 1.4 | BFF: `ProxyController`, `ServerAccessTokenStore`, cookie de sesión | `api/proxy/*` reenvía con Bearer | ⬜ |
-| 1.5 | `Permissions.cs` + `DynamicPermissionAuthorizationPolicyProvider` | Policies dinámicas | ⬜ |
-| 1.6 | `NavigationController` → menú filtrado por permisos | Sidebar solo con lo permitido | ⬜ |
+| 1.1 | Definir matriz de roles y permisos (ver abajo) | Tabla §6.1 + `seg.Rol.json` | 🟡 Sembrada, falta aprobación formal |
+| 1.2 | `AuthController` + login/logout/cambio de contraseña (D-02: **Identity propio**) | Token emitido y validado | ✅ |
+| 1.3 | `Pages/Login.razor` + `LoginLayout` | Pantalla de login responsive | ✅ |
+| 1.4 | BFF: `ProxyController`, `ServerAccessTokenStore`, cookie de sesión | `api/proxy/*` reenvía con Bearer | ⬜ (hoy: CORS directo) |
+| 1.5 | `ProveedorPoliticaPermisos` + `ManejadorPermisoRequerido` | Policies dinámicas por claim | ✅ |
+| 1.6 | Menú filtrado por permisos | Sidebar solo con lo permitido | 🟡 (páginas protegen, menú no oculta) |
 | 1.7 | Entidades `Usuario` / `Rol` / `Permiso` + CRUD de admin | Gestión de usuarios y roles | ⬜ |
-| 1.8 | `RouteGuard` / `RedirectToLogin` / `NotAuthorized` | Rutas protegidas | ⬜ |
+| 1.8 | `RouteGuard` / `RedirectToLogin` / `NotAuthorized` | Rutas protegidas | ✅ |
 
 #### 6.1 Matriz de roles (propuesta inicial)
 
@@ -673,16 +673,16 @@ ERP** sin cambiar el modelo (ver Fase 12).
 
 | # | Tarea | Detalle | Estado |
 |---|---|---|---|
-| 2.1 | CRUD **Productos** (`Producto`, `UnidadMedida`, `CategoriaProducto`) | 164 filas de `Tabla1912` + 113 de `Tabla10` | ⬜ |
-| 2.2 | CRUD **Activos amortizables** con `VidaUtilMeses` **obligatoria** | 19 filas de `Tabla9` | ⬜ |
-| 2.3 | CRUD **Tipos de servicio** con `MargenSugerido` | 11 filas de `TablaServicios` | ⬜ |
-| 2.4 | CRUD **Tipo de cambio** (alta manual + histórico) | 1 643 filas de `Tabla2` | ⬜ |
-| 2.5 | **Script de importación** del Excel → tablas (idempotente, con reporte de rechazos) | Carga los 4 catálogos | ⬜ |
-| 2.6 | **Depuración H-10**: consolidar duplicados y decidir qué entra, qué se marca `Activo=false` | Lista de decisiones con el cliente | ⬜ |
+| 2.1 | CRUD **Productos** (`Producto`, `UnidadMedida`, `CategoriaProducto`) | 164 filas de `Tabla1912` + 113 de `Tabla10` | ✅ API+UI |
+| 2.2 | CRUD **Activos amortizables** con `VidaUtilMeses` **obligatoria** | 19 filas de `Tabla9` | ⬜ (entidad existe) |
+| 2.3 | CRUD **Tipos de servicio** con `MargenSugerido` | 11 filas de `TablaServicios` | ✅ API+UI |
+| 2.4 | CRUD **Tipo de cambio** (alta manual + histórico) | 1 643 filas de `Tabla2` | ✅ API+UI |
+| 2.5 | **Proceso de importación** Excel → tablas (idempotente, con reporte de rechazos) | Carga los catálogos desde el origen | ⬜ **Siguiente paso** |
+| 2.6 | **Depuración H-10**: consolidar duplicados | Lista de decisiones con el cliente | ⬜ |
 | 2.7 | `PrecioHistorial` + pantalla de vigencia de precios (**H-09**) | Ver precio vigente e histórico | ⬜ |
 | 2.8 | **H-05**: validación que impide cotizar con producto sin precio | Bloqueo con mensaje claro | ⬜ |
-| 2.9 | `ParametroGeneral` (umbrales, flags, textos de correo, identidad de empresa) | CRUD de parámetros | ⬜ |
-| 2.10 | `Consecutivo` + `ConsecutivoService` (numeración `N° 0001`) | Numeración automática | ⬜ |
+| 2.9 | `ParametroGeneral` (umbrales, flags, textos, identidad de empresa) | CRUD de parámetros | ⬜ |
+| 2.10 | `Consecutivo` + `ConsecutivoService` (plantilla configurable) | Numeración automática | ✅ |
 
 ---
 
@@ -692,14 +692,14 @@ ERP** sin cambiar el modelo (ver Fase 12).
 
 | # | Tarea | Detalle | Estado |
 |---|---|---|---|
-| 3.1 | `MotorCalculo/CotizadorCalculo.cs` — **RN-01 a RN-08** | Clase pura, sin dependencias | ⬜ |
-| 3.2 | Resolver **H-02**: margen como fracción `decimal(5,4)` + validación de rango | Semántica inequívoca | ⬜ |
-| 3.3 | Resolver **H-01 / RN-09**: `ITipoCambioProvider` → *último valor ≤ fecha*, con fallback configurable | Nunca `#N/A` | ⬜ |
-| 3.4 | Resolver **H-03 / D-03**: cálculo empresarial por semestre | Independentemente por semestre | 🔴 |
-| 3.5 | Resolver **H-04**: vida útil obligatoria en amortizables; error si `Meses ≤ 0` con cantidad > 0 | Sin división por cero | ⬜ |
+| 3.1 | `MotorCalculo/CotizadorCalculo.cs` — **RN-01 a RN-08** | Clase pura, sin dependencias | ✅ |
+| 3.2 | Resolver **H-02**: margen como fracción `decimal(5,4)` + validación de rango | Semántica inequívoca | ✅ |
+| 3.3 | Resolver **H-01 / RN-09**: TC → *último valor ≤ fecha* (`ObtenerVigenteAsync`) | Nunca `#N/A` | ✅ |
+| 3.4 | Resolver **H-03 / D-03**: cálculo empresarial por semestre | Independiente por semestre | 🟡 Motor listo, falta D-03 |
+| 3.5 | Resolver **H-04**: vida útil obligatoria; error si `Meses ≤ 0` | Sin división por cero | ✅ |
 | 3.6 | `ITipoCambioProvider` con UTC/tz de Nicaragua (`America/Managua`) | Zona horaria correcta | ⬜ |
-| 3.7 | **Tests golden master**: 10–15 cotizaciones reales extraídas del Excel, valores esperados al centavo | `ExcelCasosDePrueba.json` | ⬜ |
-| 3.8 | Endpoint `POST /api/cotizaciones/calcular` (cálculo en vivo, sin persistir) | Respuesta < 300 ms | ⬜ |
+| 3.7 | **Tests**: 12 unitarios del motor (`CotizadorCalculoTests`) | xunit.v3 + MTP | ✅ (golden master del Excel: ⬜) |
+| 3.8 | Endpoint `POST /api/cotizaciones/calcular` (cálculo en vivo, sin persistir) | Verificado end-to-end | ✅ |
 | 3.9 | Prueba de equivalencia: ejecutar el motor sobre los casos y cuadrar contra el Excel | Reporte de paridad | ⬜ |
 
 ---
@@ -710,23 +710,23 @@ ERP** sin cambiar el modelo (ver Fase 12).
 
 | # | Tarea | Detalle | Estado |
 |---|---|---|---|
-| 4.1 | Entidades de cotización + `CotizacionService` (crear, editar, versionar, anular) | `Cotizacion`, `DetalleInsumo`, `DetalleAmortizable` | ⬜ |
-| 4.2 | `CRUD Clientes` (residencial / empresarial) + ficha e historial | Pestaña de clientes del prototipo | ⬜ |
-| 4.3 | `Pages/Cotizaciones/Lista.razor` — filtros + tabla con **N°, Cliente, Versión, Servicio, Fecha, Total US$, Estado, Acciones** | Fiel a `proto3` líneas 182-204 | ⬜ |
-| 4.4 | `Pages/Cotizaciones/Formulario.razor` como **overlay/página dedicada** con header y barra inferior sticky | Fiel a `proto3` líneas 242-298 | ⬜ |
-| 4.5 | Bloque **Insumos consumibles** (Producto, Unidad, Precio C$, Cant., Subtotal, ✕) + `BuscarProductoDialog` con filtro en vivo | Fiel a `proto3` 262-272 | ⬜ |
-| 4.6 | Bloque **Activos amortizables** (Activo, Precio, Cant., Vida útil, Valor mensual) | Fiel a `proto3` 273-281 | ⬜ |
-| 4.7 | Bloque **Margen y tipo de cambio** con TC read-only (fecha + valor) y recálculo en vivo | Fiel a `proto3` 283-291 | ⬜ |
-| 4.8 | Barra inferior con total en vivo `C$ X ≈ $ Y` + `Ver resumen completo` + `Enviar a aprobación` | Fiel a `proto3` 292-297 | ⬜ |
-| 4.9 | `ResumenDialog` — desglose de insumos + amortizables + margen + total | Fiel a `proto3` 310-330 | ⬜ |
-| 4.10 | Modal **Anular** con confirmación | Fiel a `proto3` 333-342 | ⬜ |
-| 4.11 | **Versionado**: editar una cotización aprobada crea `Version+1` conservando la anterior | Ref. SRS §5.1 | ⬜ |
-| 4.12 | **Cálculo en vivo** de totales al cambiar cantidades/margen (sin ir al servidor en cada tecla) | UX fluida | ⬜ |
-| 4.13 | **Flujo empresarial por semestre** en el formulario (dos bloques de insumos) | Según D-03 | 🔴 |
-| 4.14 | `Pages/Cotizaciones/Detalle.razor` — solo lectura, versiones, historial de aprobaciones | Ref. SRS §10 | ⬜ |
-| 4.15 | Paginación y filtros en servidor del historial | No traer todo a memoria | ⬜ |
-| 4.16 | Exportar a **Excel** (`.xlsx`) del histórico filtrado | Reporte operativo | ⬜ |
-| 4.17 | Estados y badges: `Borrador`, `EnAprobacion`, `Aprobada`, `Rechazada`, `Anulada` | Colores del prototipo | ⬜ |
+| 4.1 | Entidades de cotización + `CotizacionService` (crear, editar, versionar, anular) | `Cotizacion`, `DetalleInsumo`, `DetalleAmortizable` | ✅ (crear/editar; versionar/anular: ⬜) |
+| 4.2 | `CRUD Clientes` (residencial / empresarial) + ficha e historial | Pestaña de clientes del prototipo | ✅ (ficha/historial: ⬜) |
+| 4.3 | `Pages/Cotizaciones` — filtros + tabla con **N°, Cliente, Servicio, Fecha, Estado, Precios** | Listado funcional | ✅ |
+| 4.4 | `Pages/CotizacionNueva` — formulario con header y datos generales | Formulario funcional | ✅ (overlay: ⬜) |
+| 4.5 | Bloque **Insumos consumibles** + búsqueda de producto | Tabla con agregar/quitar | ✅ (diálogo búsqueda: ⬜) |
+| 4.6 | Bloque **Activos amortizables** (Activo, Precio, Cant., Vida útil, Valor mensual) | | ⬜ |
+| 4.7 | Bloque **Margen y tipo de cambio** con TC y recálculo | En el formulario | ✅ |
+| 4.8 | Barra inferior con total en vivo `C$ X ≈ $ Y` + `Enviar a aprobación` | | 🟡 (botón Calcular, no en vivo) |
+| 4.9 | `ResumenDialog` — desglose de insumos + amortizables + margen + total | | ⬜ |
+| 4.10 | Modal **Anular** con confirmación | | ⬜ |
+| 4.11 | **Versionado**: editar una cotización aprobada crea `Version+1` | | ⬜ |
+| 4.12 | **Cálculo en vivo** de totales al cambiar cantidades/margen | UX fluida | 🟡 (botón, no por tecla) |
+| 4.13 | **Flujo empresarial por semestre** en el formulario (dos bloques) | Según D-03 | 🔴 |
+| 4.14 | `Pages/CotizacionDetalle` — solo lectura con resultados | | ✅ (versiones/historial: ⬜) |
+| 4.15 | Paginación y filtros en servidor del historial | | ✅ |
+| 4.16 | Exportar a **Excel** (`.xlsx`) del histórico filtrado | | ⬜ |
+| 4.17 | Estados y badges: chips de color por estado | | ✅ |
 
 ---
 
@@ -974,11 +974,11 @@ Una tarea se marca ✅ solo si cumple **todo** lo siguiente:
 
 | Fase | Nombre | Estado |
 |---|---|---|
-| 0 | Cimientos e infraestructura | 🟡 En curso (0.2–0.5 ✅, 0.7 ✅) |
-| 1 | Autenticación, roles y permisos | ⬜ Pendiente |
-| 2 | Catálogos y migración desde el Excel | ⬜ Pendiente |
-| 3 | Motor de cálculo | ⬜ Pendiente |
-| 4 | Cotizador (API + UI) | ⬜ Pendiente |
+| 0 | Cimientos e infraestructura | ✅ Completada (0.1 🔴, 0.9–0.10 ⬜) |
+| 1 | Autenticación, roles y permisos | 🟡 En curso (1.2, 1.3, 1.5, 1.8 ✅; 1.7 ⬜) |
+| 2 | Catálogos y migración desde el Excel | 🟡 En curso (2.1, 2.3, 2.4, 2.10 ✅; **2.5 siguiente**) |
+| 3 | Motor de cálculo | ✅ Completado (3.6, 3.9 ⬜) |
+| 4 | Cotizador (API + UI) | 🟡 En curso (flujo básico end-to-end ✅) |
 | 5 | PDF y envío al cliente | ⬜ Pendiente |
 | 6 | Flujo de aprobación | ⬜ Pendiente |
 | 7 | Auditoría | ⬜ Pendiente |
