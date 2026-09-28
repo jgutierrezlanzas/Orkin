@@ -77,3 +77,39 @@ public sealed record ActualizarTipoServicioRequest(
     bool EsEmpresarialPorDefecto,
     int Orden,
     bool EsActivo);
+
+/// <summary>Respuesta de un producto.</summary>
+public sealed record ProductoResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    string? Descripcion,
+    Guid? CategoriaId,
+    string? CategoriaNombre,
+    Guid UnidadMedidaId,
+    string UnidadMedidaNombre,
+    string UnidadMedidaAbreviatura,
+    decimal CostoActual,
+    decimal PrecioVentaActual,
+    int? VidaUtilMeses,
+    bool EsActivo);
+
+public sealed record CrearProductoRequest(
+    string Codigo,
+    string Nombre,
+    string? Descripcion,
+    Guid? CategoriaId,
+    Guid UnidadMedidaId,
+    decimal CostoActual,
+    decimal PrecioVentaActual,
+    int? VidaUtilMeses);
+
+public sealed record ActualizarProductoRequest(
+    string Nombre,
+    string? Descripcion,
+    Guid? CategoriaId,
+    Guid UnidadMedidaId,
+    decimal CostoActual,
+    decimal PrecioVentaActual,
+    int? VidaUtilMeses,
+    bool EsActivo);

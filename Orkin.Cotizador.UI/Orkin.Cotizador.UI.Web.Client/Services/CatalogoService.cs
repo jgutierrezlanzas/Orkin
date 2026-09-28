@@ -124,4 +124,46 @@ public sealed class CatalogoService
         var response = await _http.PutAsJsonAsync($"api/catalogos/tipos-servicio/{modelo.Id}", request);
         return await response.Content.ReadFromJsonAsync<ApiResponse<TipoServicioModel>>();
     }
+
+    public async Task<List<ProductoModel>> ListarProductosAsync()
+    {
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<ProductoModel>>>("api/catalogos/productos");
+        return respuesta?.Datos ?? [];
+    }
+
+    public async Task<ApiResponse<ProductoModel>?> CrearProductoAsync(ProductoModel modelo)
+    {
+        var request = new
+        {
+            modelo.Codigo,
+            modelo.Nombre,
+            modelo.Descripcion,
+            modelo.CategoriaId,
+            modelo.UnidadMedidaId,
+            modelo.CostoActual,
+            modelo.PrecioVentaActual,
+            modelo.VidaUtilMeses
+        };
+
+        var response = await _http.PostAsJsonAsync("api/catalogos/productos", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<ProductoModel>>();
+    }
+
+    public async Task<ApiResponse<ProductoModel>?> ActualizarProductoAsync(ProductoModel modelo)
+    {
+        var request = new
+        {
+            modelo.Nombre,
+            modelo.Descripcion,
+            modelo.CategoriaId,
+            modelo.UnidadMedidaId,
+            modelo.CostoActual,
+            modelo.PrecioVentaActual,
+            modelo.VidaUtilMeses,
+            modelo.EsActivo
+        };
+
+        var response = await _http.PutAsJsonAsync($"api/catalogos/productos/{modelo.Id}", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<ProductoModel>>();
+    }
 }

@@ -1,0 +1,204 @@
+@page "/catalogos/productos"
+@attribute [Authorize("CATALOGOS.VER")]
+@layout MainLayout
+@inject CatalogoService CatalogoService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Productos</MudText>
+
+    @if (_puedeEditar)
+    {
+        <MudPaper Elevation="2" Class="pa-4 mb-6">
+            <MudText Typo="Typo.h6" Class="mb-4">@(_editando ? "Editar" : "Nuevo") producto</MudText>
+            <MudGrid>
+                <MudItem xs="12" md="2">
+                    <MudTextField @bind-Value="_modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_editando" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudSelect T="Guid?" @bind-Value="_modelo.CategoriaId" Label="Categoría" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var categoria in _categorias)
+                        {
+                            <MudSelectItem T="Guid?" Value="categoria.Id">@categoria.Nombre</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudSelect T="Guid" @bind-Value="_modelo.UnidadMedidaId" Label="Unidad de medida" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var unidad in _unidades)
+                        {
+                            <MudSelectItem T="Guid" Value="unidad.Id">@unidad.Nombre (@unidad.Abreviatura)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_modelo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudNumericField @bind-Value="_modelo.CostoActual" Label="Costo" Variant="Variant.Outlined" Margin="Margin.Dense" Format="N2" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudNumericField @bind-Value="_modelo.PrecioVentaActual" Label="Precio venta" Variant="Variant.Outlined" Margin="Margin.Dense" Format="N2" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudNumericField @bind-Value="_modelo.VidaUtilMeses" Label="Vida útil (meses)" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+                </MudItem>
+                @if (_editando)
+                {
+                    <MudItem xs="12" md="2">
+                        <MudSwitch @bind-Value="_modelo.EsActivo" Label="Activo" Color="Color.Primary" />
+                    </MudItem>
+                }
+            </MudGrid>
+            <div class="d-flex justify-end mt-4">
+                @if (_editando)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar" Class="mr-2">Cancelar</MudButton>
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar" Disabled="_guardando">
+                    @if (_guardando)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    }
+                    else
+                    {
+                        <MudText>Guardar</MudText>
+                    }
+                </MudButton>
+            </div>
+        </MudPaper>
+    }
+
+    <MudTable Items="_productos" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Código</MudTh>
+            <MudTh>Nombre</MudTh>
+            <MudTh>Categoría</MudTh>
+            <MudTh>UM</MudTh>
+            <MudTh>Costo</MudTh>
+            <MudTh>Precio</MudTh>
+            <MudTh>Vida útil</MudTh>
+            <MudTh>Activo</MudTh>
+            @if (_puedeEditar)
+            {
+                <MudTh>Acciones</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Código">@context.Codigo</MudTd>
+            <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+            <MudTd DataLabel="Categoría">@(context.CategoriaNombre ?? "-")</MudTd>
+            <MudTd DataLabel="UM">@(context.UnidadMedidaAbreviatura ?? "-")</MudTd>
+            <MudTd DataLabel="Costo">@context.CostoActual.ToString("N2")</MudTd>
+            <MudTd DataLabel="Precio">@context.PrecioVentaActual.ToString("N2")</MudTd>
+            <MudTd DataLabel="Vida útil">@(context.VidaUtilMeses?.ToString() ?? "-")</MudTd>
+            <MudTd DataLabel="Activo">
+                <MudIcon Icon="@(context.EsActivo ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" />
+            </MudTd>
+            @if (_puedeEditar)
+            {
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Editar(context))" />
+                </MudTd>
+            }
+        </RowTemplate>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<ProductoModel> _productos = [];
+    private List<CategoriaProductoModel> _categorias = [];
+    private List<UnidadMedidaModel> _unidades = [];
+    private ProductoModel _modelo = new();
+    private bool _cargando;
+    private bool _guardando;
+    private bool _editando;
+    private bool _puedeEditar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+            _puedeEditar = estado.User.HasClaim("orkin:permiso", "CATALOGOS.EDITAR");
+            _categorias = await CatalogoService.ListarCategoriasProductoAsync();
+            _unidades = await CatalogoService.ListarUnidadesMedidaAsync();
+            _productos = await CatalogoService.ListarProductosAsync();
+
+            if (_unidades.Count > 0 && _modelo.UnidadMedidaId == Guid.Empty)
+            {
+                _modelo.UnidadMedidaId = _unidades[0].Id;
+            }
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void Editar(ProductoModel producto)
+    {
+        _modelo = new ProductoModel
+        {
+            Id = producto.Id,
+            Codigo = producto.Codigo,
+            Nombre = producto.Nombre,
+            Descripcion = producto.Descripcion,
+            CategoriaId = producto.CategoriaId,
+            UnidadMedidaId = producto.UnidadMedidaId,
+            CostoActual = producto.CostoActual,
+            PrecioVentaActual = producto.PrecioVentaActual,
+            VidaUtilMeses = producto.VidaUtilMeses,
+            EsActivo = producto.EsActivo
+        };
+        _editando = true;
+    }
+
+    private void Cancelar()
+    {
+        _modelo = new ProductoModel();
+        if (_unidades.Count > 0)
+        {
+            _modelo.UnidadMedidaId = _unidades[0].Id;
+        }
+        _editando = false;
+    }
+
+    private async Task Guardar()
+    {
+        _guardando = true;
+        try
+        {
+            ApiResponse<ProductoModel>? respuesta;
+
+            if (_editando)
+            {
+                respuesta = await CatalogoService.ActualizarProductoAsync(_modelo);
+            }
+            else
+            {
+                respuesta = await CatalogoService.CrearProductoAsync(_modelo);
+            }
+
+            if (respuesta?.Exito == true)
+            {
+                Snackbar.Add("Guardado correctamente.", Severity.Success);
+                Cancelar();
+                _productos = await CatalogoService.ListarProductosAsync();
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

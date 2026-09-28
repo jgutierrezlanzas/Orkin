@@ -34,3 +34,20 @@ public sealed class TipoServicioModel
     public int Orden { get; set; }
     public bool EsActivo { get; set; }
 }
+
+public sealed class ProductoModel
+{
+    public Guid Id { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public string? Descripcion { get; set; }
+    public Guid? CategoriaId { get; set; }
+    public string? CategoriaNombre { get; set; }
+    public Guid UnidadMedidaId { get; set; }
+    public string? UnidadMedidaNombre { get; set; }
+    public string? UnidadMedidaAbreviatura { get; set; }
+    public decimal CostoActual { get; set; }
+    public decimal PrecioVentaActual { get; set; }
+    public int? VidaUtilMeses { get; set; }
+    public bool EsActivo { get; set; }
+}

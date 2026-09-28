@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<UnidadMedidaService>();
         services.AddScoped<CategoriaProductoService>();
         services.AddScoped<TipoServicioService>();
+        services.AddScoped<ProductoService>();
 
         return services;
     }
