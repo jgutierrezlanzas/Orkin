@@ -23,15 +23,21 @@ namespace Orkin.Cotizador.Api.Controllers;
 /// agrega al final es la emisión del token. Reimplementar la validación de contraseña sería tirar
 /// abajo la protección contra la fuerza bruta y todo el trabajo de hasheado que Identity ya
 /// resuelve.</para>
+/// <para><b>Por qué <c>CheckPasswordSignInAsync</c> y no <c>PasswordSignInAsync</c>:</b> porque
+/// el segundo establece la sesión al validar la contraseña, y establecer la sesión para Identity
+/// es escribir una cookie. Se comprobó con <c>AddIdentity</c>: cada ingreso devolvía un
+/// <c>Set-Cookie</c> de <c>.AspNetCore.Identity.Application</c> con la identidad de la persona
+/// dentro, y ese documento seguía sirviendo después de cerrar sesión. El token es la sesión, y
+/// el token lo emite el emisor; la verificación no tiene que establecer nada.</para>
 /// <para><b>Por qué los tres endpoints no devuelven lo mismo:</b> el ingreso devuelve un token,
 /// porque es lo único que cambia. Salir devuelve un mensaje. Y "quién soy" devuelve los datos del
 /// usuario, que es una lectura normal. Un endpoint único que hiciera las tres cosas terminaría
 /// devolviendo un token <c>null</c> en dos de los tres casos, y quien lo consuma tendría que
 /// distinguir tres formas de "nada" en el mismo campo.</para>
 /// <para><b>Por qué no hay aquí ningún <c>[Authorize]</c> con código de permiso:</b> este
-/// permiso sería "poder entrar", y el que decide si se entra es el <c>PasswordSignInAsync</c> con
-/// la contraseña correcta. Poner un permiso exigido en el ingreso obligaría a que el primer usuario
-/// de la base existiera con ese permiso para poder crear al segundo, que es unhueco de arranque
+/// permiso sería "poder entrar", y el que decide si se entra es el <c>CheckPasswordSignInAsync</c>
+/// con la contraseña correcta. Poner un permiso exigido en el ingreso obligaría a que el primer usuario
+/// de la base existiera con ese permiso para poder crear al segundo, que es un hueco de arranque
 /// que no vale la pena abrir.</para>
 /// </summary>
 [ApiController]
@@ -113,8 +119,16 @@ public sealed class AuthController : ControllerBase
                 .AHttp();
         }
 
-        var resultado = await _ingreso.PasswordSignInAsync(
-            usuario, solicitud.Contrasena, lockoutOnFailure: true, isPersistent: false);
+        // CheckPasswordSignInAsync y no PasswordSignInAsync. Los dos hacen lo mismo con la
+        // contraseña y el bloqueo, y se diferencian en una cosa: PasswordSignInAsync, cuando la
+        // contraseña es correcta, además establece la sesión, y establecer la sesión para Identity
+        // es escribir una cookie. Esa cookie no la revocaba el cierre de sesión, que solo revoca
+        // el identificador del token, así que era una segunda credencial de sesión sin cierre.
+        //
+        // Acá no hay nada que establecer: la sesión de esta API es el token, y lo emite el
+        // EmisorJwt tres líneas más abajo. Por eso el método correcto es el que solo verifica.
+        var resultado = await _ingreso.CheckPasswordSignInAsync(
+            usuario, solicitud.Contrasena, lockoutOnFailure: true);
 
         if (resultado.IsLockedOut)
         {

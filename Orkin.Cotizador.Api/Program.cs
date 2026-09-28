@@ -149,9 +149,23 @@ public static class Program
         var configuration = construccion.Configuration;
 
         // ── Identity ────────────────────────────────────────────────────────────────
-        // AddIdentity y no AddIdentityCore porque hacen falta SignInManager y UserManager con
-        // todas sus validaciones de contraseña. Lo que no se usa es el lado de las cookies: la
-        // API no autentica por cookie, y el token es lo único que viaja.
+        // AddIdentity y no AddIdentityCore porque AddIdentityCore no registra el
+        // SignInManager, que es justo lo que valida la contraseña y cuenta los intentos. El
+        // precio de esa elección son cuatro esquemas de cookie que esta API no usa, y el precio
+        // se paga en dos lugares concretos, que son los dos que se corrigen más abajo:
+        //
+        //  1. AddIdentity deja el DefaultChallengeScheme en Identity.Application, así que cada
+        //     401 terminaba en un CookieAuthenticationHandler del log. Se corrige fijando los
+        //     tres esquemas por defecto en el JWT, en el bloque de más abajo.
+        //  2. PasswordSignInAsync establece la sesión al validar la contraseña, y establecer la
+        //     sesión para Identity es escribir una cookie. Se comprobó: cada ingreso devolvía un
+        //     Set-Cookie de .AspNetCore.Identity.Application con la identidad de la persona
+        //     dentro, y ese documento no lo revocaba el cierre de sesión, que solo revoca el
+        //     identificador del token. Se corrige usando CheckPasswordSignInAsync, que verifica
+        //     lo mismo y no establece nada. Ver AuthController.LoginAsync.
+        //
+        // Lo que se conserva de Identity es el hasheado de contraseñas, el contador de intentos y
+        // el bloqueo, que es lo que no conviene reimplementar.
         //
         // La política de contraseña se deja en el mínimo razonable y no se endurece: la cuenta
         // Administrador del arranque tiene que poder crearse con la contraseña que viene en el .env
@@ -198,18 +212,33 @@ public static class Program
             .ValidateOnStart();
 
         // ── JWT ─────────────────────────────────────────────────────────────────────
+        // Los tres esquemas por defecto se fijan al JWT, y no solo el de autenticación. AddIdentity
+        // los deja en sus propios esquemas de cookie, así que sin esto el de desafío terminaba en
+        // un CookieAuthenticationHandler: no rompía nada, porque la cookie nunca se emitía, pero
+        // metía una línea de log que parece un problema de autenticación en cada 401 de la API.
+        //
+        // El de ingreso también se fija, aunque hoy nada firme con cookie. Un DefaultSignInScheme
+        // que apunta a Identity.External es una puerta abierta para el día que alguien escriba
+        // un SignInAsync por costumbre: el token y la cookie pasarían a valer los dos, y solo uno
+        // de los dos se revoca al cerrar sesión.
+        //
         // El bloque se lee otra vez porque AddJwtBearer recibe un delegado, no un IOptions: la
-        // alguien autentica. Que se lea con Get y no con IOptions es a prop
-        // sito: por IOptions habria que resolver una instancia de SeguridadOptions en el
-        // momento de armar el handler, y hoy solo hace falta una copia de cuatro cadenas
-        // que nadie va a cambiar mientras el proceso corra.
-        // inmutable de cuatro cadenas.
+        // configuración tiene que estar resuelta en el momento de armar el handler, que es al
+        // arrancar, y no cuando alguien autentica. Que se lea con Get y no con IOptions es a
+        // propósito: por IOptions habría que resolver una instancia de SeguridadOptions al
+        // construir el handler, y hoy solo hace falta una copia de cuatro cadenas que nadie va a
+        // cambiar mientras el proceso corra.
         var seguridad = configuration.GetSection(SeguridadOptions.Seccion).Get<SeguridadOptions>()
             ?? new SeguridadOptions();
 
         construccion.Services
             .AddAuthentication(esquema =>
-                esquema.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme)
+            {
+                esquema.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                esquema.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                esquema.DefaultSignInScheme = JwtBearerDefaults.AuthenticationScheme;
+                esquema.DefaultForbidScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
             .AddJwtBearer(esquema =>
             {
                 esquema.TokenValidationParameters = ParametroValidacion(seguridad);
