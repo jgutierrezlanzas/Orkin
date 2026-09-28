@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Orkin.Cotizador.Core.Application.Catalogos;
+using Orkin.Cotizador.Core.Application.Cotizaciones;
 using Orkin.Cotizador.Core.Application.Sistema;
 using Orkin.Cotizador.Core.Infrastructure.Persistence;
 
@@ -43,6 +44,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TipoServicioService>();
         services.AddScoped<ProductoService>();
         services.AddScoped<ClienteService>();
+        services.AddScoped<TipoCambioService>();
+        services.AddScoped<CotizacionService>();
 
         return services;
     }

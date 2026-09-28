@@ -173,3 +173,28 @@ public sealed record ActualizarClienteRequest(
     string? SitioWeb,
     string? Notas,
     bool EsActivo);
+
+/// <summary>Respuesta de un tipo de cambio.</summary>
+public sealed record TipoCambioResponse(
+    Guid Id,
+    DateOnly Fecha,
+    decimal Valor,
+    byte FuenteId,
+    string FuenteNombre,
+    bool EsActivo);
+
+public sealed record FuenteTipoCambioOption(
+    byte Id,
+    string Codigo,
+    string Nombre);
+
+public sealed record CrearTipoCambioRequest(
+    DateOnly Fecha,
+    decimal Valor,
+    byte FuenteId);
+
+public sealed record ActualizarTipoCambioRequest(
+    DateOnly Fecha,
+    decimal Valor,
+    byte FuenteId,
+    bool EsActivo);
