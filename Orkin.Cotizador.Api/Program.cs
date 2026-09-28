@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -61,16 +63,25 @@ public static class Program
     {
         OnTokenValidated = contexto =>
         {
-            var identificador = contexto.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+            var principal = contexto.Principal;
 
-            if (string.IsNullOrEmpty(identificador))
+            if (principal is null)
             {
                 return Task.CompletedTask;
             }
 
+            var identificador = principal.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+
+            // El usuario y la hora de emisión solo hacen falta para el corte por usuario, que es lo
+            // que mata las sesiones abiertas de alguien a quien le cambiaron la contraseña. Si el
+            // token no los trae, se revisa igual la lista de identificadores: menos es mejor que
+            // dejar de revisar. Ver RevocacionTokens.EstaRevocado.
+            var usuario = principal.FindFirst(Claims.Id)?.Value;
+            var emitido = MomentoDeEmision(principal);
+
             var revocacion = contexto.HttpContext.RequestServices.GetRequiredService<RevocacionTokens>();
 
-            if (revocacion.EstaRevocado(identificador))
+            if (revocacion.EstaRevocado(identificador ?? string.Empty, usuario, emitido))
             {
                 contexto.Fail("El token fue revocado en un cierre de sesión.");
             }
@@ -78,6 +89,30 @@ public static class Program
             return Task.CompletedTask;
         }
     };
+
+    /// <summary>
+    /// Cuándo se emitió el token, en UTC.
+    /// <para><b>Por qué se buscan dos claims:</b> el token trae <c>iat</c> y <c>nbf</c>, y los dos
+    /// valen, pero el <c>JwtSecurityTokenHandler</c> traduce al crear el principal los nombres
+    /// cortos que conoce, y no todos los claim sobreviven con el mismo nombre. Se intenta el uno y
+    /// luego el otro, y si ninguno está se devuelve <c>null</c>: es preferible no poder aplicar el
+    /// corte a no adivinar una fecha, porque una fecha inventada revoca tokens que sí deberían
+    /// servir.</para>
+    /// </summary>
+    private static DateTime? MomentoDeEmision(ClaimsPrincipal principal)
+    {
+        foreach (var nombre in new[] { JwtRegisteredClaimNames.Iat, JwtRegisteredClaimNames.Nbf })
+        {
+            var texto = principal.FindFirst(nombre)?.Value;
+
+            if (long.TryParse(texto, NumberStyles.Integer, CultureInfo.InvariantCulture, out var segundos))
+            {
+                return DateTimeOffset.FromUnixTimeSeconds(segundos).UtcDateTime;
+            }
+        }
+
+        return null;
+    }
 
     public static void Main(string[] args)
     {

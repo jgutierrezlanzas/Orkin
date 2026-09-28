@@ -24,9 +24,29 @@ namespace Orkin.Cotizador.Api.Seguridad;
 /// sigue sirviendo en las otras réplicas hasta que vence. Lo que no se hace es fingir lo contrario:
 /// el token se valida en todas, y el que se revoca es el identificador, que es lo único que la
 /// lista puede comprobar sin volver a la base.</para>
+/// <para><b>Por qué hace falta el corte además de la revocación por token:</b> cambiar la contraseña
+/// tiene que matar las sesiones abiertas de esa persona en otros navegadores, y esos tokens no están
+/// en el servidor: están en el navegador de cada uno. La lista solo conoce los identificadores que
+/// alguien le pasó, y en el momento de cambiar la contraseña el servidor conoce uno —el de quien está
+/// haciendo el cambio—. Por eso, además de revocar identificadores, hay un corte por usuario: la
+/// hora desde la que ningún token de esa persona sirve. Un token anterior al corte está muerto, y
+/// tampoco hace falta saber cuáles son.</para>
+/// <para><b>Por qué no se consulta el sello de seguridad en cada petición:</b> sería la otra manera
+/// de resolverlo —poner el sello en el token y compararlo con el de la base—, y funciona. Pero es
+/// una consulta a la base en cada petición, que es justo lo que se pagó para no tener: los permisos
+/// viajan en el token para que decidir sea comparar cadenas en memoria. El corte mantiene la misma
+/// propiedad: se consulta en memoria, y solo se escribe cuando alguien cambia su contraseña.</para>
 /// </summary>
 public sealed class RevocacionTokens
 {
+    /// <summary>
+    /// Cuánto vive una entrada de corte. Es el techo de lo que un token puede tardar en morir, y
+    /// <c>Seguridad:HorasValidez</c> está acotado a 24 horas en el arranque, así que un día cubre
+    /// con holgura cualquier token posible. Pasado ese día la entrada se borra sola, y para entonces
+    /// todos los tokens anteriores al corte ya vencieron igual.
+    /// </summary>
+    private static readonly TimeSpan VidaDelCorte = TimeSpan.FromDays(1);
+
     private readonly IMemoryCache _cache;
 
     public RevocacionTokens(IMemoryCache cache)
@@ -53,10 +73,53 @@ public sealed class RevocacionTokens
         return Task.CompletedTask;
     }
 
-    /// <summary><c>true</c> si ese token fue revocado explícitamente.</summary>
-    public bool EstaRevocado(string identificador) =>
-        !string.IsNullOrWhiteSpace(identificador)
-        && _cache.TryGetValue(Clave(identificador), out bool _);
+    /// <summary>
+    /// Mata todos los tokens de esa persona que se emitieron antes de <paramref name="desdeUtc"/>.
+    /// <para><b>Por qué no se retrocede un corte ya puesto:</b> si alguien cambia la contraseña dos
+    /// veces en el mismo minuto, el segundo corte puede tener la misma fecha o una anterior. Retroceder
+    /// dejaría vivos los tokens que el primer corte había matado, y el orden importa: un corte es una
+    /// promesa de que antes de esa hora no vale nada.</para>
+    /// </summary>
+    public void CortarSesiones(Guid usuarioId, DateTime desdeUtc)
+    {
+        if (usuarioId == Guid.Empty)
+        {
+            return;
+        }
+
+        var clave = ClaveDelCorte(usuarioId.ToString("D"));
+
+        if (_cache.TryGetValue(clave, out DateTime actual) && actual <= desdeUtc)
+        {
+            return;
+        }
+
+        _cache.Set(clave, desdeUtc, VidaDelCorte);
+    }
+
+    /// <summary>
+    /// <c>true</c> si ese token fue revocado explícitamente, o si es anterior al corte de su usuario.
+    /// <para><b>Por qué los dos datos son opcionales:</b> un token puede venir sin usuario o sin
+    /// fecha de emisión si lo emitió otro sistema, y en ese caso solo se puede comprobar la lista
+    /// de identificadores. Un token al que le falta la fecha no queda vivo por eso: lo que no se
+    /// puede comprobar es que no fue revocado, y el resto de la validación —firma, emisor, audiencia
+    /// y vigencia— ya la hizo el <c>JwtBearer</c> antes de llegar acá.</para>
+    /// </summary>
+    public bool EstaRevocado(string identificador, string? usuario = null, DateTime? emitidoUtc = null)
+    {
+        if (!string.IsNullOrWhiteSpace(identificador)
+            && _cache.TryGetValue(Clave(identificador), out bool _))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(usuario) || emitidoUtc is not { } emitido)
+        {
+            return false;
+        }
+
+        return _cache.TryGetValue(ClaveDelCorte(usuario), out DateTime corte) && emitido < corte;
+    }
 
     /// <summary>
     /// La clave incluye el nombre del proceso, porque la caché es por instancia: en una
@@ -64,4 +127,12 @@ public sealed class RevocacionTokens
     /// de un nodo se confunda con el de otro al leer logs o al depurar.
     /// </summary>
     private static string Clave(string identificador) => $"token-revocado:{Environment.MachineName}:{identificador}";
+
+    /// <summary>
+    /// El prefijo es distinto a propósito. Si compartiera función con la clave de revocación, un
+    /// identificador de token tendría que ser un <c>Guid</c> con la misma forma que el de usuario
+    /// para poder pisar la entrada, y dos cosas que solo se diferencian en el texto no deberían
+    /// depender de que nadie se acuerde de la diferencia.
+    /// </summary>
+    private static string ClaveDelCorte(string usuario) => $"token-corte:{Environment.MachineName}:{usuario}";
 }
