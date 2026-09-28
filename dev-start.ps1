@@ -4,79 +4,82 @@
     Levanta el entorno de desarrollo de ORKIN Cotizador.
 
 .DESCRIPTION
-    1. Arranca SQL Server con docker compose (si no está corriendo).
-    2. Espera a que la base esté saludable.
-    3. Aplica migraciones de EF Core.
-    4. Lanza la API y la UI en ventanas separadas.
+    Levanta SQL Server y la API con docker compose, y luego arranca la web
+    localmente para poder depurarla.
 
-    La API escucha en http://localhost:5031 y la UI en http://localhost:59793.
+    - SQL Server + API → Docker (docker-compose.yml)
+    - Web (Blazor WASM) → dotnet run local (debug, hot-reload)
+
+    Al terminar:
+      - API:  http://localhost:5031 (Swagger: /swagger)
+      - Web:  http://localhost:59793
+      - BD:   localhost:1433 (OrkinCotizador)
+
+.USAGE
+    .\dev-start.ps1          # levanta todo
+    .\dev-start.ps1 -SoloWeb # solo la web (si ya tienes docker compose corriendo)
+
 #>
 
-$ErrorActionPreference = 'Stop'
+param(
+    [switch]$SoloWeb
+)
 
+$ErrorActionPreference = 'Stop'
 $repoRoot = $PSScriptRoot
-$composeFile = Join-Path $repoRoot 'docker-compose.yml'
 
 Write-Host '=== ORKIN Cotizador - dev-start ===' -ForegroundColor Green
 
-# 1. SQL Server
-Write-Host 'Levantando SQL Server...' -ForegroundColor Cyan
-& docker compose -f $composeFile up -d
+if (-not $SoloWeb) {
+    # 1. Levantar SQL Server + API en Docker
+    Write-Host 'Levantando SQL Server + API en Docker...' -ForegroundColor Cyan
+    & docker compose -f (Join-Path $repoRoot 'docker-compose.yml') up -d --build
 
-# 2. Esperar a que responda
-$maxIntentos = 30
-$intentos = 0
-$saludable = $false
+    if ($LASTEXITCODE -ne 0) {
+        throw 'docker compose fallo. Revise el output arriba.'
+    }
 
-while ($intentos -lt $maxIntentos -and -not $saludable) {
-    $intentos++
-    try {
-        $resultado = docker exec orkin-cotizador-db /opt/mssql-tools18/bin/sqlcmd `
-            -S localhost -U sa -P 'OrkinDev_2026' -C -Q 'SELECT 1' 2>$null
-        if ($resultado -match '1') {
-            $saludable = $true
-            Write-Host 'SQL Server listo.' -ForegroundColor Green
+    # 2. Esperar a que la API responda
+    Write-Host 'Esperando a la API...' -ForegroundColor Cyan
+    $maxIntentos = 30
+    $intentos = 0
+    $apiLista = $false
+
+    while ($intentos -lt $maxIntentos -and -not $apiLista) {
+        $intentos++
+        try {
+            $response = Invoke-RestMethod -Uri 'http://localhost:5031/health' -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
+            if ($response.datos.estado -eq 'VIVO') {
+                $apiLista = $true
+                Write-Host "API lista (intento $intentos)." -ForegroundColor Green
+            }
+        }
+        catch {
+            Write-Host "  esperando... ($intentos/$maxIntentos)" -ForegroundColor DarkGray
+            Start-Sleep -Seconds 2
         }
     }
-    catch {
-        Write-Host "  esperando base de datos... ($intentos/$maxIntentos)" -ForegroundColor DarkGray
-        Start-Sleep -Seconds 2
+
+    if (-not $apiLista) {
+        throw 'La API no respondio a tiempo. Revise: docker compose logs api'
     }
 }
 
-if (-not $saludable) {
-    throw 'SQL Server no respondio a tiempo. Revise docker logs orkin-cotizador-db.'
-}
+# 3. Arrancar la Web localmente (debug)
+Write-Host 'Iniciando Web (http://localhost:59793)...' -ForegroundColor Cyan
 
-# 3. Aplicar migraciones
-Write-Host 'Aplicando migraciones...' -ForegroundColor Cyan
-& dotnet ef database update `
-    --project (Join-Path $repoRoot 'Orkin.Cotizador.Core.Infrastructure\Orkin.Cotizador.Core.Infrastructure.csproj') `
-    --startup-project (Join-Path $repoRoot 'Orkin.Cotizador.Api\Orkin.Cotizador.Api.csproj') `
-    --no-build
+$webProject = Join-Path $repoRoot 'Orkin.Cotizador.UI\Orkin.Cotizador.UI.Web\Orkin.Cotizador.UI.Web.csproj'
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
+$env:ASPNETCORE_URLS = 'http://localhost:59793'
 
-# 4. Arrancar API y UI
-Write-Host 'Iniciando API (http://localhost:5031)...' -ForegroundColor Cyan
-$apiArgs = @(
-    'run',
-    '--project', (Join-Path $repoRoot 'Orkin.Cotizador.Api\Orkin.Cotizador.Api.csproj'),
-    '--no-build',
-    '--no-launch-profile'
-)
-Start-Process -FilePath 'dotnet' -ArgumentList $apiArgs -WorkingDirectory $repoRoot `
-    -WindowStyle Normal -Environment @{ ASPNETCORE_ENVIRONMENT = 'Development'; ASPNETCORE_URLS = 'http://localhost:5031' }
-
-Write-Host 'Iniciando UI (http://localhost:59793)...' -ForegroundColor Cyan
-$uiArgs = @(
-    'run',
-    '--project', (Join-Path $repoRoot 'Orkin.Cotizador.UI\Orkin.Cotizador.UI.Web\Orkin.Cotizador.UI.Web.csproj'),
-    '--no-build',
-    '--no-launch-profile'
-)
-Start-Process -FilePath 'dotnet' -ArgumentList $uiArgs -WorkingDirectory $repoRoot `
-    -WindowStyle Normal -Environment @{ ASPNETCORE_ENVIRONMENT = 'Development'; ASPNETCORE_URLS = 'http://localhost:59793' }
+& dotnet run --project $webProject
 
 Write-Host ''
 Write-Host 'Ambiente de desarrollo listo:' -ForegroundColor Green
-Write-Host '  API: http://localhost:5031/swagger' -ForegroundColor White
-Write-Host '  UI:  http://localhost:59793/login' -ForegroundColor White
+Write-Host '  API:     http://localhost:5031/swagger' -ForegroundColor White
+Write-Host '  Web:     http://localhost:59793/login' -ForegroundColor White
+Write-Host '  Admin:   admin@orkin.local / OrkinDev_2026' -ForegroundColor White
+Write-Host ''
+Write-Host 'Para detener:' -ForegroundColor Yellow
+Write-Host '  Ctrl+C detiene la web' -ForegroundColor Yellow
+Write-Host '  docker compose down detiene SQL Server y la API' -ForegroundColor Yellow

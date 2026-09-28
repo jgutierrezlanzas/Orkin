@@ -478,21 +478,47 @@ Orkin.Cotizador.ApiClient  →  Orkin.Cotizador.Core.Application
 
 ### 4.4 Cómo levantar el ambiente de desarrollo
 
-Requisitos: Docker, .NET 10 SDK, PowerShell 7.
+Requisitos: Docker Desktop, .NET 10 SDK, PowerShell 7.
+
+**Arquitectura del entorno de desarrollo:**
+
+| Componente | Dónde corre | Puerto |
+|---|---|---|
+| SQL Server 2022 | Docker (`docker-compose.yml`) | `localhost:1433` |
+| API (.NET 10) | Docker (`docker-compose.yml`) | `localhost:5031` |
+| Web (Blazor WASM) | Local con `dotnet run` (debug) | `localhost:59793` |
+
+La API y la base en Docker simplifican el arranque: un solo `docker compose up` deja
+la infraestructura lista. La web corre local para poder depurarla con hot-reload.
 
 ```powershell
 .\dev-start.ps1
 ```
 
 El script hace:
-1. Levanta SQL Server con `docker compose`.
-2. Espera a que la base responda.
-3. Aplica las migraciones de EF Core.
-4. Lanza la API (`http://localhost:5031`) y la UI (`http://localhost:59793`) en ventanas separadas.
+1. Levanta SQL Server + la API con `docker compose up -d --build`.
+2. Espera a que la API responda en `/health` (la primera vez aplica migraciones y siembra).
+3. Arranca la web en debug local.
+
+También puedes levantar solo la infraestructura y arrancar la web desde tu IDE:
+
+```powershell
+docker compose up -d --build    # SQL Server + API
+dotnet run --project Orkin.Cotizador.UI\Orkin.Cotizador.UI.Web   # web en debug
+```
 
 Para detener:
 ```powershell
-docker compose down
+# Ctrl+C detiene la web
+docker compose down   # detiene SQL Server y la API (los datos persisten en el volumen)
+```
+
+Útil durante el desarrollo:
+
+```powershell
+docker compose logs -f api      # ver el log de la API en vivo
+docker compose up -d --build    # reconstruir la API después de un cambio en el código
+docker compose exec db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'OrkinDev_2026' -C -Q 'SELECT 1'  # probar la base
 ```
 
 ### 4.5 Tests

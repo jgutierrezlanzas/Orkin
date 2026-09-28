@@ -1,3 +1,13 @@
+# Levanta SQL Server + API en Docker. La web (Blazor WASM) corre aparte en
+# debug local y consume la API en http://localhost:5031.
+#
+#   docker compose up -d --build     # levanta (o reconstruye) todo
+#   docker compose logs -f api       # ver el log de la API
+#   docker compose down              # detener (los datos persisten en el volumen)
+#
+# La primera vez la API aplica migraciones y siembra catálogos + usuario admin
+# automáticamente (RUN_SEED=true, CREATE_ADMIN_USER=true).
+
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -16,6 +26,47 @@ services:
       timeout: 5s
       retries: 6
       start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: Orkin.Cotizador.Api/Dockerfile
+    container_name: orkin-cotizador-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # ── Entorno ────────────────────────────────────────────────────────────
+      # Development: Swagger abierto, CORS con los orígenes locales, logs verbosos.
+      - ASPNETCORE_ENVIRONMENT=Development
+      # URL explícita: el ConfiguracionBootstrap reemplaza la configuración del host
+      # y con ella el URL que lee Kestrel. Sin esto, la API escucha en el default (5000)
+      # y el mapeo de puerto 5031:8080 no llega a nada.
+      - ASPNETCORE_URLS=http://+:8080
+
+      # ── Base de datos ───────────────────────────────────────────────────────
+      # Dentro de la red de Docker, SQL Server es "db" (el nombre del servicio),
+      # no "localhost". Encrypt=False porque el certificado autofirmado de SQL Server
+      # en el contenedor no pasa la validación TLS del runtime de Linux.
+      - Database__ConnectionString=Server=db,1433;Database=OrkinCotizador;User Id=sa;Password=OrkinDev_2026;TrustServerCertificate=True;Encrypt=False
+      - Database__AplicarMigracionesAlArrancar=true
+
+      # ── Seguridad (solo desarrollo; en producción van en un gestor) ─────────
+      - Seguridad__ClaveFirma=Ty0r6tQ0bhKJ8U2nsPnIuqMPsoswjP4F2MWQ0Z1O8VzY=
+
+      # ── Semilla inicial (solo la primera vez; luego es idempotente) ──────────
+      - RUN_SEED=true
+      - CREATE_ADMIN_USER=true
+      - ADMIN_EMAIL=admin@orkin.local
+      - ADMIN_PASSWORD=OrkinDev_2026
+
+      # ── CORS: la web local en debug consume la API desde estos orígenes ──────
+      - Cors__Origenes__0=http://localhost:59793
+      - Cors__Origenes__1=https://localhost:59790
+    ports:
+      # Host 5031 → contenedor 8080 (el puerto por defecto de .NET en Docker).
+      # La web local llama a http://localhost:5031 como si la API estuviera local.
+      - "5031:8080"
 
 volumes:
   orkin-cotizador-data:

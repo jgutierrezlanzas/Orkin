@@ -1,0 +1,45 @@
+# Qué NO entra al contexto de build de Docker.
+# Los .env* están excluidos porque llevan secretos: en el contenedor
+# la configuración entra por variables de ambiente del docker-compose.
+
+# Control de versiones
+.git
+.gitignore
+.github
+
+# Secretos locales — jamás entran a la imagen
+.env
+.env.*
+!.env.example
+
+# Artefactos de compilación
+**/bin/
+**/obj/
+**/node_modules/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# Documentación y scripts de desarrollo
+# OJO: scripts/seed/ SÍ entra a la imagen: es la semilla de catálogos que la API
+# necesita al arrancar (RUN_SEED=true). Solo se excluyen los scripts de desarrollo.
+docs/
+build/
+TestResults/
+
+# Proyectos que no necesita la imagen de la API
+Orkin.Cotizador.UI/
+Orkin.Cotizador.Tests/
+Orkin.Cotizador.ApiClient/
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Archivos de datos
+*.xlsx
+*.csv
+*.json.bak

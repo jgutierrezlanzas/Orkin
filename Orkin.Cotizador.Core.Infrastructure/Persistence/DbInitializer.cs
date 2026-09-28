@@ -103,10 +103,23 @@ public sealed class DbInitializer : IHostedService
     /// Reintenta abrir la conexión con espera exponencial acotada. Sin esto, levantar la API y el
     /// contenedor de SQL Server a la vez produce un arranque fallido la mitad de las veces, y el
     /// síntoma —"no se pudo abrir la conexión"— no dice que el problema es de orden de arranque.
+    /// <para><b>Por qué contra <c>master</c> y no contra la base de la aplicación:</b> en un
+    /// arranque limpio —volumen nuevo de Docker, base recién creada— la base de la aplicación
+    /// todavía no existe; la crean las migraciones que corren <b>después</b> de este chequeo.
+    /// Chequear contra una base que no existe produce el error 4060 ("Cannot open database")
+    /// que no es un problema de conectividad sino de orden de arranque, y el reintento no lo
+    /// resuelve porque la base no va a aparecer sola. <c>master</c> siempre existe: si
+    /// responde, el servidor está arriba y las migraciones pueden trabajar.</para>
     /// </summary>
     private async Task EsperarBaseDeDatosAsync(CancellationToken cancellationToken)
     {
         Exception? ultimoError = null;
+
+        var constructor = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(
+            _baseDeDatos.ConnectionString)
+        {
+            InitialCatalog = "master"
+        };
 
         for (var intento = 1; intento <= IntentosMaximos; intento++)
         {
@@ -114,14 +127,11 @@ public sealed class DbInitializer : IHostedService
 
             try
             {
-                using var sondeo = CrearContextoLimpio();
-                var abierta = await sondeo.Database.CanConnectAsync(cancellationToken);
+                using var sondeo = new Microsoft.Data.SqlClient.SqlConnection(constructor.ConnectionString);
+                await sondeo.OpenAsync(cancellationToken);
 
-                if (abierta)
-                {
-                    _logger.LogInformation("Conexión con SQL Server establecida.");
-                    return;
-                }
+                _logger.LogInformation("SQL Server responde.");
+                return;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -131,7 +141,7 @@ public sealed class DbInitializer : IHostedService
             var espera = TimeSpan.FromSeconds(Math.Min(EsperaMaximaSegundos, Math.Pow(2, intento - 1)));
 
             _logger.LogWarning(
-                "La base todavía no responde (intento {Intento} de {Intentos}). Reintento en {Espera}s.",
+                "SQL Server todavía no responde (intento {Intento} de {Intentos}). Reintento en {Espera}s.",
                 intento,
                 IntentosMaximos,
                 espera.TotalSeconds);
