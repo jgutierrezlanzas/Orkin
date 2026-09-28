@@ -595,9 +595,9 @@ ERP** sin cambiar el modelo (ver Fase 12).
 | 0.2 | Crear `Orkin.Cotizador.slnx` con los **8** proyectos (sin MAUI) | Solución con `Debug;Release;Staging` | ✅ |
 | 0.3 | `Core.Domain`: `BaseEntity`, enums, entidades POCO | Código compilando | ✅ |
 | 0.4 | `Core.Application` + `Core.Infrastructure`: DTOs, interfaces, DI, `CotizadorDbContext` con los 4 esquemas | `AddApplicationServices()` / `AddInfrastructure()` | ✅ |
-| 0.5 | `Api`: `Program.cs`, Swagger, `GlobalExceptionMiddleware`, `ApiResponse<T>`, `HealthController` | `/swagger` y `/health` verdes | ⬜ |
+| 0.5 | `Api`: `Program.cs`, Swagger, `GlobalExceptionMiddleware`, `ApiResponse<T>`, `HealthController` | `/swagger` y `/health` verdes | ✅ |
 | 0.6 | `UI.Shared` + `UI.Web` + `UI.Web.Client`: layout base, tema MudBlazor con la paleta del Prototipo D, `Home` de humo | App carga y muestra el sidebar | ⬜ |
-| 0.7 | Migración inicial de EF Core (desde `docs/BASE-DE-DATOS.md`) + `DbInitializer` (catálogos vacíos, admin, roles, permisos, consecutivos) | BD creada con `dotnet ef` | ⬜ |
+| 0.7 | Migración inicial de EF Core (desde `docs/BASE-DE-DATOS.md`) + `DbInitializer` (catálogos vacíos, admin, roles, permisos, consecutivos) | BD creada con `dotnet ef` | ✅ |
 | 0.8 | `.env.dev.example`, `.env.dev`, `dev-start.ps1`, `dev-start.sh`, `docker-compose.yml` (SQL Server + API + web) | `dev-start` levanta todo | ⬜ |
 | 0.9 | `nuget.config`, `.gitignore`, `.dockerignore`, `Dockerfile` × 2, `docker-compose.prod.yml` | Base de despliegue | ⬜ |
 | 0.10 | Git init + estructura de ramas (`main` / `staging`) + `.github/workflows` esqueleto | Repo listo | ⬜ |
@@ -941,7 +941,7 @@ Una tarea se marca ✅ solo si cumple **todo** lo siguiente:
 
 | Fase | Nombre | Estado |
 |---|---|---|
-| 0 | Cimientos e infraestructura | 🟡 En curso (0.2–0.4 ✅, 0.0 en revisión) |
+| 0 | Cimientos e infraestructura | 🟡 En curso (0.2–0.5 ✅, 0.7 ✅) |
 | 1 | Autenticación, roles y permisos | ⬜ Pendiente |
 | 2 | Catálogos y migración desde el Excel | ⬜ Pendiente |
 | 3 | Motor de cálculo | ⬜ Pendiente |

@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="Tema" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="page">
+    @Body
+</div>
+
+@code {
+    private MudTheme Tema { get; set; } = OrkinTheme.Crear();
+}

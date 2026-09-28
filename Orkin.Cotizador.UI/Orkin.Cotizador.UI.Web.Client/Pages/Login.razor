@@ -1,0 +1,87 @@
+@page "/login"
+@layout LoginLayout
+@inject AuthService AuthService
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="d-flex align-center justify-center" Style="height: 100vh;">
+    <MudPaper Elevation="4" Class="pa-8" Style="width: 100%; max-width: 420px;">
+        <div class="d-flex justify-center mb-6">
+            <MudText Typo="Typo.h4" Color="Color.Primary" Class="font-weight-bold">ORKIN</MudText>
+        </div>
+
+        <MudText Typo="Typo.subtitle1" Align="Align.Center" Class="mb-6">
+            Ingrese con su cuenta de ORKIN
+        </MudText>
+
+        <EditForm Model="_modelo" OnValidSubmit="Ingresar">
+            <DataAnnotationsValidator />
+
+            <MudTextField @bind-Value="_modelo.Email"
+                          Label="Correo"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          FullWidth="true"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Email"
+                          For="@(() => _modelo.Email)"
+                          Class="mb-4" />
+
+            <MudTextField @bind-Value="_modelo.Password"
+                          Label="Contraseña"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          FullWidth="true"
+                          InputType="InputType.Password"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Lock"
+                          For="@(() => _modelo.Password)"
+                          Class="mb-6" />
+
+            <MudButton ButtonType="ButtonType.Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Disabled="_cargando">
+                @if (_cargando)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <MudText Class="ms-2">Ingresando...</MudText>
+                }
+                else
+                {
+                    <MudText>Ingresar</MudText>
+                }
+            </MudButton>
+        </EditForm>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private LoginRequest _modelo = new();
+    private bool _cargando;
+
+    private async Task Ingresar()
+    {
+        _cargando = true;
+        try
+        {
+            var respuesta = await AuthService.LoginAsync(_modelo);
+
+            if (respuesta?.Exito == true && respuesta.Datos is not null)
+            {
+                await AuthState.MarkUserAsAuthenticated(respuesta.Datos.Token);
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo iniciar sesión.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+}
