@@ -109,10 +109,10 @@ public sealed class UnidadMedidaService
 }
 
 /// <summary>
-/// Valores de siembra de <c>dbo.OrigenDatoCatalogo</c> que usa el servicio cuando crea un registro
-/// manual. Estos ids deben coincidir con la semilla <c>dbo.OrigenDatoCatalogo.json</c>.
+/// Valores de siembra de <c>dbo.OrigenDatoCatalogo</c> que usan los servicios cuando crean un
+/// registro manual. Estos ids deben coincidir con la semilla <c>dbo.OrigenDatoCatalogo.json</c>.
 /// </summary>
-internal static class OrigenDatoCatalogoSeed
+public static class OrigenDatoCatalogoSeed
 {
     public const int Manual = 1;
 }

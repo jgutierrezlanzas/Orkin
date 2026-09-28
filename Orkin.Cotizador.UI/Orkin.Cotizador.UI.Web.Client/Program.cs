@@ -25,6 +25,7 @@ public class Program
         builder.Services.AddAuthorizationCore();
         builder.Services.AddScoped<AuthService>();
         builder.Services.AddScoped<CatalogoService>();
+        builder.Services.AddScoped<CotizacionService>();
         builder.Services.AddScoped<CustomAuthStateProvider>();
         builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<CustomAuthStateProvider>());
 
