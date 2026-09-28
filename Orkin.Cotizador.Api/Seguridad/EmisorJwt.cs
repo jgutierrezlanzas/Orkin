@@ -107,6 +107,7 @@ public sealed class EmisorJwt
         return new TokenEmitido(
             new JwtSecurityTokenHandler().WriteToken(token),
             expiracion,
+            ahora,
             efectivos);
     }
 
@@ -203,7 +204,7 @@ public sealed class EmisorJwt
 /// <param name="ExpiraUtc">Cuándo deja de servir. La UI lo usa para saber cuándo reingresar.</param>
 /// <param name="Permisos">Los códigos de permiso efectivos. La UI los usa para mostrar u ocultar
 /// menús y botones <b>sin</b> preguntar a la API.</param>
-public sealed record TokenEmitido(string Token, DateTime ExpiraUtc, IReadOnlyList<string> Permisos);
+public sealed record TokenEmitido(string Token, DateTime ExpiraUtc, DateTime EmitidoUtc, IReadOnlyList<string> Permisos);
 
 /// <summary>
 /// Los nombres de los <em>claims</em> del sistema.

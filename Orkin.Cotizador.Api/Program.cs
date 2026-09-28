@@ -222,6 +222,12 @@ public static class Program
             .AddEntityFrameworkStores<CotizadorDbContext>()
             .AddDefaultTokenProviders();
 
+        // El IdentityErrorDescriber por defecto escribe los errores de política de contraseña en
+        // inglés ("Passwords must have at least one digit"); la API responde en español. Se
+        // registra después del AddIdentity porque en DI gana el último: este pisa al de Identity
+        // sin necesidad de quitarlo antes. Ver IdentityErrorDescriberEspanol.
+        construccion.Services.AddScoped<IdentityErrorDescriber, IdentityErrorDescriberEspanol>();
+
         // ── Opciones de seguridad ───────────────────────────────────────────────────
         // La clave de firma se valida al arrancar, y con longitud mínima. Una clave de cuatro
         // caracteres es un 500 a las tres de la mañana con un mensaje que dice "clave demasiado

@@ -308,7 +308,7 @@ public sealed class AuthController : ControllerBase
                 .AHttp();
         }
 
-        var usuario = await BuscarPorIdAsync(id, cancellationToken);
+        var usuario = await BuscarPorIdRastreadoAsync(id, cancellationToken);
 
         if (usuario is null || !usuario.EsActivo)
         {
@@ -338,9 +338,14 @@ public sealed class AuthController : ControllerBase
 
         await _contexto.SaveChangesAsync(cancellationToken);
 
-        var corte = DateTime.UtcNow;
+        var nuevo = await _emisor.EmitirAsync(usuario, cancellationToken);
 
-        _revocacion.CortarSesiones(id, corte);
+        // El corte se pone un segundo antes del momento de emisión del token nuevo. El claim `iat`
+        // del JWT solo tiene precisión de segundos, así que un corte con milisegundos podría caer
+        // después del `iat` truncado y matar el token que acababa de nacer. Un segundo de margen
+        // es suficiente para que el nuevo sobreviva y para que cualquier otra sesión del usuario
+        // —emitida antes del cambio— quede revocada.
+        _revocacion.CortarSesiones(id, nuevo.EmitidoUtc.AddSeconds(-1));
 
         // El token de esta petición también nació antes del corte, así que el corte ya lo mató. Se
         // revoca de forma explícita igual, porque comparar fechas al segundo puede dar empate con
@@ -351,8 +356,6 @@ public sealed class AuthController : ControllerBase
         {
             await _revocacion.RegistrarAsync(identificador, VencimientoDelToken(), cancellationToken);
         }
-
-        var nuevo = await _emisor.EmitirAsync(usuario, cancellationToken);
 
         _log.LogInformation(
             "Contraseña cambiada. Usuario {Usuario}. Petición {Referencia}.",
