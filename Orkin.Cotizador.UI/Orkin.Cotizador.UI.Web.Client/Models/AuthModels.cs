@@ -6,6 +6,18 @@ public sealed class LoginRequest
     public string Password { get; set; } = string.Empty;
 }
 
+public sealed class CambioContrasenaRequest
+{
+    public string ContrasenaActual { get; set; } = string.Empty;
+    public string ContrasenaNueva { get; set; } = string.Empty;
+}
+
+public sealed class CambioContrasenaResponse
+{
+    public string Token { get; set; } = string.Empty;
+    public DateTime ExpiraUtc { get; set; }
+}
+
 public sealed class LoginResponse
 {
     public string Token { get; set; } = string.Empty;

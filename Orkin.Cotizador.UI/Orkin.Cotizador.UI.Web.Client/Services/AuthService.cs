@@ -35,6 +35,12 @@ public sealed class AuthService
                 ? t.Result.Content.ReadFromJsonAsync<ApiResponse<LoginResponse>>().Result
                 : null);
 
+    public async Task<ApiResponse<CambioContrasenaResponse>?> CambiarContrasenaAsync(CambioContrasenaRequest request)
+        => await _http.PostAsJsonAsync("api/auth/cambiar-contrasena", request)
+            .ContinueWith(t => t.Result.IsSuccessStatusCode
+                ? t.Result.Content.ReadFromJsonAsync<ApiResponse<CambioContrasenaResponse>>().Result
+                : null);
+
     public async Task<bool> LogoutAsync()
     {
         try

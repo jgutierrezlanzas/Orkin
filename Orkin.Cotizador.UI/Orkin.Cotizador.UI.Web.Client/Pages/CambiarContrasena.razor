@@ -1,0 +1,85 @@
+@page "/cambiar-contrasena"
+@attribute [Authorize]
+@layout MainLayout
+@inject AuthService AuthService
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-6">
+    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Cambiar contraseña</MudText>
+
+    <MudPaper Elevation="2" Class="pa-6">
+        <EditForm Model="_modelo" OnValidSubmit="Cambiar">
+            <DataAnnotationsValidator />
+
+            <MudTextField @bind-Value="_modelo.ContrasenaActual"
+                          Label="Contraseña actual"
+                          InputType="InputType.Password"
+                          Variant="Variant.Outlined"
+                          FullWidth="true"
+                          For="@(() => _modelo.ContrasenaActual)"
+                          Class="mb-4" />
+
+            <MudTextField @bind-Value="_modelo.ContrasenaNueva"
+                          Label="Contraseña nueva"
+                          InputType="InputType.Password"
+                          Variant="Variant.Outlined"
+                          FullWidth="true"
+                          For="@(() => _modelo.ContrasenaNueva)"
+                          Class="mb-4" />
+
+            <MudButton ButtonType="ButtonType.Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Disabled="_cargando">
+                @if (_cargando)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <MudText Class="ms-2">Guardando...</MudText>
+                }
+                else
+                {
+                    <MudText>Cambiar contraseña</MudText>
+                }
+            </MudButton>
+        </EditForm>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private CambioContrasenaRequest _modelo = new();
+    private bool _cargando;
+
+    private async Task Cambiar()
+    {
+        _cargando = true;
+        try
+        {
+            var respuesta = await AuthService.CambiarContrasenaAsync(_modelo);
+
+            if (respuesta?.Exito == true && respuesta.Datos is not null)
+            {
+                await AuthState.MarkUserAsAuthenticated(respuesta.Datos.Token);
+                Snackbar.Add("Contraseña cambiada. Su sesión sigue activa.", Severity.Success);
+                Navigation.NavigateTo("/");
+            }
+            else if (respuesta?.Errores is { Count: > 0 })
+            {
+                foreach (var error in respuesta.Errores)
+                {
+                    Snackbar.Add($"{error.Campo}: {error.Mensaje}", Severity.Error);
+                }
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo cambiar la contraseña.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+}

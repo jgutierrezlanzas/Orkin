@@ -10,9 +10,9 @@ public static class OrkinTheme
 {
     public static MudTheme Crear()
     {
-        var primario = "#1B5E20";       // verde oscuro institucional
-        var secundario = "#2E7D32";     // verde medio
-        var fondo = "#F5F5F5";          // gris muy claro
+        var primario = "#E31837";       // rojo corporativo Orkin
+        var secundario = "#B7142D";     // rojo oscuro para acentos
+        var fondo = "#FAFAFA";          // gris muy claro
         var superficie = "#FFFFFF";
         var texto = "#212121";
         var error = "#C62828";
