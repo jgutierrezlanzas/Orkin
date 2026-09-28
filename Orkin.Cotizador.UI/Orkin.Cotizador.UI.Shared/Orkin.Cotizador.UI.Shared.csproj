@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Orkin.Cotizador.UI.Shared</RootNamespace>
+    <NoWarn>$(NoWarn);MUD0002;CS8602;CS8604;CS8618</NoWarn>
+    <Configurations>Debug;Release;Staging</Configurations>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.12" />
+    <PackageReference Include="MudBlazor" Version="9.11.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,71 @@
+# ═════════════════════════════════════════════════════════════════════════════
+#  Archivos que NO van al repositorio, y por qué
+# ═════════════════════════════════════════════════════════════════════════════
+#
+#  Las reglas de este archivo no son una lista sin explicación: cada grupo dice
+#  qué excluye y qué hay que hacer con lo que excluye. Un .gitignore sin
+#  explicaciones se llena de reglas que nadie recuerda haber puesto, y la primera
+#  vez que algo falta no se sabe si se borró o si siempre estuvo fuera.
+
+# ── Secretos ─────────────────────────────────────────────────────────────────
+#  .env trae la clave de firma del JWT y la contraseña del administrador del
+#  arranque. Son de este despliegue y no de este código: se generan por entorno
+#  y se distribuyen aparte. Sin esto en el repositorio, la clave del entorno de
+#  desarrollo queda escrita en la historia de git para siempre, y borrar el
+#  archivo después no la borra de la historia.
+#
+#  La única excepción es el .example, que va con valores de mentira. Es lo que
+#  lee alguien que acaba de clonar para saber qué variables hay que definir.
+/.env
+.env.*
+!/.env.Development.example
+
+# ── El Excel y el Word de origen ─────────────────────────────────────────────
+#  Son la fuente de los datos y el documento de arranque del proyecto, y por eso
+#  valen más que el código: ninguna migración los puede recuperar. Se excluyen
+#  porque son de trabajo interno y llevan información de la operación que no
+#  corresponde a un repositorio, y no porque valgan poco.
+#
+#  Lo que hay que hacer con ellos: guardarlos en el respaldo del proyecto, fuera
+#  del control de versiones. Si se necesitan para reconstruir algo, el respaldo
+#  es el lugar; el repositorio no es un archivo.
+/Cotizador Original*.xlsm
+/Cotizador_Web_Documento_de_Arranque.docx
+
+# ── Los prototipos HTML ──────────────────────────────────────────────────────
+#  Son diseño de interfaz en estado de debate. Los que sobrevivan al diseño
+#  pasan a ser documentación; los descartados, no.
+/Cotizador Web*.html
+/Cotizador Web2*.html
+
+# ── Salida de compilación ────────────────────────────────────────────────────
+#  Se regenera con dotnet build y no se revisa. Meterlo en el repositorio hace que
+#  git reporte cientos de cambios binarios en cada compilación y encima permite
+#  commitear un binario que no corresponde al código que se versiona.
+[Bb]in/
+[Oo]bj/
+
+# ── Estado local del editor ──────────────────────────────────────────────────
+#  .vs y .idea son estado de una máquina: rutas absolutas, índices de búsqueda
+#  y ventanas abiertas. No son proyecto.
+/.vs/
+/.idea/
+/.vscode/
+*.user
+*.suo
+*.userprefs
+*.db
+*.db-shm
+*.db-wal
+*.v2
+
+# ── Sistema operativo ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Herramientas ────────────────────────────────────────────────────────────
+#  El paquete de NuGet se regenera con dotnet restore desde nuget.config, que sí
+#  va versionado: es lo que fija la fuente de los paquetes.
+/packages/
+*.nupkg

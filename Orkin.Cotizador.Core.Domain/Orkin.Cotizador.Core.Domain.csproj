@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Orkin.Cotizador.Core.Domain</RootNamespace>
+    <Configurations>Debug;Release;Staging</Configurations>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- En .NET 10 las entidades IdentityUser<TKey> / IdentityRole<TKey> viven en
+       Microsoft.Extensions.Identity.Stores, no en ...Identity.Core. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="10.0.12" />
+  </ItemGroup>
+
+</Project>

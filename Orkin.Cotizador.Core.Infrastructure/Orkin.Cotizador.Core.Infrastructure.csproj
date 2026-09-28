@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Orkin.Cotizador.Core.Infrastructure</RootNamespace>
+    <Configurations>Debug;Release;Staging</Configurations>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
+    <!--
+      ConfiguracionBootstrap arma la configuracion con appsettings.json + variables de ambiente +
+      argumentos de linea de comandos, y lo usa tanto la API como el design-time factory de
+      dotnet ef. Estos cuatro paquetes son los que traen AddJsonFile, AddEnvironmentVariables,
+      AddCommandLine y SetBasePath.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <!--
+      D-02 / ADR-007: ASP.NET Core Identity sobre nuestras propias tablas del esquema seg.
+      En .NET 10 los tipos IdentityUser<TKey> e IdentityRole<TKey> viven en
+      Microsoft.Extensions.Identity.Stores (ya referencia el Domain), y aquí necesitamos
+      UserStore<T> / RoleStore<T> / IdentityDbContext para mapearlos a seg.Usuario y seg.Rol.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Orkin.Cotizador.Core.Domain\Orkin.Cotizador.Core.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

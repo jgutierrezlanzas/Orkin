@@ -1,0 +1,15 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <BuildType Name="Staging" />
+  </Configurations>
+  <Project Path="Orkin.Cotizador.Api/Orkin.Cotizador.Api.csproj" />
+  <Project Path="Orkin.Cotizador.Core.Application/Orkin.Cotizador.Core.Application.csproj" />
+  <Project Path="Orkin.Cotizador.Core.Domain/Orkin.Cotizador.Core.Domain.csproj" />
+  <Project Path="Orkin.Cotizador.Core.Infrastructure/Orkin.Cotizador.Core.Infrastructure.csproj" />
+  <Project Path="Orkin.Cotizador.Tests/Orkin.Cotizador.Tests.csproj" />
+  <Project Path="Orkin.Cotizador.UI/Orkin.Cotizador.UI.Shared/Orkin.Cotizador.UI.Shared.csproj" />
+  <Project Path="Orkin.Cotizador.UI/Orkin.Cotizador.UI.Web/Orkin.Cotizador.UI.Web.csproj" />
+  <Project Path="Orkin.Cotizador.UI/Orkin.Cotizador.UI.Web.Client/Orkin.Cotizador.UI.Web.Client.csproj" />
+</Solution>
