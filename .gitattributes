@@ -1,0 +1,87 @@
+# ═════════════════════════════════════════════════════════════════════════════
+#  Fin de línea y archivos binarios
+# ═════════════════════════════════════════════════════════════════════════════
+#
+#  Sin esto, el fin de línea de un archivo depende de core.autocrlf, que es una
+#  configuración por máquina y no está en el repositorio. Con la misma
+#  configuración, un archivo llega con CRLF a una máquina y con LF a otra, y el
+#  diff muestra el archivo entero como modificado aunque no se haya tocado una
+#  sola palabra. Ese es el tipo de cambio que hace que alguien termine
+#  aceptando el archivo completo y se lleve por delante los cambios de otro.
+#
+#  La regla general normaliza a LF dentro del repositorio, que es lo que guarda
+#  git de verdad. Lo que se escribe en el disco lo decide el tipo de archivo,
+#  que es donde el equipo tiene una costumbre y no una Casualidad.
+
+* text=auto
+
+# ── Código y configuración de .NET ───────────────────────────────────────────
+#  CRLF en el disco: es lo que espera el compilador, lo que generan Visual
+#  Studio y Rider, y lo que hacen los migraciones de Entity Framework, que
+#  escriben el archivo con CRLF y con BOM. Con LF en el disco, la mitad de los
+#  archivos del proyecto se ve distinta a la otra mitad solo por el fin de línea.
+*.cs        text eol=crlf
+*.csproj    text eol=crlf
+*.sln       text eol=crlf
+*.slnx      text eol=crlf
+*.props     text eol=crlf
+*.targets   text eol=crlf
+*.editorconfig text eol=crlf
+*.json      text eol=crlf
+
+# ── Razor ────────────────────────────────────────────────────────────────────
+*.razor     text eol=crlf
+*.cshtml    text eol=crlf
+*.razor.css text eol=crlf
+*.razor.js  text eol=crlf
+
+# ── Documentación ───────────────────────────────────────────────────────────
+#  Markdown se escribe en LF casi en cualquier lado, y la mezcla con CRLF en
+#  los mismos documentos produce diffs falsos igual que en el código. Se deja
+#  en LF, que es lo mayoritario en la documentación.
+*.md        text eol=lf
+*.txt       text eol=lf
+
+# ── Scripts ──────────────────────────────────────────────────────────────────
+#  Cada familia con su convención, y el motivo en la línea de arriba de cada
+#  grupo. Un script de shell con CRLF no arranca; un script de PowerShell con
+#  LF funciona casi siempre, y falla sin avisar en los casos que menos convienen.
+*.sh        text eol=lf
+*.ps1       text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+*.sql       text eol=crlf
+
+# ── Configuración de tooling ─────────────────────────────────────────────────
+*.yml       text eol=crlf
+*.yaml      text eol=crlf
+*.config    text eol=crlf
+*.env       text eol=crlf
+Dockerfile  text eol=crlf
+.gitignore  text eol=crlf
+.gitattributes text eol=crlf
+
+# ── Binarios: git no los toca ────────────────────────────────────────────────
+#  La mayor parte de los tipos de aquí están en el .gitignore, pero esa es otra
+#  historia: el .gitignore decide si un archivo entra, y esto decide qué hace
+#  git con los bytes si entró. Un PNG que git intenta normalizar como texto
+#  queda corrupto, y el aviso no aparece hasta que alguien lo abre.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.webp      binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.eot       binary
+*.pdf       binary
+*.zip       binary
+*.xlsx      binary
+*.xlsm      binary
+*.xls       binary
+*.docx      binary
+*.bak       binary
+*.dll       binary
+*.pdb       binary
