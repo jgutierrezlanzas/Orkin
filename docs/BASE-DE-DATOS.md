@@ -379,15 +379,30 @@ el código, sin tocar la siembra de los demás catálogos.
 > **Nuevo (ADR-018).** `dbo.Consecutivo.Entidad` guardaba un `nvarchar` con valores escritos a
 > mano en el código. Agregar una numeración oficial obligaba a tocar el `CHECK` y el formateador.
 
-| Codigo | Nombre | `Prefijo` | `Digitos` | Nota |
-|---|---|---|---|---|
-| `COTIZACION` | Cotización | `COT-` | 4 | `COT-2026-0413`. Depende de **D-17** (numeración oficial) |
-| `CLIENTE` | Cliente | `CLI-` | 4 | `CLI-0001` |
-| `PRODUCTO` | Producto | `PR-` | 4 | |
-| `ACTIVO` | Activo amortizable | `AC-` | 4 | |
+| Codigo | Nombre | `Plantilla` | `Prefijo` | `Sufijo` | `Digitos` | `ReiniciaPorAnio` | Nota |
+|---|---|---|---|---|---|---|---|
+| `COTIZACION` | Cotización | `{PRE}{ANIO}-{NUM}` | `COT-` | `""` | 4 | `1` | `COT-2026-0413`. Depende de **D-17** (numeración oficial) |
 
-El `Prefijo` y los `Digitos` viven **aquí**, no en el formateador de C#. Agregar un tipo de
-documento numerado es una fila más, no un `switch`.
+El **formato del número vive aquí y no en un formateador de C#**. La `Plantilla` es texto libre
+con las secciones `{PRE}`, `{ANIO}`, `{NUM}` y `{SUF}` en el orden que corresponda; todo lo que no
+es una sección se copia tal cual, así que el guion va donde lo ponga el dato y no el código. Cada
+sección puede aparecer a lo sumo una vez y `{NUM}` es obligatoria (sin ella el número no
+incrementa: sería una constante con otro nombre). `Prefijo` y `Sufijo` son el texto que expanden
+`{PRE}` y `{SUF}`; `Digitos` son los ceros a la izquierda de `{NUM}` (1 a 19, el ancho de un
+`bigint`, que es el tipo real del contador). Si la plantilla lleva `{ANIO}`, `ReiniciaPorAnio`
+tiene que ser `1`: un número con año en un contador que no reinicia mezclaría años y no se podría
+saber si `2026-41` va antes o después de `2026-5`.
+
+**El `CHECK` que protege la plantilla vive en la base** — `CK_TipoConsecutivoCatalogo_PlantillaValida`
+usa la función escalar `dbo.FnPlantillaConsecutivoValida(Plantilla, ReiniciaPorAnio, Digitos)`,
+escrita a mano en la migración como `dbo.FnEsEstadoFinalAprobacion`. El CHECK valida las secciones,
+el `{NUM}` obligatorio, la no repetición y la pareja `{ANIO}`/`ReiniciaPorAnio` en cada INSERT y
+UPDATE.
+
+**Solo se numera lo que la plataforma crea.** `CLIENTE`, `PRODUCTO` y `ACTIVO` ya **no** están acá:
+sus códigos los genera la transformación desde el ERP y renumerarlos rompería el enlace con el
+identificador que les puso el origen. Agregar una numeración oficial de la plataforma es una fila
+más, no un `switch`.
 
 ### 5.16 `dbo.ModuloPermisoCatalogo` — agrupación de permisos
 
@@ -487,7 +502,7 @@ pisar lo que un usuario ya corrigió):
 | Columna | Tipo | Null | Default | Notas |
 |---|---|---|---|---|
 | `Id` | `uniqueidentifier` | No | `NEWSEQUENTIALID()` | PK |
-| `Codigo` | `nvarchar(30)` | No | — | `UX_Cliente_Codigo`. Generado por consecutivo (`CLI-0001`) |
+| `Codigo` | `nvarchar(40)` | No | — | `UX_Cliente_Codigo`. Lo trae la transformación desde el ERP; no se numera acá (§5.15) |
 | `Nombre` | `nvarchar(200)` | No | — | Nombre del cliente o de la persona |
 | `RazonSocial` | `nvarchar(200)` | Sí | — | Solo empresarial |
 | `TipoCliente` | `tinyint` | No | — | FK → `TipoClienteCatalogo`. Sin `DEFAULT`: lo resuelve el servicio (§5.1) |
@@ -625,7 +640,7 @@ CHECK (VigenteHasta IS NULL OR VigenteHasta >= VigenteDesde)
 | Columna | Tipo | Null | Default | Notas |
 |---|---|---|---|---|
 | `Id` | `uniqueidentifier` | No | `NEWSEQUENTIALID()` | PK |
-| `Codigo` | `nvarchar(30)` | No | — | `UX`. Del Excel si existe; si no, `PROD-####` |
+| `Codigo` | `nvarchar(40)` | No | — | `UX`. Lo trae la transformación desde el ERP; no se numera acá (§5.15) |
 | `Nombre` | `nvarchar(250)` | No | — | |
 | `Descripcion` | `nvarchar(500)` | Sí | — | |
 | `CategoriaId` | `uniqueidentifier` | Sí | — | FK → `CategoriaProducto` |
@@ -700,7 +715,7 @@ CHECK (LEN(LTRIM(RTRIM(Nombre))) > 0)
 | Columna | Tipo | Null | Default | Notas |
 |---|---|---|---|---|
 | `Id` | `uniqueidentifier` | No | `NEWSEQUENTIALID()` | PK |
-| `Codigo` | `nvarchar(30)` | No | — | `UX` |
+| `Codigo` | `nvarchar(40)` | No | — | `UX`. Lo trae la transformación desde el ERP; no se numera acá (§5.15) |
 | `Nombre` | `nvarchar(250)` | No | — | Lámpara UV, cebadero, trampa, estación, etc. |
 | `Descripcion` | `nvarchar(500)` | Sí | — | |
 | `CategoriaId` | `uniqueidentifier` | Sí | — | FK → `CategoriaProducto` |
@@ -777,7 +792,8 @@ recalculan al leer, se leen tal como quedaron al guardar (RN-03 a RN-08).
 | Columna | Tipo | Null | Default | Notas |
 |---|---|---|---|---|
 | `Id` | `uniqueidentifier` | No | `NEWSEQUENTIALID()` | PK |
-| `Numero` | `nvarchar(20)` | No | — | Número formal: `COT-2026-0413` |
+| `Numero` | `nvarchar(40)` | No | — | Número formal: `COT-2026-0413`. Lo emite `ConsecutivoService` (§5.15) |
+| `TipoConsecutivoId` | `tinyint` | Sí | `NULL` | FK → `TipoConsecutivoCatalogo` (Restrict). El tipo que numeró esta cotización |
 | `Anio` | `smallint` | No | — | Parte del número; permite el consecutivo por año |
 | `Version` | `smallint` | No | `1` | `1, 2, 3…` |
 | `VersionAnteriorId` | `uniqueidentifier` | Sí | — | FK → `Cotizacion` (`NULL` en la v1) |
@@ -1036,24 +1052,49 @@ CHECK (dbo.FnEsEstadoFinalAprobacion(Estado) = 0 OR FechaRespuesta IS NOT NULL)
 
 ### 6.13 `dbo.Consecutivo`
 
+El correlativo de una numeración oficial. Una fila por tipo de consecutivo y año de contador.
+
 | Columna | Tipo | Null | Default | Notas |
 |---|---|---|---|---|
 | `Id` | `uniqueidentifier` | No | `NEWSEQUENTIALID()` | PK |
-| `Entidad` | `nvarchar(50)` | No | — | `COTIZACION`, `CLIENTE`, `PRODUCTO`, `ACTIVO` |
-| `Anio` | `smallint` | No | — | Consecutivo reinicia cada año |
-| `Prefijo` | `nvarchar(10)` | No | — | `COT-`, `CLI-` |
-| `Longitud` | `smallint` | No | `4` | Relleno con ceros a la izquierda |
-| `UltimoNumero` | `int` | No | `0` | |
-| `RowVersion` | `rowversion` | No | — | |
+| `Tipo` | `tinyint` | No | — | FK → `TipoConsecutivoCatalogo` (Restrict) |
+| `Anio` | `smallint` | No | — | Año de contador. Es el año del documento si `ReiniciaPorAnio = 1`; `0` si no |
+| `Plantilla` | `nvarchar(80)` | Sí | `NULL` | La plantilla **al momento de la primera emisión** del año. Congelada |
+| `Prefijo` | `nvarchar(20)` | Sí | `NULL` | Congelado: el valor que tenía `TipoConsecutivoCatalogo.Prefijo` al emitir el primero |
+| `Sufijo` | `nvarchar(20)` | Sí | `NULL` | Congelado, igual que `Prefijo` |
+| `Digitos` | `int` | No | — | Congelado |
+| `UltimoNumero` | `bigint` | No | `0` | El último reservado. `bigint`, no `int`, para no buscar el techo dos veces |
+| `RowVersion` | `rowversion` | No | — | Optimista |
+| Auditoría | — | — | — | `CreatedAt`, `CreatedBy`, `UpdatedAt`, `UpdatedBy`, `IsActive` |
 
-**Índices:** `UX_Consecutivo_EntidadAnio (Entidad, Anio)`
+**Índices:** `UX_Consecutivo_Tipo_Anio (Tipo, Anio)` único. También es el que el
+`UPDATE ... SERIALIZABLE` bloquea para impedir que dos peticiones inserten el primer número del
+año a la vez.
 
-**Asignación segura bajo concurrencia** (evita números duplicados con dos usuarios simultáneos):
+**Por qué el formato queda congelado en esta tabla y no se lee siempre del catálogo:** el número
+que ya salió es un hecho. Si en mitad del año se cambia la plantilla o el prefijo desde
+Administración, la fila guarda la forma con la que se emitió cada número, y quien lee la fila
+puede componer el correlativo tal como es, no como era el catálogo en ese momento. En el primer
+número del año las dos cosas son iguales; en el número 400 ya no.
+
+**Asignación segura bajo concurrencia** (evita números duplicados con dos usuarios simultáneos).
+El `OUTPUT` intermedio es una variable de tabla: `OUTPUT ... INTO` no admite una lista de
+variables escalares:
 ```sql
-UPDATE dbo.Consecutivo WITH (UPDLOCK, ROWLOCK)
+DECLARE @Reserva TABLE (Plantilla nvarchar(80), Prefijo nvarchar(20), Sufijo nvarchar(20),
+                        Digitos int, UltimoNumero bigint);
+
+UPDATE dbo.Consecutivo WITH (UPDLOCK, SERIALIZABLE)
    SET UltimoNumero = UltimoNumero + 1
- WHERE Entidad = @Entidad AND Anio = @Anio
-OUTPUT INSERTED.UltimoNumero;
+OUTPUT INSERTED.Plantilla, INSERTED.Prefijo, INSERTED.Sufijo,
+       INSERTED.Digitos, INSERTED.UltimoNumero
+  INTO @Reserva
+ WHERE Tipo = @Tipo AND Anio = @Anio;
+
+/* Si el UPDATE no encontró la fila (no se ha emitido nada de ese tipo y año),
+   se inserta la primera con UltimoNumero = 1. */
+SELECT UltimoNumero FROM dbo.Consecutivo
+ WHERE Tipo = @Tipo AND Anio = @Anio;
 ```
 
 ---
@@ -2125,7 +2166,7 @@ internal sealed class CotizadorDbContext : DbContext
 | **D-06** | De dónde sale el tipo de cambio hacia adelante | `dbo.TipoCambio.Fuente` y el `BackgroundService` |
 | **D-07** | Proveedor de correo | `dbo.NotificacionEnviada.IdExterno` |
 | **D-08** | Identidad de marca para el PDF | `dbo.ParametroGeneral` (`GENERAL.*`) |
-| **D-09** | Numeración oficial | `dbo.Consecutivo.Prefijo` y el formato de `Cotizacion.Numero` |
+| **D-09** | Numeración oficial | *Resuelta en §5.15*: la plantilla, el prefijo y los ceros viven en `TipoConsecutivoCatalogo` y cada número emite congelando lo que valía en el momento en `dbo.Consecutivo`. Solo se numera lo que la plataforma crea (hoy: `Cotizacion.Numero`) |
 | **D-10** | Hosting | Si es IIS, la conexión a SQL Server va por Windows Auth en vez de usuario/contraseña |
 | **D-16** | Vigencia, moneda de presentación, firmas digitales | Columnas de `dbo.Cotizacion` |
 | **D-17** *(nueva)* | ¿Se necesita `RegistroSanitario` (registro de plaguicida ante el MAG) en el producto? | Ya reservado en `dbo.Producto`. Si no, se elimina |

@@ -55,13 +55,27 @@ public class Consecutivo : BaseEntity
 
     public short Anio { get; set; }
 
-    /// <summary>Prefijo completo del año. Ej. <c>COT-2026-</c>.</summary>
+    /// <summary>
+    /// La plantilla con la que se emitió el primer número de este año, congelada.
+    /// <para><b>Por qué se copia en vez de leer del catálogo:</b> porque un número oficial que se
+    /// puede ver cambiar de forma es un número que la administración no puede citar. Si alguien
+    /// cambia la plantilla en Administración un martes, las cotizaciones de enero siguen siendo
+    /// <c>COT-2026-0413</c> y no <c>COT-26-0413</c>. El costo es que arreglar una plantilla mal
+    /// escrita no renumera lo ya emitido, y eso es lo correcto para un documento que alguien ya
+    /// está leyendo.</para>
+    /// </summary>
+    public string? Plantilla { get; set; }
+
+    /// <summary>El valor de <c>{PRE}</c> con el que se emitió el primero, congelado.</summary>
     public string? Prefijo { get; set; }
+
+    /// <summary>El valor de <c>{SUF}</c> con el que se emitió el primero, congelado.</summary>
+    public string? Sufijo { get; set; }
 
     /// <summary>Último número emitido. Empieza en <c>0</c>.</summary>
     public long UltimoNumero { get; set; }
 
-    /// <summary>Ceros a la izquierda: <c>0413</c> son 4.</summary>
+    /// <summary>Ceros a la izquierda de <c>{NUM}</c>: <c>0413</c> son 4.</summary>
     public int Digitos { get; set; } = 4;
 }
 

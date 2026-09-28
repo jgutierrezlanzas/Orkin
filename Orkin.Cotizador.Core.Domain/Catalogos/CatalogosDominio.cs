@@ -110,14 +110,47 @@ public class TipoDatoParametroCatalogo : CatalogoDominioBase;
 
 // ── §5.15 · Consecutivos ───────────────────────────────────────────────────────────
 
-/// <summary>§5.15 — numeraciones oficiales. El prefijo y el ancho viven acá, no en un
-/// formateador de C#.</summary>
+/// <summary>
+/// §5.15 — numeraciones oficiales.
+/// <para><b>Lo que vive acá y no en un formateador de C#:</b> cómo se arma un número oficial.
+/// Antes el formato estaba escrito en el código como <c>Prefijo + Año + "-" + Numero</c>, y eso
+/// cerraba la puerta a los tres casos más comunes de una numeración real: un código sin año, un
+/// código con letra al final, y un código con guion donde sí y donde no. Agregar una variante
+/// obligaba a tocar el formateador, y el formateador era código.</para>
+/// <para><b>Lo único que no es opcional es <c>{NUM}</c>:</b> es la parte que incrementa. Una
+/// plantilla sin <c>{NUM}</c> no es un consecutivo, es una constante con otro nombre, y dejarla
+/// pasar produciría un número igual para todos los documentos.</para>
+/// </summary>
 public class TipoConsecutivoCatalogo : CatalogoDominioBase
 {
-    public string Prefijo { get; set; } = null!;
+    /// <summary>Lo que se expande en <c>{PRE}</c>. Texto libre; vacío es válido.</summary>
+    public string Prefijo { get; set; } = string.Empty;
 
-    /// <summary>Ceros a la izquierda: <c>0413</c> son 4.</summary>
-    public short Digitos { get; set; } = 4;
+    /// <summary>Lo que se expande en <c>{SUF}</c>. Texto libre; vacío es válido.</summary>
+    public string Sufijo { get; set; } = string.Empty;
+
+    /// <summary>
+    /// La forma del número, con las cuatro secciones donde el usuario quiera ponerlas:
+    /// <c>{PRE}</c>, <c>{ANIO}</c>, <c>{NUM}</c> y <c>{SUF}</c>. Todo lo que no sea una sección es
+    /// texto que se copia tal cual, así que un guion es un guion y se pone donde corresponda.
+    /// <para>La misma <c>{PRE}</c> dos veces es un error y no un resultado raro: significa que
+    /// alguien quiso cambiar el prefijo a mitad de la plantilla y no se dio cuenta.</para>
+    /// </summary>
+    public string Plantilla { get; set; } = null!;
+
+    /// <summary>Ceros a la izquierda de <c>{NUM}</c>: <c>0413</c> son 4. De 1 a 19.</summary>
+    public int Digitos { get; set; } = 4;
+
+    /// <summary>
+    /// Si el contador vuelve a <c>1</c> cada 1 de enero.
+    /// <para><b>Por qué no se deduce de la plantilla:</b> una plantilla puede no llevar
+    /// <c>{ANIO}</c> y aun así reiniciar. El caso dangerous es al revés: una plantilla
+    /// <em>sin</em> <c>{ANIO}</c> con el contador reiniciando produce <c>ABC0001</c> en diciembre y
+    /// <c>ABC0001</c> otra vez en enero, y el segundo choca contra el índice único. La plantilla
+    /// dice cómo se ve el número; esta bandera dice cuándo vuelve a empezar, y son dos
+    /// preguntas distintas.</para>
+    /// </summary>
+    public bool ReiniciaPorAnio { get; set; } = true;
 }
 
 // ── §5.16 y §5.17 · Seguridad ─────────────────────────────────────────────────────

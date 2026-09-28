@@ -157,6 +157,8 @@ G8  "Porcentaje de plantilla" =IFERROR(C8/D8,"")
 | **D-14** | **Se corrige todo lo que esté mal en el Excel** (los 12 hallazgos de §2.4), **con validación del cliente antes de implementar.** | Cada corrección es una tarea propia en §6 con su regla nueva y su caso de prueba. Nada se replica "por faithfulness" si está mal. |
 | **D-18** | **.NET 10** en los 8 proyectos + **MudBlazor 9** para la UI. | Versiones fijadas en §4.1.1. Cero paquetes MAUI. |
 | **ADR-001** | Diseño de UI = **`Cotizador Web — Prototipo D (sidebar + Cotizaciones).html`** | Ese archivo es la referencia visual. |
+| **ADR-018** | **En el código no hay catálogos.** Los conjuntos de negocio viven en la base (`dbo.*Catalogo`), se editan desde Administración y se resuelven por `Codigo`. Ver §9. |
+| **ADR-019** | **El formato del consecutivo es configurable, no código.** `Plantilla` con secciones `{PRE}{ANIO}{NUM}{SUF}` validada por UDF + `CHECK`. Ver §5.15/§6.13 de `BASE-DE-DATOS.md`. |
 
 ### 3.2 🔴 Decisiones aún abiertas (bloquean ciertas tareas)
 
@@ -170,7 +172,7 @@ G8  "Porcentaje de plantilla" =IFERROR(C8/D8,"")
 | **D-08** | **Identidad de marca** para el PDF: logo, razón social, RUC, dirección, teléfono, pie legal. | El SRS pide formato corporativo. Pedir assets. | 🟡 Pendiente cliente |
 | **D-15** | **Alcance del ERP** (§12): ¿el ERP es el de **ORKIN** (maestro de productos/precios) o el de **cada cliente de ORKIN** (inventario de equipos instalados)? | El modelo de datos ya soporta ambos (`ErpConexion.Ambito`). **Recomendación:** empezar por el **ERP de ORKIN** — el de un cliente de ORKIN no tiene los precios ni el maestro de productos de ORKIN, así que no sirve para el cotizador | 🔴 Pendiente cliente |
 | **D-19** | **La integración con el ERP es de UNA SOLA DIRECCIÓN: el ERP alimenta los catálogos del cotizador; la web NUNCA escribe en el ERP del cliente.** *"Actualmente no se está pensando que la web actualice el ERP del cliente. Quizás a futuro generar alguna orden de compra, pero ahorita eso está fuera del alcance."* | Se elimina `int.OutboxMensaje` de la Fase 12 (queda documentado en `BASE-DE-DATOS.md` §7.16 como diseño diferido). `ErpConexion.EsSoloLectura` con `CHECK (= 1)`. `IErpConector` solo expone `Leer`. El usuario SQL que se pide al DBA del cliente es `db_datareader` | ✅ **Confirmada por el cliente** (2026-09-27) |
-| **D-09** | Numeración oficial de cotización (`N° 0413`) y consecutivo por año. | Sí, tabla `Consecutivo`. | 🟢 Pendiente |
+| **D-09** | Numeración oficial de cotización (`N° 0413`) y consecutivo por año. | **Resuelta (2026-09-27):** el formato (plantilla, prefijo, ceros) vive en `TipoConsecutivoCatalogo`; cada número congelado en `dbo.Consecutivo`. Solo se numera lo que la plataforma crea. Ver §5.15/§6.13 de `BASE-DE-DATOS.md` y ADR-019 |
 | **D-10** | Hosting: **IIS**, Azure App Service, o Docker + Traefik. Dado SQL Server, IIS es la opción más simple. | IIS + SQL Server, con Docker como alternativa si hay Linux. | 🟡 Pendiente cliente |
 | **D-16** | ¿Se necesita **firmas digitales**, **vigencia/expiración** de cotización y **moneda de presentación** (C$ / US$ / ambas)? | Ambas monedas siempre visibles (como el Excel). Vigencia configurable. | 🟢 Pendiente |
 | **D-20** *(nueva)* | Si algún día se retoma la **orden de compra**: ¿el DBA del cliente autoriza que escribamos en su ERP, o se resuelve con exportación de archivo? | No bloquea nada. **Fuera de alcance** (D-19). Solo cambia cuando se retome | 🟢 Pendiente |
@@ -582,9 +584,9 @@ ERP** sin cambiar el modelo (ver Fase 12).
 |---|---|---|---|
 | 0.0 | **Especificar el modelo de datos** (tablas, columnas, índices) | 📄 [`docs/BASE-DE-DATOS.md`](docs/BASE-DE-DATOS.md) | 🔵 En revisión |
 | 0.1 | Confirmar decisiones **D-03 a D-16** con el cliente | Tabla §3.2 resuelta | 🔴 |
-| 0.2 | Crear `Orkin.Cotizador.slnx` con los **8** proyectos (sin MAUI) | Solución con `Debug;Release;Staging` | ⬜ |
-| 0.3 | `Core.Domain`: `BaseEntity`, enums, entidades POCO | Código compilando | ⬜ |
-| 0.4 | `Core.Application` + `Core.Infrastructure`: DTOs, interfaces, DI, `CotizadorDbContext` con los 4 esquemas | `AddApplicationServices()` / `AddInfrastructure()` | ⬜ |
+| 0.2 | Crear `Orkin.Cotizador.slnx` con los **8** proyectos (sin MAUI) | Solución con `Debug;Release;Staging` | ✅ |
+| 0.3 | `Core.Domain`: `BaseEntity`, enums, entidades POCO | Código compilando | ✅ |
+| 0.4 | `Core.Application` + `Core.Infrastructure`: DTOs, interfaces, DI, `CotizadorDbContext` con los 4 esquemas | `AddApplicationServices()` / `AddInfrastructure()` | ✅ |
 | 0.5 | `Api`: `Program.cs`, Swagger, `GlobalExceptionMiddleware`, `ApiResponse<T>`, `HealthController` | `/swagger` y `/health` verdes | ⬜ |
 | 0.6 | `UI.Shared` + `UI.Web` + `UI.Web.Client`: layout base, tema MudBlazor con la paleta del Prototipo D, `Home` de humo | App carga y muestra el sidebar | ⬜ |
 | 0.7 | Migración inicial de EF Core (desde `docs/BASE-DE-DATOS.md`) + `DbInitializer` (catálogos vacíos, admin, roles, permisos, consecutivos) | BD creada con `dotnet ef` | ⬜ |
@@ -917,6 +919,8 @@ Una tarea se marca ✅ solo si cumple **todo** lo siguiente:
 | **ADR-013** | 4 esquemas SQL Server: `dbo` (negocio), `seg` (seguridad), `int` (integraciones ERP), `aud` (auditoría). Todos los catálogos llevan `OrigenDato` + `CodigoExterno` + `HashContenido` | 2026-09-27 | 🔵 En revisión (`docs/BASE-DE-DATOS.md`) |
 | **ADR-014** | Dinero en `decimal(18,6)` **sin redondeo intermedio**; el redondeo a 2 decimales ocurre solo al presentar. Margen en `decimal(5,4)` como fracción con `CHECK 0..1` | 2026-09-27 | 🔵 En revisión |
 | **ADR-016** | **.NET 10** (`net10.0`) en los 8 proyectos y **MudBlazor 9.11.0** para toda la UI. Sin proyecto MAUI (ADR-011). Paquetes con versión fijada en §4.1.1 | 2026-09-27 | ✅ Aprobada |
+| **ADR-018** | **En el código no hay catálogos.** Ningún `enum` de C# define un conjunto de negocio (estados, modalidades, unidades, niveles): cada conjunto existe en la base como tabla `dbo.*Catalogo`, se edita desde Administración, y la fila de catálogo se resuelve por `Codigo` al arrancar. El formato de una numeración oficial (plantilla, prefijo, ceros) también vive en la tabla (ADR-019) | 2026-09-27 | ✅ Aprobada |
+| **ADR-019** | **El formato del consecutivo es configurable, no código.** `TipoConsecutivoCatalogo.Plantilla` es texto libre con las secciones `{PRE}`, `{ANIO}`, `{NUM}`, `{SUF}`; `{NUM}` es obligatoria y cada sección va a lo sumo una vez. Una UDF escalar (`dbo.FnPlantillaConsecutivoValida`) + `CHECK` lo validan en la base. Solo se numera lo que la plataforma crea (hoy: `Cotizacion`); cliente/producto/activo los numera el ERP y no se renumeran (§5.15) | 2026-09-27 | ✅ Aprobada |
 | ADR-008 | Estrategia de margen: decimal en fracción (0.055) — corrige H-02 | 2026-09-27 | ⏳ En espera de D-04 |
 | ADR-009 | Tipo de cambio: *último valor ≤ fecha* — corrige H-01 | 2026-09-27 | ⏳ En espera de D-06 |
 | ADR-010 | Costeo empresarial por semestre independiente — corrige H-03 | 2026-09-27 | ⏳ En espera de D-03 |
@@ -929,7 +933,7 @@ Una tarea se marca ✅ solo si cumple **todo** lo siguiente:
 
 | Fase | Nombre | Estado |
 |---|---|---|
-| 0 | Cimientos e infraestructura | 🟡 En curso (0.0 en revisión) |
+| 0 | Cimientos e infraestructura | 🟡 En curso (0.2–0.4 ✅, 0.0 en revisión) |
 | 1 | Autenticación, roles y permisos | ⬜ Pendiente |
 | 2 | Catálogos y migración desde el Excel | ⬜ Pendiente |
 | 3 | Motor de cálculo | ⬜ Pendiente |

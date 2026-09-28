@@ -14,8 +14,24 @@ namespace Orkin.Cotizador.Core.Domain.Entidades;
 /// </summary>
 public class Cotizacion : BaseEntity
 {
-    /// <summary>Número formal: <c>COT-2026-0413</c>. Lo genera <c>dbo.Consecutivo</c>.</summary>
+    /// <summary>Número formal: <c>COT-2026-0413</c>. Lo genera <c>ConsecutivoService</c>.</summary>
     public string Numero { get; set; } = null!;
+
+    /// <summary>
+    /// FK a <c>dbo.TipoConsecutivoCatalogo</c> (§5.15): qué tipo de consecutivo produjo
+    /// <see cref="Numero"/>.
+    /// <para><b>Por qué queda registrado y no se deduce:</b> el tipo de un catálogo se puede
+    /// desactivar o cambiar de prefijo, y si la fila no guardara cuál fue, dentro de un año no
+    /// habría forma de saber por qué el número de esa cotización tiene esa forma. Guardar el hecho
+    /// junto al documento es lo que permite auditarlo.</para>
+    /// <para><b>Por qué es nullable:</b> solo las cotizaciones que nacen en la plataforma llevan
+    /// número propio. Las que se cargan desde el ERP traen el número del ERP y este tipo no aplica.
+    /// Un <c>NOT NULL</c> obligaría a inventar un tipo "importado", que es un tipo que no
+    /// numera nada.</para>
+    /// <para><b>Sin navegación</b>, por la convención de ADR-013: la clave va como texto y el
+    /// tipo se resuelve cuando haga falta.</para>
+    /// </summary>
+    public byte? TipoConsecutivoId { get; set; }
 
     public short Anio { get; set; }
 

@@ -1097,10 +1097,10 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("nvarchar(300)")
                         .HasColumnName("Descripcion");
 
-                    b.Property<short>("Digitos")
+                    b.Property<int>("Digitos")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("smallint")
-                        .HasDefaultValue((short)4)
+                        .HasColumnType("int")
+                        .HasDefaultValue(4)
                         .HasColumnName("Digitos");
 
                     b.Property<bool>("EsActivo")
@@ -1127,11 +1127,29 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasDefaultValue((byte)0)
                         .HasColumnName("Orden");
 
+                    b.Property<string>("Plantilla")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .HasColumnName("Plantilla");
+
                     b.Property<string>("Prefijo")
                         .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
                         .HasColumnName("Prefijo");
+
+                    b.Property<bool>("ReiniciaPorAnio")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("ReiniciaPorAnio");
+
+                    b.Property<string>("Sufijo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("Sufijo");
 
                     b.HasKey("Id");
 
@@ -1628,8 +1646,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
                     b.Property<string>("Codigo")
                         .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
                         .HasColumnName("Codigo");
 
                     b.Property<string>("CodigoExterno")
@@ -1752,8 +1770,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
                     b.Property<string>("Codigo")
                         .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
                         .HasColumnName("Codigo");
 
                     b.Property<string>("CodigoExterno")
@@ -1920,9 +1938,14 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("IsActive");
 
+                    b.Property<string>("Plantilla")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)")
+                        .HasColumnName("Plantilla");
+
                     b.Property<string>("Prefijo")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
                         .HasColumnName("Prefijo");
 
                     b.Property<byte[]>("RowVersion")
@@ -1931,6 +1954,11 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion")
                         .HasColumnName("RowVersion");
+
+                    b.Property<string>("Sufijo")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("Sufijo");
 
                     b.Property<byte>("TipoId")
                         .HasColumnType("tinyint")
@@ -2099,8 +2127,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
                     b.Property<string>("Numero")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
                         .HasColumnName("Numero");
 
                     b.Property<string>("Observaciones")
@@ -2157,6 +2185,10 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("tinyint")
                         .HasColumnName("TipoCliente");
 
+                    b.Property<byte?>("TipoConsecutivoId")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("TipoConsecutivoId");
+
                     b.Property<Guid>("TipoServicioId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2210,6 +2242,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.HasIndex("OrigenDatoId");
 
                     b.HasIndex("TipoCambioId");
+
+                    b.HasIndex("TipoConsecutivoId");
 
                     b.HasIndex("TipoServicioId");
 
@@ -3091,8 +3125,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
                     b.Property<string>("Codigo")
                         .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
                         .HasColumnName("Codigo");
 
                     b.Property<string>("CodigoExterno")
@@ -3909,6 +3943,11 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.TipoCambio", "TipoCambio")
                         .WithMany()
                         .HasForeignKey("TipoCambioId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.TipoConsecutivoCatalogo", null)
+                        .WithMany()
+                        .HasForeignKey("TipoConsecutivoId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.TipoServicio", "TipoServicio")

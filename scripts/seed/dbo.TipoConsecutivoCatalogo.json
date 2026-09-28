@@ -1,10 +1,7 @@
 {
-  "//": "§5.15. Que numeraciones oficiales existen. El prefijo y el ancho de los ceros viven AQUI, no en un formateador de C#: agregar una numeracion oficial es una fila mas, no un switch mas. El formato COT-2026-0413 de la cotizacion depende de D-17, que sigue abierto.",
+  "//": "§5.15. Que numeraciones oficiales existen. La plantilla (la forma del numero) vive AQUI, no en un formateador de C#: agregar una numeracion oficial es una fila mas, no un switch mas. La plantilla es texto libre con las secciones {PRE} (prefijo), {ANIO} (anio), {NUM} (numero con ceros) y {SUF} (sufijo); cada una puede repetirse a lo sumo una vez y {NUM} es obligatoria. Si la plantilla lleva {ANIO}, ReiniciaPorAnio tiene que ser 1. El formato concreto de COTIZACION ({PRE}{ANIO}-{NUM} con prefijo COT-) depende de D-17, que sigue abierto; por eso esta fila lleva la forma actual y el documento de decision la cambiara si hace falta. CLIENTE, PRODUCTO y ACTIVO ya NO estan aqui: sus codigos los genera la transformacion desde el ERP, no la plataforma.",
   "claveNatural": "Codigo",
   "filas": [
-    { "Codigo": "COTIZACION", "Nombre": "Cotizacion", "Descripcion": "Numeracion oficial de la cotizacion. Depende de D-17.", "Orden": 1, "Prefijo": "COT-", "Digitos": 4 },
-    { "Codigo": "CLIENTE", "Nombre": "Cliente", "Descripcion": "Codigo interno del cliente, visible en el PDF.", "Orden": 2, "Prefijo": "CLI-", "Digitos": 4 },
-    { "Codigo": "PRODUCTO", "Nombre": "Producto", "Descripcion": "Codigo del insumo consumible.", "Orden": 3, "Prefijo": "PR-", "Digitos": 4 },
-    { "Codigo": "ACTIVO", "Nombre": "Activo amortizable", "Descripcion": "Codigo del equipo o vehiculo que se amortiza.", "Orden": 4, "Prefijo": "AC-", "Digitos": 4 }
+    { "Codigo": "COTIZACION", "Nombre": "Cotizacion", "Descripcion": "Numeracion oficial de la cotizacion. Depende de D-17.", "Orden": 1, "Prefijo": "COT-", "Sufijo": "", "Plantilla": "{PRE}{ANIO}-{NUM}", "Digitos": 4, "ReiniciaPorAnio": true }
   ]
 }

@@ -173,13 +173,12 @@ public class CotizadorDbContext : DbContext
         builder.Property(e => e.UpdatedBy)
             .HasColumnName("UpdatedBy");
 
-        // IsActive se mapea solo si la tabla lo tiene, y el opt-out existe para no hacerlo.
-        //
-        // La otra forma de excluirlo sería .Ignore(...) después de ConfigurarBase, y funciona, pero
-        // deja a EF avisando en cada arranque: "the property 'Cotizacion.IsActive' was first
-        // mapped explicitly and then ignored". Mapeada una vez e ignorada después, la propiedad
-        // termina sin columna igual, pero el modelo queda diciendo las dos cosas y el aviso enseña
-        // a ignorar avisos, que es justo lo que hace que un aviso sirva.
+        // IsActive se mapea si la tabla lo tiene; el opt-out lo ignora, porque "no mapear" no
+        // alcanza: EF modelaría la propiedad por convención y generaría una columna igual. El
+        // Ignore va acá adentro y no en el llamador porque un `.Ignore(...)` después de mapear la
+        // propiedad deja a EF avisando en cada arranque: "the property 'Cotizacion.IsActive' was
+        // first mapped explicitly and then ignored". Ignorada desde el origen, la propiedad nunca
+        // termina en el modelo y no hay columna ni aviso.
         //
         // Las cuatro tablas que lo pierden son las que no pueden tener dos verdades: una cotización
         // se anula con su Estado, una línea pertenece a su cotización y una aprobación pertenece a
@@ -190,6 +189,10 @@ public class CotizadorDbContext : DbContext
             builder.Property(e => e.IsActive)
                 .HasColumnName("IsActive")
                 .HasDefaultValue(true);
+        }
+        else
+        {
+            builder.Ignore(e => e.IsActive);
         }
 
         builder.Property(e => e.RowVersion)
@@ -311,11 +314,20 @@ public class CotizadorDbContext : DbContext
             .HasColumnName("EsEstadoFinal")
             .HasDefaultValue(false);
 
-        // §5.15 · El prefijo y el ancho de la numeración oficial viven en la tabla, no en un
-        // formateador de C#.
+        // §5.15 · La forma de la numeración oficial vive en la tabla, no en un formateador de C#.
+        // Plantilla, Prefijo y Sufijo guardan texto libre; Digitos es int y no short porque el
+        // máximo real lo impone UltimoNumero (bigint, 19 dígitos) y 32767 era un techo que no
+        // significaba nada.
+        //
+        // El CHECK de la plantilla NO se declara acá: valida la semántica de las secciones y
+        // necesita la UDF escalar dbo.FnPlantillaConsecutivoValida, que se escribe a mano en la
+        // migración, igual que dbo.FnEsEstadoFinalAprobacion. Ver la migración de la plantilla.
         var tipoConsecutivo = modelBuilder.Entity<TipoConsecutivoCatalogo>();
-        tipoConsecutivo.Property(c => c.Prefijo).HasColumnName("Prefijo").HasMaxLength(10).IsRequired();
-        tipoConsecutivo.Property(c => c.Digitos).HasColumnName("Digitos").HasDefaultValue((short)4);
+        tipoConsecutivo.Property(c => c.Prefijo).HasColumnName("Prefijo").HasMaxLength(20).IsRequired();
+        tipoConsecutivo.Property(c => c.Sufijo).HasColumnName("Sufijo").HasMaxLength(20).IsRequired();
+        tipoConsecutivo.Property(c => c.Plantilla).HasColumnName("Plantilla").HasMaxLength(80).IsRequired();
+        tipoConsecutivo.Property(c => c.Digitos).HasColumnName("Digitos").HasDefaultValue(4);
+        tipoConsecutivo.Property(c => c.ReiniciaPorAnio).HasColumnName("ReiniciaPorAnio").HasDefaultValue(true);
     }
 
     /// <summary>Aplica §5.0 a un catálogo de dominio: forma común, sin columnas de auditoría.</summary>
@@ -567,7 +579,7 @@ public class CotizadorDbContext : DbContext
         ConfigurarBase(cliente);
         ConfigurarProcedencia(cliente);
         cliente.ToTable("Cliente", Esquemas.Negocio);
-        cliente.Property(c => c.Codigo).HasColumnName("Codigo").HasMaxLength(30).IsRequired();
+        cliente.Property(c => c.Codigo).HasColumnName("Codigo").HasMaxLength(40).IsRequired();
         cliente.Property(c => c.Nombre).HasColumnName("Nombre").HasMaxLength(200).IsRequired();
         cliente.Property(c => c.RazonSocial).HasColumnName("RazonSocial").HasMaxLength(200);
         cliente.Property(c => c.TipoClienteId).HasColumnName("TipoCliente").IsRequired();
@@ -592,7 +604,7 @@ public class CotizadorDbContext : DbContext
         ConfigurarBase(producto);
         ConfigurarProcedencia(producto);
         producto.ToTable("Producto", Esquemas.Negocio);
-        producto.Property(p => p.Codigo).HasColumnName("Codigo").HasMaxLength(30).IsRequired();
+        producto.Property(p => p.Codigo).HasColumnName("Codigo").HasMaxLength(40).IsRequired();
         producto.Property(p => p.Nombre).HasColumnName("Nombre").HasMaxLength(250).IsRequired();
         producto.Property(p => p.Descripcion).HasColumnName("Descripcion").HasMaxLength(500);
         producto.Property(p => p.CategoriaId).HasColumnName("CategoriaId");
@@ -624,7 +636,7 @@ public class CotizadorDbContext : DbContext
         ConfigurarProcedencia(activo);
         activo.ToTable("ActivoAmortizable", Esquemas.Negocio, t => t.HasCheckConstraint(
             "CK_ActivoAmortizable_MesesVidaUtil", "[MesesVidaUtil] > 0"));
-        activo.Property(a => a.Codigo).HasColumnName("Codigo").HasMaxLength(30).IsRequired();
+        activo.Property(a => a.Codigo).HasColumnName("Codigo").HasMaxLength(40).IsRequired();
         activo.Property(a => a.Nombre).HasColumnName("Nombre").HasMaxLength(250).IsRequired();
         activo.Property(a => a.Descripcion).HasColumnName("Descripcion").HasMaxLength(500);
         activo.Property(a => a.CategoriaId).HasColumnName("CategoriaId");
@@ -668,7 +680,16 @@ public class CotizadorDbContext : DbContext
         ConfigurarBase(cotizacion, conIsActive: false);
         cotizacion.ToTable("Cotizacion", Esquemas.Negocio, t => t.HasCheckConstraint(
             "CK_Cotizacion_MargenAplicado", "[MargenAplicado] >= 0 AND [MargenAplicado] <= 1"));
-        cotizacion.Property(c => c.Numero).HasColumnName("Numero").HasMaxLength(20).IsRequired();
+        // nvarchar(40) y no 20: el ancho lo fija la plantilla, que es configurable, y el peor caso
+        // que la base admite es prefijo(20) + año(4) + número(19) + sufijo(20) más los separadores
+        // que el usuario escriba. A 20 chars el documento se cortaba en silencio. Ver
+        // ConsecutivoService.SiguienteAsync(anchoMaximo).
+        cotizacion.Property(c => c.Numero).HasColumnName("Numero").HasMaxLength(40).IsRequired();
+        cotizacion.Property(c => c.TipoConsecutivoId).HasColumnName("TipoConsecutivoId");
+        cotizacion.HasOne<TipoConsecutivoCatalogo>()
+            .WithMany()
+            .HasForeignKey(c => c.TipoConsecutivoId)
+            .OnDelete(DeleteBehavior.Restrict);
         cotizacion.Property(c => c.Anio).HasColumnName("Anio").IsRequired();
         cotizacion.Property(c => c.Version).HasColumnName("Version").HasDefaultValue((short)1);
         cotizacion.Property(c => c.EsVersionActual).HasColumnName("EsVersionActual").HasDefaultValue(true);
@@ -903,7 +924,12 @@ public class CotizadorDbContext : DbContext
         consecutivo.ToTable("Consecutivo", Esquemas.Negocio);
         consecutivo.Property(c => c.TipoId).HasColumnName("Tipo").IsRequired();
         consecutivo.Property(c => c.Anio).HasColumnName("Anio").IsRequired();
-        consecutivo.Property(c => c.Prefijo).HasColumnName("Prefijo").HasMaxLength(10);
+        // Plantilla, Prefijo y Sufijo quedan NULL en esta tabla a propósito. Son la copia
+        // congelada del formato con el que se emitió el primer número del año, y se llenan
+        // solas: hasta que nadie ha emitido, no hay formato que congelar.
+        consecutivo.Property(c => c.Plantilla).HasColumnName("Plantilla").HasMaxLength(80);
+        consecutivo.Property(c => c.Prefijo).HasColumnName("Prefijo").HasMaxLength(20);
+        consecutivo.Property(c => c.Sufijo).HasColumnName("Sufijo").HasMaxLength(20);
         consecutivo.Property(c => c.UltimoNumero).HasColumnName("UltimoNumero").HasDefaultValue(0L);
         consecutivo.Property(c => c.Digitos).HasColumnName("Digitos").HasDefaultValue(4);
         consecutivo.HasIndex(c => new { c.TipoId, c.Anio }).IsUnique().HasDatabaseName("UX_Consecutivo_Tipo_Anio");
