@@ -56,10 +56,18 @@
 *.yml       text eol=crlf
 *.yaml      text eol=crlf
 *.config    text eol=crlf
-*.env       text eol=crlf
 Dockerfile  text eol=crlf
 .gitignore  text eol=crlf
 .gitattributes text eol=crlf
+
+#  El .env se nombra por punto, no por extensión: no hay forma de declarar un
+#  patrón que los cubra a todos, porque el nombre completo es la variable con un
+#  punto de entorno pegado. Se nombran a mano los dos que existen, y cuando
+#  aparezca un tercero hay que acordarlo aquí. Sin regla explícita, este archivo
+#  caía en la regla general y su fin de línea dependía de la máquina, que es
+#  justo lo que este archivo existe para evitar.
+/.env.Development.example text eol=crlf
+/.env                      text eol=crlf
 
 # ── Binarios: git no los toca ────────────────────────────────────────────────
 #  La mayor parte de los tipos de aquí están en el .gitignore, pero esa es otra
