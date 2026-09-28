@@ -166,4 +166,66 @@ public sealed class CatalogoService
         var response = await _http.PutAsJsonAsync($"api/catalogos/productos/{modelo.Id}", request);
         return await response.Content.ReadFromJsonAsync<ApiResponse<ProductoModel>>();
     }
+
+    public async Task<List<ClienteModel>> ListarClientesAsync()
+    {
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<ClienteModel>>>("api/catalogos/clientes");
+        return respuesta?.Datos ?? [];
+    }
+
+    public async Task<List<TipoClienteOption>> ObtenerTiposClienteAsync()
+    {
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<TipoClienteOption>>>("api/catalogos/clientes/tipos");
+        return respuesta?.Datos ?? [];
+    }
+
+    public async Task<ApiResponse<ClienteModel>?> CrearClienteAsync(ClienteModel modelo)
+    {
+        var request = new
+        {
+            modelo.Codigo,
+            modelo.Nombre,
+            modelo.RazonSocial,
+            modelo.TipoClienteId,
+            modelo.CedulaORuc,
+            modelo.IdentificacionFiscal,
+            modelo.Direccion,
+            modelo.Ciudad,
+            modelo.Departamento,
+            modelo.Telefono,
+            modelo.Correo,
+            modelo.ContactoNombre,
+            modelo.ContactoCargo,
+            modelo.SitioWeb,
+            modelo.Notas
+        };
+
+        var response = await _http.PostAsJsonAsync("api/catalogos/clientes", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<ClienteModel>>();
+    }
+
+    public async Task<ApiResponse<ClienteModel>?> ActualizarClienteAsync(ClienteModel modelo)
+    {
+        var request = new
+        {
+            modelo.Nombre,
+            modelo.RazonSocial,
+            modelo.TipoClienteId,
+            modelo.CedulaORuc,
+            modelo.IdentificacionFiscal,
+            modelo.Direccion,
+            modelo.Ciudad,
+            modelo.Departamento,
+            modelo.Telefono,
+            modelo.Correo,
+            modelo.ContactoNombre,
+            modelo.ContactoCargo,
+            modelo.SitioWeb,
+            modelo.Notas,
+            modelo.EsActivo
+        };
+
+        var response = await _http.PutAsJsonAsync($"api/catalogos/clientes/{modelo.Id}", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<ClienteModel>>();
+    }
 }

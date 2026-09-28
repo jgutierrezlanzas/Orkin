@@ -113,3 +113,63 @@ public sealed record ActualizarProductoRequest(
     decimal PrecioVentaActual,
     int? VidaUtilMeses,
     bool EsActivo);
+
+/// <summary>Respuesta de un cliente.</summary>
+public sealed record ClienteResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    string? RazonSocial,
+    byte TipoClienteId,
+    string TipoClienteNombre,
+    string? CedulaORuc,
+    string? IdentificacionFiscal,
+    string? Direccion,
+    string? Ciudad,
+    string? Departamento,
+    string? Telefono,
+    string? Correo,
+    string? ContactoNombre,
+    string? ContactoCargo,
+    string? SitioWeb,
+    string? Notas,
+    bool EsActivo);
+
+public sealed record TipoClienteOption(
+    byte Id,
+    string Codigo,
+    string Nombre);
+
+public sealed record CrearClienteRequest(
+    string Codigo,
+    string Nombre,
+    string? RazonSocial,
+    byte TipoClienteId,
+    string? CedulaORuc,
+    string? IdentificacionFiscal,
+    string? Direccion,
+    string? Ciudad,
+    string? Departamento,
+    string? Telefono,
+    string? Correo,
+    string? ContactoNombre,
+    string? ContactoCargo,
+    string? SitioWeb,
+    string? Notas);
+
+public sealed record ActualizarClienteRequest(
+    string Nombre,
+    string? RazonSocial,
+    byte TipoClienteId,
+    string? CedulaORuc,
+    string? IdentificacionFiscal,
+    string? Direccion,
+    string? Ciudad,
+    string? Departamento,
+    string? Telefono,
+    string? Correo,
+    string? ContactoNombre,
+    string? ContactoCargo,
+    string? SitioWeb,
+    string? Notas,
+    bool EsActivo);

@@ -42,6 +42,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CategoriaProductoService>();
         services.AddScoped<TipoServicioService>();
         services.AddScoped<ProductoService>();
+        services.AddScoped<ClienteService>();
 
         return services;
     }

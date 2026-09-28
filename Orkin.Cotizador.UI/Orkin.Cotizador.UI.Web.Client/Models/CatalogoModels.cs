@@ -51,3 +51,32 @@ public sealed class ProductoModel
     public int? VidaUtilMeses { get; set; }
     public bool EsActivo { get; set; }
 }
+
+public sealed class ClienteModel
+{
+    public Guid Id { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public string? RazonSocial { get; set; }
+    public byte TipoClienteId { get; set; }
+    public string? TipoClienteNombre { get; set; }
+    public string? CedulaORuc { get; set; }
+    public string? IdentificacionFiscal { get; set; }
+    public string? Direccion { get; set; }
+    public string? Ciudad { get; set; }
+    public string? Departamento { get; set; }
+    public string? Telefono { get; set; }
+    public string? Correo { get; set; }
+    public string? ContactoNombre { get; set; }
+    public string? ContactoCargo { get; set; }
+    public string? SitioWeb { get; set; }
+    public string? Notas { get; set; }
+    public bool EsActivo { get; set; }
+}
+
+public sealed class TipoClienteOption
+{
+    public byte Id { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+}
