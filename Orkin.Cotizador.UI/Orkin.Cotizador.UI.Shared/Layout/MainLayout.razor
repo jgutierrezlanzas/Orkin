@@ -9,7 +9,8 @@
             <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
             <MudText Typo="Typo.h6" Class="ml-3">ORKIN · Cotizador</MudText>
             <MudSpacer />
-            <MudText Typo="Typo.body2" Class="mr-3">@UsuarioNombre</MudText>
+            <MudText Typo="Typo.body2" Class="mr-3">@_nombreUsuario</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="CerrarSesion" aria-label="Cerrar sesión" />
         </MudAppBar>
 
         <MudDrawer @bind-Open="_drawerAbierto" Elevation="2" ClipMode="DrawerClipMode.Always">
@@ -38,11 +39,25 @@
     [Parameter]
     public bool MostrarSidebar { get; set; } = true;
 
-    [Parameter]
-    public string UsuarioNombre { get; set; } = string.Empty;
+    [Inject]
+    private NavigationManager Navigation { get; set; } = null!;
+
+    [Inject]
+    private AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
 
     private MudTheme Tema { get; set; } = OrkinTheme.Crear();
     private bool _drawerAbierto = true;
+    private string _nombreUsuario = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+        _nombreUsuario = estado.User.FindFirst("orkin:nombre")?.Value
+            ?? estado.User.Identity?.Name
+            ?? string.Empty;
+    }
 
     private void ToggleDrawer() => _drawerAbierto = !_drawerAbierto;
+
+    private void CerrarSesion() => Navigation.NavigateTo("/logout", forceLoad: false);
 }
