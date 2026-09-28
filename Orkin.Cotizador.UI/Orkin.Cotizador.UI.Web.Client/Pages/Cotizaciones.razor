@@ -1,0 +1,79 @@
+@page "/cotizaciones"
+@attribute [Authorize("COTIZACIONES.VER")]
+@layout MainLayout
+@inject CotizacionService CotizacionService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">Cotizaciones</MudText>
+        @if (_puedeCrear)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => Navigation.NavigateTo("/cotizaciones/nueva"))">
+                Nueva cotización
+            </MudButton>
+        }
+    </div>
+
+    <MudTable Items="_cotizaciones.Items" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Class="mt-4">
+        <HeaderContent>
+            <MudTh>Número</MudTh>
+            <MudTh>Cliente</MudTh>
+            <MudTh>Servicio</MudTh>
+            <MudTh>Fecha</MudTh>
+            <MudTh>Estado</MudTh>
+            <MudTh>Precio C$</MudTh>
+            <MudTh>Precio US$</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Número">
+                <MudLink Href="@($"/cotizaciones/{context.Id}")" Typo="Typo.body2">@context.Numero</MudLink>
+            </MudTd>
+            <MudTd DataLabel="Cliente">@context.ClienteNombre</MudTd>
+            <MudTd DataLabel="Servicio">@context.TipoServicioNombre</MudTd>
+            <MudTd DataLabel="Fecha">@context.Fecha.ToString("dd/MM/yyyy")</MudTd>
+            <MudTd DataLabel="Estado">
+                <MudChip T="string" Size="Size.Small" Color="@EstadoColor(context.EstadoCodigo)">@context.EstadoNombre</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Precio C$">@context.PrecioCordobas.ToString("N2")</MudTd>
+            <MudTd DataLabel="Precio US$">@context.PrecioUsd.ToString("N2")</MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPage="_tamanioPagina" RowsPerPageString="Filas por página" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private PaginatedCotizaciones _cotizaciones = new();
+    private bool _cargando;
+    private bool _puedeCrear;
+    private int _tamanioPagina = 20;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+            _puedeCrear = estado.User.HasClaim("orkin:permiso", "COTIZACIONES.CREAR");
+            _cotizaciones = await CotizacionService.ListarAsync();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private static Color EstadoColor(string codigo) => codigo switch
+    {
+        "BORRADOR" => Color.Warning,
+        "ENVIADA" => Color.Info,
+        "APROBADA" => Color.Success,
+        "RECHAZADA" => Color.Error,
+        "ANULADA" => Color.Default,
+        _ => Color.Default
+    };
+}

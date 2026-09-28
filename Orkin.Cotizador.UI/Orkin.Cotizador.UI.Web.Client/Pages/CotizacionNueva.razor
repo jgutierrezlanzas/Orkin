@@ -1,0 +1,287 @@
+@page "/cotizaciones/nueva"
+@attribute [Authorize("COTIZACIONES.CREAR")]
+@layout MainLayout
+@inject CotizacionService CotizacionService
+@inject CatalogoService CatalogoService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Nueva cotización</MudText>
+
+    @if (_cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else
+    {
+        <MudPaper Elevation="2" Class="pa-4 mb-6">
+            <MudText Typo="Typo.h6" Class="mb-4">Datos generales</MudText>
+            <MudGrid>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="Guid" @bind-Value="_clienteId" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var cliente in _opciones.Clientes)
+                        {
+                            <MudSelectItem T="Guid" Value="cliente.Id">@(cliente.Nombre) (@cliente.Codigo)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="Guid" @bind-Value="_tipoServicioId" Label="Tipo de servicio" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var tipo in _opciones.TiposServicio)
+                        {
+                            <MudSelectItem T="Guid" Value="tipo.Id">@tipo.Nombre</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudDatePicker @bind-Value="_fecha" Label="Fecha" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudNumericField T="decimal" @bind-Value="_margen" Label="Margen (fracción)" Variant="Variant.Outlined" Margin="Margin.Dense" Step="0.005m" Min="0m" Max="1m" />
+                </MudItem>
+            </MudGrid>
+            <MudText Typo="Typo.caption" Class="mt-1 mb-4">Margen: <b>@((_margen * 100).ToString("N1"))%</b> (ej. 0.055 = 5.5%)</MudText>
+        </MudPaper>
+
+        <MudPaper Elevation="2" Class="pa-4 mb-6">
+            <div class="d-flex justify-space-between align-center mb-4">
+                <MudText Typo="Typo.h6">Insumos</MudText>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarInsumo">Agregar</MudButton>
+            </div>
+
+            @if (_insumos.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info">No hay insumos. Agregue al menos uno para calcular.</MudAlert>
+            }
+            else
+            {
+                <MudTable Items="_insumos" Hover="false" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Producto</MudTh>
+                        <MudTh>Cantidad</MudTh>
+                        <MudTh>Costo unitario</MudTh>
+                        <MudTh>Total</MudTh>
+                        <MudTh />
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd Style="min-width: 250px">
+                            <MudSelect T="Guid" @bind-Value="context.ProductoId" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                                @foreach (var producto in _productos)
+                                {
+                                    <MudSelectItem T="Guid" Value="producto.Id">@(producto.Nombre) — @(producto.CostoActual.ToString("N2")) C$/@producto.UnidadMedidaAbreviatura</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudTd>
+                        <MudTd>
+                            <MudNumericField T="decimal" @bind-Value="context.Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Min="0.01m" Step="1m" Style="width: 120px" />
+                        </MudTd>
+                        <MudTd>@ObtenerCosto(context.ProductoId).ToString("N2")</MudTd>
+                        <MudTd>@((ObtenerCosto(context.ProductoId) * context.Cantidad).ToString("N2"))</MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => QuitarInsumo(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudPaper>
+
+        @if (_resultado is not null)
+        {
+            <MudPaper Elevation="4" Class="pa-4 mb-6">
+                <MudText Typo="Typo.h6" Class="mb-4">Resultado del cálculo</MudText>
+                <MudGrid>
+                    <MudItem xs="12" md="3">
+                        <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                            <MudText Typo="Typo.caption">Total insumos</MudText>
+                            <MudText Typo="Typo.h5" Color="Color.Primary">@_resultado.TotalInsumos.ToString("N2")</MudText>
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                            <MudText Typo="Typo.caption">Costo total</MudText>
+                            <MudText Typo="Typo.h5" Color="Color.Primary">@_resultado.CostoTotal.ToString("N2")</MudText>
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                            <MudText Typo="Typo.caption">Precio C$</MudText>
+                            <MudText Typo="Typo.h5" Color="Color.Success">@_resultado.PrecioCordobas.ToString("N2")</MudText>
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                            <MudText Typo="Typo.caption">Precio US$</MudText>
+                            <MudText Typo="Typo.h5" Color="Color.Success">@_resultado.PrecioUsd.ToString("N2")</MudText>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+                <MudDivider Class="my-4" />
+                <MudGrid>
+                    <MudItem xs="12" md="3">
+                        <MudText Typo="Typo.body2">TC usado: <b>@_resultado.TipoCambioValor.ToString("N4")</b> (@_resultado.TipoCambioFecha.ToString("dd/MM/yyyy"))</MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudText Typo="Typo.body2">Margen: <b>@((_resultado.MargenAplicado * 100).ToString("N1"))%</b></MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudText Typo="Typo.body2">Semestre 1: <b>@_resultado.TotalInsumosSemestre1.ToString("N2")</b></MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudText Typo="Typo.body2">Semestre 2: <b>@_resultado.TotalInsumosSemestre2.ToString("N2")</b></MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        }
+
+        <div class="d-flex justify-end gap-4">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Calcular" Disabled="_calculando || _insumos.Count == 0 || _clienteId == Guid.Empty">
+                @if (_calculando)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                }
+                else
+                {
+                    <MudText>Calcular</MudText>
+                }
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="Guardar" Disabled="_guardando || _resultado is null">
+                @if (_guardando)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                }
+                else
+                {
+                    <MudText>Guardar cotización</MudText>
+                }
+            </MudButton>
+        </div>
+    }
+</MudContainer>
+
+@code {
+    private CotizacionOpciones _opciones = new();
+    private List<ProductoModel> _productos = [];
+    private List<LineaInsumoRequest> _insumos = [];
+    private CotizacionCalculadaResponse? _resultado;
+    private Guid _clienteId;
+    private Guid _tipoServicioId;
+    private DateOnly _fecha = DateOnly.FromDateTime(DateTime.Today);
+    private decimal _margen = 0.055m;
+    private bool _cargando;
+    private bool _calculando;
+    private bool _guardando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            _opciones = await CotizacionService.ObtenerOpcionesAsync();
+            _productos = await CatalogoService.ListarProductosAsync();
+
+            if (_opciones.Clientes.Count > 0)
+            {
+                _clienteId = _opciones.Clientes[0].Id;
+            }
+            if (_opciones.TiposServicio.Count > 0)
+            {
+                _tipoServicioId = _opciones.TiposServicio[0].Id;
+            }
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void AgregarInsumo()
+    {
+        if (_productos.Count == 0) return;
+        _insumos.Add(new LineaInsumoRequest
+        {
+            ProductoId = _productos[0].Id,
+            Cantidad = 1
+        });
+    }
+
+    private void QuitarInsumo(LineaInsumoRequest insumo)
+    {
+        _insumos.Remove(insumo);
+    }
+
+    private decimal ObtenerCosto(Guid productoId)
+    {
+        var producto = _productos.FirstOrDefault(p => p.Id == productoId);
+        return producto?.CostoActual ?? 0;
+    }
+
+    private async Task Calcular()
+    {
+        if (_clienteId == Guid.Empty)
+        {
+            Snackbar.Add("Seleccione un cliente.", Severity.Warning);
+            return;
+        }
+
+        if (_insumos.Count == 0)
+        {
+            Snackbar.Add("Agregue al menos un insumo.", Severity.Warning);
+            return;
+        }
+
+        _calculando = true;
+        try
+        {
+            var respuesta = await CotizacionService.CalcularAsync(_clienteId, _fecha, _margen, _insumos);
+
+            if (respuesta?.Exito == true && respuesta.Datos is not null)
+            {
+                _resultado = respuesta.Datos;
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo calcular.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _calculando = false;
+        }
+    }
+
+    private async Task Guardar()
+    {
+        if (_resultado is null)
+        {
+            Snackbar.Add("Calcule primero.", Severity.Warning);
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            var respuesta = await CotizacionService.CrearAsync(
+                _clienteId,
+                _tipoServicioId,
+                _fecha,
+                null,
+                _margen,
+                _insumos);
+
+            if (respuesta?.Exito == true && respuesta.Datos is not null)
+            {
+                Snackbar.Add($"Cotización {respuesta.Datos.Numero} creada.", Severity.Success);
+                Navigation.NavigateTo("/cotizaciones");
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

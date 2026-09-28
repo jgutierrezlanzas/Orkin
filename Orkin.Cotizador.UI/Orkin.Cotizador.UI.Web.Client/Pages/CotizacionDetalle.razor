@@ -1,0 +1,126 @@
+@page "/cotizaciones/{Id:guid}"
+@attribute [Authorize("COTIZACIONES.VER")]
+@layout MainLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    @if (_cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_cotizacion is null)
+    {
+        <MudAlert Severity="Severity.Warning">Cotización no encontrada.</MudAlert>
+    }
+    else
+    {
+        <div class="d-flex justify-space-between align-center mb-4">
+            <MudText Typo="Typo.h4" Color="Color.Primary">@_cotizacion.Numero</MudText>
+            <MudChip T="string" Size="Size.Small" Color="@EstadoColor(_cotizacion.EstadoCodigo)">@_cotizacion.EstadoNombre</MudChip>
+        </div>
+
+        <MudPaper Elevation="2" Class="pa-4 mb-6">
+            <MudGrid>
+                <MudItem xs="12" md="4">
+                    <MudText Typo="Typo.caption">Cliente</MudText>
+                    <MudText Typo="Typo.body1">@_cotizacion.ClienteNombre</MudText>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudText Typo="Typo.caption">Tipo de servicio</MudText>
+                    <MudText Typo="Typo.body1">@_cotizacion.TipoServicioNombre</MudText>
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudText Typo="Typo.caption">Fecha</MudText>
+                    <MudText Typo="Typo.body1">@_cotizacion.Fecha.ToString("dd/MM/yyyy")</MudText>
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudText Typo="Typo.caption">Margen</MudText>
+                    <MudText Typo="Typo.body1">@((_cotizacion.Margen * 100).ToString("N1"))%</MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudPaper Elevation="4" Class="pa-4 mb-6">
+            <MudText Typo="Typo.h6" Class="mb-4">Resultados</MudText>
+            <MudGrid>
+                <MudItem xs="12" md="3">
+                    <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                        <MudText Typo="Typo.caption">Total insumos</MudText>
+                        <MudText Typo="Typo.h5" Color="Color.Primary">@_cotizacion.TotalInsumos.ToString("N2")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                        <MudText Typo="Typo.caption">Costo total</MudText>
+                        <MudText Typo="Typo.h5" Color="Color.Primary">@_cotizacion.CostoTotal.ToString("N2")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                        <MudText Typo="Typo.caption">Precio C$</MudText>
+                        <MudText Typo="Typo.h5" Color="Color.Success">@_cotizacion.PrecioCordobas.ToString("N2")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                        <MudText Typo="Typo.caption">Precio US$</MudText>
+                        <MudText Typo="Typo.h5" Color="Color.Success">@_cotizacion.PrecioUsd.ToString("N2")</MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+            <MudDivider Class="my-4" />
+            <MudGrid>
+                <MudItem xs="12" md="3">
+                    <MudText Typo="Typo.body2">TC: <b>@_cotizacion.TipoCambioValor.ToString("N4")</b> (@_cotizacion.TipoCambioFecha.ToString("dd/MM/yyyy"))</MudText>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudText Typo="Typo.body2">Semestre 1: <b>@_cotizacion.TotalInsumosSemestre1.ToString("N2")</b></MudText>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudText Typo="Typo.body2">Semestre 2: <b>@_cotizacion.TotalInsumosSemestre2.ToString("N2")</b></MudText>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudText Typo="Typo.body2">Creada: <b>@_cotizacion.CreatedAt.ToString("dd/MM/yyyy HH:mm")</b></MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Navigation.NavigateTo("/cotizaciones"))">
+            Volver al listado
+        </MudButton>
+    }
+</MudContainer>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private CotizacionListItem? _cotizacion;
+    private bool _cargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            var respuesta = await Http.GetFromJsonAsync<ApiResponse<CotizacionListItem>>($"api/cotizaciones/{Id}");
+            _cotizacion = respuesta?.Datos;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private static Color EstadoColor(string codigo) => codigo switch
+    {
+        "BORRADOR" => Color.Warning,
+        "ENVIADA" => Color.Info,
+        "APROBADA" => Color.Success,
+        "RECHAZADA" => Color.Error,
+        "ANULADA" => Color.Default,
+        _ => Color.Default
+    };
+}
