@@ -36,16 +36,13 @@ public sealed class EmisorJwt
 {
     private readonly CotizadorDbContext _contexto;
     private readonly SeguridadOptions _opciones;
-    private readonly RevocacionTokens _revocacion;
 
     public EmisorJwt(
         CotizadorDbContext contexto,
-        IOptions<SeguridadOptions> opciones,
-        RevocacionTokens revocacion)
+        IOptions<SeguridadOptions> opciones)
     {
         _contexto = contexto;
         _opciones = opciones.Value;
-        _revocacion = revocacion;
     }
 
     /// <summary>Emite el token de un usuario con sus permisos ya resueltos.</summary>
@@ -97,7 +94,15 @@ public sealed class EmisorJwt
                 new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_opciones.ClaveFirma)),
                 SecurityAlgorithms.HmacSha256));
 
-        await _revocacion.RegistrarAsync(identificador, expiracion, cancellationToken);
+        // Acá no se toca la lista de revocados. Emitir y revocar son eventos distintos y en el
+        // mismo instante: un token que se marca como revocado en el momento en que se firma
+        // nace muerto, y la consecuencia es que la consulta de "quien soy" lo rechaza
+        // acaba de entrar con la contraseña correcta. Es un error que se escribe con toda la
+        // buena fe del mundo —"hay que registrar el token por si acaso"— y que no se detecta
+        // leyendo el código, sino entrando con el usuario con el que se acaba de sembrar.
+        //
+        // La revocación vive en el cierre de sesión, que es donde significa algo. Ver
+        // <see cref="RevocacionTokens"/> y el SalirAsync de <c>AuthController</c>.
 
         return new TokenEmitido(
             new JwtSecurityTokenHandler().WriteToken(token),
