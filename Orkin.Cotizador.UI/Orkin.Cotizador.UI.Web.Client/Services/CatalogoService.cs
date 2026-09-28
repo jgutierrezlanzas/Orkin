@@ -228,4 +228,43 @@ public sealed class CatalogoService
         var response = await _http.PutAsJsonAsync($"api/catalogos/clientes/{modelo.Id}", request);
         return await response.Content.ReadFromJsonAsync<ApiResponse<ClienteModel>>();
     }
+
+    public async Task<List<TipoCambioModel>> ListarTiposCambioAsync()
+    {
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<TipoCambioModel>>>("api/catalogos/tipos-cambio");
+        return respuesta?.Datos ?? [];
+    }
+
+    public async Task<List<FuenteTipoCambioOption>> ObtenerFuentesTipoCambioAsync()
+    {
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<FuenteTipoCambioOption>>>("api/catalogos/tipos-cambio/fuentes");
+        return respuesta?.Datos ?? [];
+    }
+
+    public async Task<ApiResponse<TipoCambioModel>?> CrearTipoCambioAsync(TipoCambioModel modelo)
+    {
+        var request = new
+        {
+            modelo.Fecha,
+            modelo.Valor,
+            modelo.FuenteId
+        };
+
+        var response = await _http.PostAsJsonAsync("api/catalogos/tipos-cambio", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<TipoCambioModel>>();
+    }
+
+    public async Task<ApiResponse<TipoCambioModel>?> ActualizarTipoCambioAsync(TipoCambioModel modelo)
+    {
+        var request = new
+        {
+            modelo.Fecha,
+            modelo.Valor,
+            modelo.FuenteId,
+            modelo.EsActivo
+        };
+
+        var response = await _http.PutAsJsonAsync($"api/catalogos/tipos-cambio/{modelo.Id}", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<TipoCambioModel>>();
+    }
 }

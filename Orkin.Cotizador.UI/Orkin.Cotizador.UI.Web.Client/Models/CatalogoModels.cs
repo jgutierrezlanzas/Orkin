@@ -80,3 +80,20 @@ public sealed class TipoClienteOption
     public string Codigo { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
 }
+
+public sealed class TipoCambioModel
+{
+    public Guid Id { get; set; }
+    public DateOnly Fecha { get; set; }
+    public decimal Valor { get; set; }
+    public byte FuenteId { get; set; }
+    public string? FuenteNombre { get; set; }
+    public bool EsActivo { get; set; }
+}
+
+public sealed class FuenteTipoCambioOption
+{
+    public byte Id { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+}

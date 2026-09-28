@@ -1,0 +1,174 @@
+@page "/catalogos/tipos-cambio"
+@attribute [Authorize("CATALOGOS.VER")]
+@layout MainLayout
+@inject CatalogoService CatalogoService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Tipos de cambio</MudText>
+
+    @if (_puedeEditar)
+    {
+        <MudPaper Elevation="2" Class="pa-4 mb-6">
+            <MudText Typo="Typo.h6" Class="mb-4">@(_editando ? "Editar" : "Nuevo") tipo de cambio</MudText>
+            <MudGrid>
+                <MudItem xs="12" md="3">
+                    <MudDatePicker @bind-Value="_modelo.Fecha" Label="Fecha" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudNumericField T="decimal" @bind-Value="_modelo.Valor" Label="Valor (C$/US$)" Variant="Variant.Outlined" Margin="Margin.Dense" Step="0.0001m" Min="0.0001m" />
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudSelect T="byte" @bind-Value="_modelo.FuenteId" Label="Fuente" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var fuente in _fuentes)
+                        {
+                            <MudSelectItem T="byte" Value="fuente.Id">@fuente.Nombre</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                @if (_editando)
+                {
+                    <MudItem xs="12" md="2">
+                        <MudSwitch @bind-Value="_modelo.EsActivo" Label="Activo" Color="Color.Primary" />
+                    </MudItem>
+                }
+            </MudGrid>
+            <div class="d-flex justify-end mt-4">
+                @if (_editando)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar" Class="mr-2">Cancelar</MudButton>
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar" Disabled="_guardando">
+                    @if (_guardando)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    }
+                    else
+                    {
+                        <MudText>Guardar</MudText>
+                    }
+                </MudButton>
+            </div>
+        </MudPaper>
+    }
+
+    <MudTable Items="_tiposCambio" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Fecha</MudTh>
+            <MudTh>Valor (C$/US$)</MudTh>
+            <MudTh>Fuente</MudTh>
+            <MudTh>Activo</MudTh>
+            @if (_puedeEditar)
+            {
+                <MudTh>Acciones</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Fecha">@context.Fecha.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Valor">@context.Valor.ToString("N4")</MudTd>
+            <MudTd DataLabel="Fuente">@(context.FuenteNombre ?? "-")</MudTd>
+            <MudTd DataLabel="Activo">
+                <MudIcon Icon="@(context.EsActivo ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" />
+            </MudTd>
+            @if (_puedeEditar)
+            {
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Editar(context))" />
+                </MudTd>
+            }
+        </RowTemplate>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<TipoCambioModel> _tiposCambio = [];
+    private List<FuenteTipoCambioOption> _fuentes = [];
+    private TipoCambioModel _modelo = new();
+    private bool _cargando;
+    private bool _guardando;
+    private bool _editando;
+    private bool _puedeEditar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+            _puedeEditar = estado.User.HasClaim("orkin:permiso", "CATALOGOS.EDITAR");
+            _fuentes = await CatalogoService.ObtenerFuentesTipoCambioAsync();
+            _tiposCambio = await CatalogoService.ListarTiposCambioAsync();
+
+            if (_fuentes.Count > 0 && _modelo.FuenteId == 0)
+            {
+                _modelo.FuenteId = _fuentes[0].Id;
+            }
+            if (_modelo.Fecha == default)
+            {
+                _modelo.Fecha = DateOnly.FromDateTime(DateTime.Today);
+            }
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void Editar(TipoCambioModel tc)
+    {
+        _modelo = new TipoCambioModel
+        {
+            Id = tc.Id,
+            Fecha = tc.Fecha,
+            Valor = tc.Valor,
+            FuenteId = tc.FuenteId,
+            EsActivo = tc.EsActivo
+        };
+        _editando = true;
+    }
+
+    private void Cancelar()
+    {
+        _modelo = new TipoCambioModel();
+        if (_fuentes.Count > 0)
+        {
+            _modelo.FuenteId = _fuentes[0].Id;
+        }
+        _modelo.Fecha = DateOnly.FromDateTime(DateTime.Today);
+        _editando = false;
+    }
+
+    private async Task Guardar()
+    {
+        _guardando = true;
+        try
+        {
+            ApiResponse<TipoCambioModel>? respuesta;
+
+            if (_editando)
+            {
+                respuesta = await CatalogoService.ActualizarTipoCambioAsync(_modelo);
+            }
+            else
+            {
+                respuesta = await CatalogoService.CrearTipoCambioAsync(_modelo);
+            }
+
+            if (respuesta?.Exito == true)
+            {
+                Snackbar.Add("Guardado correctamente.", Severity.Success);
+                Cancelar();
+                _tiposCambio = await CatalogoService.ListarTiposCambioAsync();
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}
