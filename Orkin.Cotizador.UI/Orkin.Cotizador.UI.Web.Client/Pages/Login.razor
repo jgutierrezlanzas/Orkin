@@ -18,17 +18,17 @@
         <EditForm Model="_modelo" OnValidSubmit="Ingresar">
             <DataAnnotationsValidator />
 
-            <MudTextField @bind-Value="_modelo.Email"
-                          Label="Correo"
+            <MudTextField @bind-Value="_modelo.Credencial"
+                          Label="Correo o usuario"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
                           FullWidth="true"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Filled.Email"
-                          For="@(() => _modelo.Email)"
+                          For="@(() => _modelo.Credencial)"
                           Class="mb-4" />
 
-            <MudTextField @bind-Value="_modelo.Password"
+            <MudTextField @bind-Value="_modelo.Contrasena"
                           Label="Contraseña"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
@@ -36,7 +36,7 @@
                           InputType="InputType.Password"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Filled.Lock"
-                          For="@(() => _modelo.Password)"
+                          For="@(() => _modelo.Contrasena)"
                           Class="mb-6" />
 
             <MudButton ButtonType="ButtonType.Submit"

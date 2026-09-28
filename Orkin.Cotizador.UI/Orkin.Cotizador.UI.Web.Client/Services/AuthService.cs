@@ -30,16 +30,10 @@ public sealed class AuthService
         => await _js.InvokeAsync<string>("localStorage.removeItem", TokenKey);
 
     public async Task<ApiResponse<LoginResponse>?> LoginAsync(LoginRequest request)
-        => await _http.PostAsJsonAsync("api/auth/ingresar", request)
-            .ContinueWith(t => t.Result.IsSuccessStatusCode
-                ? t.Result.Content.ReadFromJsonAsync<ApiResponse<LoginResponse>>().Result
-                : null);
-
-    public async Task<ApiResponse<CambioContrasenaResponse>?> CambiarContrasenaAsync(CambioContrasenaRequest request)
-        => await _http.PostAsJsonAsync("api/auth/cambiar-contrasena", request)
-            .ContinueWith(t => t.Result.IsSuccessStatusCode
-                ? t.Result.Content.ReadFromJsonAsync<ApiResponse<CambioContrasenaResponse>>().Result
-                : null);
+    {
+        var response = await _http.PostAsJsonAsync("api/auth/login", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<LoginResponse>>();
+    }
 
     public async Task<bool> LogoutAsync()
     {
@@ -52,5 +46,11 @@ public sealed class AuthService
         {
             return false;
         }
+    }
+
+    public async Task<ApiResponse<CambioContrasenaResponse>?> CambiarContrasenaAsync(CambioContrasenaRequest request)
+    {
+        var response = await _http.PostAsJsonAsync("api/auth/cambiar-contrasena", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<CambioContrasenaResponse>>();
     }
 }
