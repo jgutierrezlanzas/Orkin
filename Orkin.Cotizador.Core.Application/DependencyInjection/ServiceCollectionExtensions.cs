@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Orkin.Cotizador.Core.Application.Catalogos;
 using Orkin.Cotizador.Core.Application.Sistema;
 using Orkin.Cotizador.Core.Infrastructure.Persistence;
 
@@ -37,6 +38,7 @@ public static class ServiceCollectionExtensions
         // la transacción sea una sola cuando el que llama abrió una.
         services.AddScoped<ConsecutivoService>();
         services.AddScoped<EjecutorSql>();
+        services.AddScoped<UnidadMedidaService>();
 
         return services;
     }
