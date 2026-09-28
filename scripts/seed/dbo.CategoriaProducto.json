@@ -1,0 +1,13 @@
+{
+  "//": "§6.2.2. Catalogo MAESTRO. El Excel NO trae una columna de categoria: Tabla1912 (164 filas) y Tabla10 (113 filas) traen el producto y sus precios, no su clasificacion. Estas seis filas son las que la documentacion de §6.2.2 nombra como ejemplo, mas SIN_CATEGORIA, que es el destino de todo producto cuya categoria no se pudo deducir (tarea 2.6, pendiente de depurar con el cliente). Las categorias que se deduzcan de verdad en la importacion se agregan a este archivo en la tarea 2.6, no antes.",
+  "//_nota": "⚠️ No se inventaron categorias tales como 'plaguicidas', 'insecticidas SHA' ni 'otros'. Una fila inventada deja de ser el dato que el cliente usa y pasa a ser el dato que concertamos nosotros, que es exactamente el problema que ADR-018 viene a evitar.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "INSECTICIDA", "Nombre": "Insecticida", "Descripcion": "Control de insectos. Pendiente de confirmar con el cliente si 'plaguicida' es una categoria aparte o la misma.", "Orden": 1, "OrigenDatoId": "MANUAL" },
+    { "Codigo": "RODENTICIDA", "Nombre": "Rodenticida", "Descripcion": "Control de roedores.", "Orden": 2, "OrigenDatoId": "MANUAL" },
+    { "Codigo": "REPELENTE", "Nombre": "Repelente", "Descripcion": "Repelentes y ahuyentadores.", "Orden": 3, "OrigenDatoId": "MANUAL" },
+    { "Codigo": "BULK", "Nombre": "Insumos de limpieza", "Descripcion": "Productos de limpieza a granel. El nombre en ingles del Excel se corrige aqui.", "Orden": 4, "OrigenDatoId": "MANUAL" },
+    { "Codigo": "SERVICIO", "Nombre": "Servicio", "Descripcion": "Mano de obra y visitas. No es un insumo consumible: se cobra como servicio y no se descuenta del inventario.", "Orden": 5, "OrigenDatoId": "MANUAL" },
+    { "Codigo": "SIN_CATEGORIA", "Nombre": "Sin categoria", "Descripcion": "Destino temporal de lo que no se pudo clasificar. No es una categoria real: el objetivo de la tarea 2.6 es que termine vacia.", "Orden": 99, "OrigenDatoId": "SISTEMA" }
+  ]
+}

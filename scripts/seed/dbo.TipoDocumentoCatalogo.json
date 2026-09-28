@@ -1,0 +1,8 @@
+{
+  "//": "§5.11. Tipo de archivo generado. dbo.DocumentoGenerado tiene un indice unico por (Cotizacion, Tipo), asi que volver a generar el PDF reemplaza la fila anterior en vez de acumular versiones: el PDF vigente es el ultimo.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "PDF_COTIZACION", "Nombre": "Cotizacion en PDF", "Descripcion": "Lo que ve el cliente. Plantilla de QuestPDF, Fase 6.", "Orden": 1 },
+    { "Codigo": "COMPROBANTE_APROBACION", "Nombre": "Comprobante de aprobacion", "Descripcion": "Respaldo interno de quien aprobo y cuando.", "Orden": 2 }
+  ]
+}

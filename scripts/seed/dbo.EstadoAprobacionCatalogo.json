@@ -1,0 +1,11 @@
+{
+  "//": "§5.7. Estado de una aprobacion. La columna EsEstadoFinal es lo que permite que el CHECK de dbo.CotizacionAprobacion exija FechaRespuesta sin escribir el numero de 'rechazada' dentro del esquema: un CHECK de SQL Server no admite subconsultas contra el catalogo, asi que el conjunto de estados finales tiene que ser un dato de la fila.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "PENDIENTE", "Nombre": "Pendiente", "Descripcion": "Se pidio y nadie ha respondido.", "Orden": 1, "EsEstadoFinal": false },
+    { "Codigo": "APROBADA", "Nombre": "Aprobada", "Descripcion": "Un aprobador la concedio.", "Orden": 2, "EsEstadoFinal": true },
+    { "Codigo": "RECHAZADA", "Nombre": "Rechazada", "Descripcion": "Un aprobador la rechazo, con motivo obligatorio.", "Orden": 3, "EsEstadoFinal": true },
+    { "Codigo": "VENCIDA", "Nombre": "Vencida", "Descripcion": "Se vencio el plazo de respuesta y se cerro sola.", "Orden": 4, "EsEstadoFinal": true },
+    { "Codigo": "CANCELADA", "Nombre": "Cancelada", "Descripcion": "Quien la pidio la retiro antes de que hubiera respuesta.", "Orden": 5, "EsEstadoFinal": true }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "//": "§5.18. De donde salio el margen que se aplico. Sin esta columna no hay forma de saber si el 5.5% lo tecleo una persona o vino del catalogo, que es justo lo que hay que auditar.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "MANUAL", "Nombre": "Tecleado en la cotizacion", "Descripcion": "Una persona lo escribio en el formulario.", "Orden": 1 },
+    { "Codigo": "SUGERIDO_TIPO_SERVICIO", "Nombre": "Sugerido por el tipo de servicio", "Descripcion": "Viene de dbo.TipoServicioMargen, que tiene vigencia. Depende de D-04.", "Orden": 2 },
+    { "Codigo": "PARAMETRO", "Nombre": "Tomado de dbo.ParametroGeneral", "Descripcion": "Viene de COTIZACION.MARGEN_POR_DEFECTO_* porque el tipo de servicio no trae margen.", "Orden": 3 }
+  ]
+}

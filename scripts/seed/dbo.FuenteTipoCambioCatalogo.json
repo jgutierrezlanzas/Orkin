@@ -1,0 +1,9 @@
+{
+  "//": "§5.6. De donde sale el tipo de cambio. Depende de D-06 (si el Banco Central se consulta a mano o por API); la fila existe de las dos maneras y lo que se decide es cual queda activa.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "MANUAL", "Nombre": "Carga manual", "Descripcion": "Alguien teclea el valor del dia.", "Orden": 1 },
+    { "Codigo": "BANCO_CENTRAL", "Nombre": "Banco Central de Nicaragua", "Descripcion": "Publicado por el BCN. El origen natural del dato.", "Orden": 2 },
+    { "Codigo": "API_EXTERNA", "Nombre": "API externa configurable", "Descripcion": "Un proveedor de tipo de cambio con la URL y las credenciales en dbo.ParametroGeneral.", "Orden": 3 }
+  ]
+}

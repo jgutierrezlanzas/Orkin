@@ -1,0 +1,10 @@
+{
+  "//": "§5.15. Que numeraciones oficiales existen. El prefijo y el ancho de los ceros viven AQUI, no en un formateador de C#: agregar una numeracion oficial es una fila mas, no un switch mas. El formato COT-2026-0413 de la cotizacion depende de D-17, que sigue abierto.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "COTIZACION", "Nombre": "Cotizacion", "Descripcion": "Numeracion oficial de la cotizacion. Depende de D-17.", "Orden": 1, "Prefijo": "COT-", "Digitos": 4 },
+    { "Codigo": "CLIENTE", "Nombre": "Cliente", "Descripcion": "Codigo interno del cliente, visible en el PDF.", "Orden": 2, "Prefijo": "CLI-", "Digitos": 4 },
+    { "Codigo": "PRODUCTO", "Nombre": "Producto", "Descripcion": "Codigo del insumo consumible.", "Orden": 3, "Prefijo": "PR-", "Digitos": 4 },
+    { "Codigo": "ACTIVO", "Nombre": "Activo amortizable", "Descripcion": "Codigo del equipo o vehiculo que se amortiza.", "Orden": 4, "Prefijo": "AC-", "Digitos": 4 }
+  ]
+}

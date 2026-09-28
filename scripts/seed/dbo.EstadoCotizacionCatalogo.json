@@ -1,0 +1,14 @@
+{
+  "//": "§5.2. Los badges del Prototipo D. Las transiciones permitidas NO viven aqui: son comportamiento de la maquina de estados y se validan en EstadoCotizacionService, no con literales dispersos por el codigo.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "BORRADOR", "Nombre": "Borrador", "Descripcion": "Se esta armando. Todavia no se pide aprobacion.", "Orden": 1 },
+    { "Codigo": "EN_APROBACION", "Nombre": "En aprobacion", "Descripcion": "Se supero un umbral y espera la decision de un aprobador.", "Orden": 2 },
+    { "Codigo": "APROBADA", "Nombre": "Aprobada", "Descripcion": "Aprobada internamente. Todavia no se ha enviado al cliente.", "Orden": 3 },
+    { "Codigo": "RECHAZADA", "Nombre": "Rechazada", "Descripcion": "Un aprobador la devolvio. Vuelve a BORRADOR para corregirla.", "Orden": 4 },
+    { "Codigo": "ENVIADA", "Nombre": "Enviada", "Descripcion": "El cliente la recibio. Es la unica que produce un PDF y un correo.", "Orden": 5 },
+    { "Codigo": "VENCIDA", "Nombre": "Vencida", "Descripcion": "Paso la fecha de vigencia sin respuesta del cliente.", "Orden": 6 },
+    { "Codigo": "ANULADA", "Nombre": "Anulada", "Descripcion": "Estado terminal. Una cotizacion anulada no se borra, se conserva para la bitacora.", "Orden": 7 },
+    { "Codigo": "CONVERTIDA_EN_SERVICIO", "Nombre": "Convertida en servicio", "Descripcion": "El cliente la acepto y arranco el servicio. Estado terminal. La orden de compra que dispara esto vive en el ERP, no aqui (D-20).", "Orden": 8 }
+  ]
+}

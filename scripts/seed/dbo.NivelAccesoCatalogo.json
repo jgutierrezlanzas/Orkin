@@ -1,0 +1,9 @@
+{
+  "//": "§5.17. Alcance de un rol. Oculta menus y acota la vista de datos. Hay tres porque el SRS solo pide un perfil de administrador y el control de planners de ORKIN necesita saber si solo ven lo asignado; separar el codigo de 'administrador' del concepto de 've todo' permite que un supervisor vea todo sin poder administrar usuarios.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "OPERATIVO", "Nombre": "Operativo", "Descripcion": "Solo ve lo que se le asigno. Es el perfil de un vendedor o un tecnico.", "Orden": 1 },
+    { "Codigo": "SUPERVISOR", "Nombre": "Supervisor", "Descripcion": "Ve todo lo de su sucursal y aprueba solicitudes.", "Orden": 2 },
+    { "Codigo": "ADMINISTRADOR", "Nombre": "Administrador", "Descripcion": "Ve todo y administra usuarios, roles, permisos y parametros.", "Orden": 3 }
+  ]
+}

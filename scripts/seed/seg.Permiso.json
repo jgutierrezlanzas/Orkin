@@ -1,0 +1,35 @@
+{
+  "//": "§5.16 + seg.Permiso. El Codigo se arma como Modulo + separador + Accion, y el separador vive en el parametro SEG.PERMISOS_SEPARADOR (§5.16). Ojo: el '.' del Codigo NO es un literal del codigo, aunque en la practica siempre sea un punto; por eso no hay una clase de constantes que lo defina.",
+  "//_nota": "No hay columna de 'Accion' separada: el codigo completo es la clave. Un permiso es 'poder hacer esta cosa', no 'poder ver esta columna', asi que agregar uno es agregar una fila y nada mas. La autorizacion es dinamica (permiso como politica, ADR-004): el codigo de aqui es exactamente el que viaja en el claim del JWT.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "DASHBOARD.VISUALIZAR", "Nombre": "Ver el dashboard", "ModuloId": "DASHBOARD", "Orden": 1 },
+
+    { "Codigo": "COTIZACIONES.VER", "Nombre": "Ver cotizaciones", "Descripcion": "Ver el listado y el detalle, pero solo las que le tocan al usuario.", "ModuloId": "COTIZACIONES", "Orden": 1 },
+    { "Codigo": "COTIZACIONES.VER_TODAS", "Nombre": "Ver todas las cotizaciones", "Descripcion": "Ver tambien las de otros vendedores. Es un permiso aparte y no una consecuencia de COTIZACIONES.VER, para que un supervisor pueda verlas todas y un vendedor no.", "ModuloId": "COTIZACIONES", "Orden": 2 },
+    { "Codigo": "COTIZACIONES.CREAR", "Nombre": "Crear cotizaciones", "ModuloId": "COTIZACIONES", "Orden": 3 },
+    { "Codigo": "COTIZACIONES.EDITAR", "Nombre": "Editar cotizaciones", "Descripcion": "Solo mientras estan en BORRADOR o RECHAZADA. El cambio de estado se controla aparte.", "ModuloId": "COTIZACIONES", "Orden": 4 },
+    { "Codigo": "COTIZACIONES.ENVIAR", "Nombre": "Enviar cotizaciones al cliente", "Descripcion": "Genera el PDF y dispara el correo. De ENVIADA ya no se edita sin anular.", "ModuloId": "COTIZACIONES", "Orden": 5 },
+    { "Codigo": "COTIZACIONES.ANULAR", "Nombre": "Anular cotizaciones", "Descripcion": "Estado terminal. Anular no es borrar: la fila y su historial se conservan.", "ModuloId": "COTIZACIONES", "Orden": 6 },
+    { "Codigo": "COTIZACIONES.CONVERTIR", "Nombre": "Convertir cotizacion en servicio", "ModuloId": "COTIZACIONES", "Orden": 7 },
+    { "Codigo": "COTIZACIONES.DESCARGAR_PDF", "Nombre": "Descargar el PDF", "ModuloId": "COTIZACIONES", "Orden": 8 },
+
+    { "Codigo": "CLIENTES.VER", "Nombre": "Ver clientes", "ModuloId": "CLIENTES", "Orden": 1 },
+    { "Codigo": "CLIENTES.CREAR", "Nombre": "Crear clientes", "ModuloId": "CLIENTES", "Orden": 2 },
+    { "Codigo": "CLIENTES.EDITAR", "Nombre": "Editar clientes", "ModuloId": "CLIENTES", "Orden": 3 },
+
+    { "Codigo": "CATALOGOS.VER", "Nombre": "Ver catalogos", "Descripcion": "Productos, activos, unidades, precios, tipos de servicio.", "ModuloId": "CATALOGOS", "Orden": 1 },
+    { "Codigo": "CATALOGOS.EDITAR", "Nombre": "Editar catalogos", "ModuloId": "CATALOGOS", "Orden": 2 },
+    { "Codigo": "CATALOGOS.PRECIOS_VER", "Nombre": "Ver precios de compra", "Descripcion": "Un vendedor no necesita ver cuanto se le compra a ORKIN el producto para poder venderlo.", "ModuloId": "CATALOGOS", "Orden": 3 },
+    { "Codigo": "CATALOGOS.PRECIOS_EDITAR", "Nombre": "Editar precios de compra", "ModuloId": "CATALOGOS", "Orden": 4 },
+
+    { "Codigo": "APROBACIONES.VER", "Nombre": "Ver aprobaciones", "ModuloId": "APROBACIONES", "Orden": 1 },
+    { "Codigo": "APROBACIONES.DECIDIR", "Nombre": "Decidir aprobaciones", "Descripcion": "Aprobar o rechazar. Se separa de APROBACIONES.VER para que nadie pueda aprobar su propia solicitud: el servicio valida que el aprobador no sea el autor.", "ModuloId": "APROBACIONES", "Orden": 2 },
+
+    { "Codigo": "ADMIN.USUARIOS", "Nombre": "Administrar usuarios", "ModuloId": "ADMIN", "Orden": 1 },
+    { "Codigo": "ADMIN.ROLES", "Nombre": "Administrar roles y permisos", "ModuloId": "ADMIN", "Orden": 2 },
+    { "Codigo": "ADMIN.PARAMETROS", "Nombre": "Administrar parametros", "Descripcion": "Mover umbrales de aprobacion, dias de vigencia, textos del PDF. Es el permiso mas sensible del sistema.", "ModuloId": "ADMIN", "Orden": 3 },
+
+    { "Codigo": "AUDITORIA.VER", "Nombre": "Ver la bitacora", "Descripcion": "Solo lectura sobre aud.RegistroAuditoria.", "ModuloId": "AUDITORIA", "Orden": 1 }
+  ]
+}

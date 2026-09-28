@@ -1,0 +1,10 @@
+{
+  "//": "§5.5. De donde viene un dato maestro. Es lo que permite que en la Fase 12 el ERP cargue catalogos sin cambiar el modelo de datos (ADR-013), y separar 'dato inicial del Excel' de 'lo que corrigio un usuario'.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "MANUAL", "Nombre": "Capturado en la web", "Descripcion": "Lo escribio una persona desde el formulario.", "Orden": 1 },
+    { "Codigo": "EXCEL", "Nombre": "Importacion inicial desde el Excel", "Descripcion": "Viene del cotizador en Excel que se esta reemplazando. Sirve para saber cuanto dato inicial quedo sin corregir.", "Orden": 2 },
+    { "Codigo": "ERP", "Nombre": "Sincronizado desde un ERP", "Descripcion": "Llego por el motor ETL de la Fase 12. Solo lectura: la web nunca escribe al ERP del cliente (D-19).", "Orden": 3 },
+    { "Codigo": "SISTEMA", "Nombre": "Derivado por el sistema", "Descripcion": "Lo calculo la aplicacion, por ejemplo el tipo de cambio que publica el Banco Central.", "Orden": 4 }
+  ]
+}

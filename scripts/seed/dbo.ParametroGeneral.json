@@ -1,0 +1,31 @@
+{
+  "//": "§6.12. TODO valor ajustable vive aqui, no en el código (ADR-018). Si el código trae un valor por defecto compilado, no es un parámetro: es un bug esperando que alguien lo cambie a mano en un .json de despliegue. La columna TipoDatoId dice como se convierte el Valor, y esa conversion la decide dbo.TipoDatoParametroCatalogo.",
+  "//_vacios": "⚠️ Los parámetros cuyo valor depende de una decisión abierta (D-05, D-07, D-08, D-16) se siembran VACÍOS a propósito, no con un valor inventado. Un parámetro vacío es visible: la plantilla del PDF sale sin el RUC, o la pantalla de aprobaciones avisa que falta configurarlo. Un valor de relleno se imprimiría en el PDF que ve el cliente.",
+  "claveNatural": "Nombre",
+  "filas": [
+    { "Nombre": "GENERAL.NOMBRE_EMPRESA", "Descripcion": "Nombre que aparece en el encabezado del PDF.", "Valor": "ORKIN", "TipoDatoId": "TEXTO", "Grupo": "General", "Orden": 1, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "GENERAL.RUC", "Descripcion": "Registro Unico de Contribuyente. Aparece en el pie del PDF. Depende de D-08.", "Valor": null, "TipoDatoId": "TEXTO", "Grupo": "General", "Orden": 2, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "GENERAL.TELEFONO", "Descripcion": "Telefono de contacto en el encabezado. Depende de D-08.", "Valor": null, "TipoDatoId": "TEXTO", "Grupo": "General", "Orden": 3, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "GENERAL.DIRECCION", "Descripcion": "Domicilio fiscal, en el pie del PDF. Depende de D-08.", "Valor": null, "TipoDatoId": "TEXTO", "Grupo": "General", "Orden": 4, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "GENERAL.ZONA_HORA", "Descripcion": "Zona IANA de Nicaragua. Todas las fechas de negocio son locales; las marcas de auditoria son UTC.", "Valor": "America/Managua", "TipoDatoId": "TEXTO", "Grupo": "General", "Orden": 5, "EsSistema": true, "EsSecreto": false },
+
+    { "Nombre": "COTIZACION.VIGENCIA_DIAS_POR_DEFECTO", "Descripcion": "Dias que dura la cotizacion si el usuario no dice otra cosa. El Excel no lo tiene: la fecha de vencimiento se teclea a mano cada vez.", "Valor": "15", "TipoDatoId": "ENTERO", "Grupo": "Cotizacion", "Orden": 1, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "COTIZACION.MARGEN_POR_DEFECTO_RESIDENCIAL", "Descripcion": "Fraccion, 0.0550 = 5.5 %. Es el valor crudo que traia el Excel (J6 = 5.5 con formato 0%, o sea que se mostraba 550 %). Depende de D-04 para el valor real.", "Valor": "0.0550", "TipoDatoId": "DECIMAL", "Grupo": "Cotizacion", "Orden": 2, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "COTIZACION.MARGEN_POR_DEFECTO_EMPRESARIAL", "Descripcion": "Fraccion, 0.0800 = 8 %. Mismo defecto del Excel: F8 = 8 con formato 0%. Depende de D-04.", "Valor": "0.0800", "TipoDatoId": "DECIMAL", "Grupo": "Cotizacion", "Orden": 3, "EsSistema": true, "EsSecreto": false },
+
+    { "Nombre": "APROBACION.MARGEN_MINIMO", "Descripcion": "Por debajo de esta fraccion se pide aprobacion. Depende de D-05: nadie ha confirmado que sea 5 %.", "Valor": "0.0500", "TipoDatoId": "DECIMAL", "Grupo": "Aprobacion", "Orden": 1, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "APROBACION.MONTO_MAXIMO_SIN_APROBACION", "Descripcion": "Por encima de este monto, en cordobas, se pide aprobacion. 0 significa que hoy no hay tope por monto. Depende de D-05.", "Valor": "0", "TipoDatoId": "DECIMAL", "Grupo": "Aprobacion", "Orden": 2, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "APROBACION.HABILITADA", "Descripcion": "Si es false, el motor no pide aprobacion aunque se superen los umbrales. Sirve para un periodo de prueba sin tener que mover los umbrales.", "Valor": "true", "TipoDatoId": "LOGICO", "Grupo": "Aprobacion", "Orden": 3, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "APROBACION.VIGENCIA_TOKEN_DIAS", "Descripcion": "Dias de vigencia de la solicitud de aprobacion antes de que venzca sola.", "Valor": "7", "TipoDatoId": "ENTERO", "Grupo": "Aprobacion", "Orden": 4, "EsSistema": true, "EsSecreto": false },
+
+    { "Nombre": "PDF.NOMBRE_ARCHIVO", "Descripcion": "Plantilla del nombre del PDF. {Numero} se reemplaza por el consecutivo oficial, que depende de D-17.", "Valor": "Cotizacion-{Numero}.pdf", "TipoDatoId": "TEXTO", "Grupo": "PDF", "Orden": 1, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "PDF.PIE_LEGAL", "Descripcion": "Texto fijo del pie del PDF. Depende de D-08 y de D-16.", "Valor": null, "TipoDatoId": "TEXTO", "Grupo": "PDF", "Orden": 2, "EsSistema": true, "EsSecreto": false },
+
+    { "Nombre": "TIPO_CAMBIO.FUENTE_PREDETERMINADA", "Descripcion": "Codigo de dbo.FuenteTipoCambioCatalogo que se usa cuando el usuario no elige. Depende de D-06.", "Valor": null, "TipoDatoId": "TEXTO", "Grupo": "Tipo de cambio", "Orden": 1, "EsSistema": true, "EsSecreto": false },
+
+    { "Nombre": "CORREO.REMITENTE", "Descripcion": "Direccion From. Depende de D-07, que es tambien la decision de que proveedor de correo se usa.", "Valor": null, "TipoDatoId": "TEXTO", "Grupo": "Correo", "Orden": 1, "EsSistema": true, "EsSecreto": false },
+
+    { "Nombre": "SEG.ROL_ADMINISTRADOR", "Descripcion": "Nombre del rol que recibe el usuario administrador que se crea en el primer arranque. Lo lee DbInitializer: sin este parámetro no hay forma de saber a que rol asignarle el permiso de administrar.", "Valor": "Administrador", "TipoDatoId": "TEXTO", "Grupo": "Seguridad", "Orden": 1, "EsSistema": true, "EsSecreto": false },
+    { "Nombre": "SEG.PERMISOS_SEPARADOR", "Descripcion": "Separador entre modulo y accion al armar el codigo de un permiso, por ejemplo COTIZACIONES + . + CREAR. Es un separador, no un dato de negocio, pero tambien vive aqui.", "Valor": ".", "TipoDatoId": "TEXTO", "Grupo": "Seguridad", "Orden": 2, "EsSistema": true, "EsSecreto": false }
+  ]
+}

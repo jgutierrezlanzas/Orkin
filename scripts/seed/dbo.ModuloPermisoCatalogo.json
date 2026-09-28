@@ -1,0 +1,13 @@
+{
+  "//": "§5.16. Agrupacion de permisos. El codigo del permiso se arma como Modulo + separador + Accion, por ejemplo COTIZACIONES.CREAR. Ese punto es un separador, no un dato, asi que vive en el parametro SEG.PERMISOS_SEPARADOR.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "DASHBOARD", "Nombre": "Dashboard", "Descripcion": "La pantalla de inicio con las metricas.", "Orden": 1 },
+    { "Codigo": "COTIZACIONES", "Nombre": "Cotizaciones", "Descripcion": "Listado, formulario, PDF, enviar, anular, convertir.", "Orden": 2 },
+    { "Codigo": "CLIENTES", "Nombre": "Clientes", "Descripcion": "Alta y edicion de clientes.", "Orden": 3 },
+    { "Codigo": "CATALOGOS", "Nombre": "Catalogos", "Descripcion": "Productos, activos, unidades, precios, tipos de servicio.", "Orden": 4 },
+    { "Codigo": "APROBACIONES", "Nombre": "Aprobaciones", "Descripcion": "Bandeja de solicitudes y decision.", "Orden": 5 },
+    { "Codigo": "ADMIN", "Nombre": "Administracion", "Descripcion": "Usuarios, roles, permisos, parametros.", "Orden": 6 },
+    { "Codigo": "AUDITORIA", "Nombre": "Auditoria", "Descripcion": "Consulta de la bitacora. Solo lectura.", "Orden": 7 }
+  ]
+}

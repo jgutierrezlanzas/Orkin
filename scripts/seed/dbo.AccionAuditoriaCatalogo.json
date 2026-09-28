@@ -1,0 +1,18 @@
+{
+  "//": "§5.13. Accion registrada en aud.RegistroAuditoria. Las cuatro primeras las deduce el SaveChangesInterceptor del EntityState; las demas las escriben los servicios, porque dependen de una intencion de negocio que el estado de la entidad no dice. Ojo con la distincion: APROBAR (la accion del usuario) y APROBADO (el hecho registrado) son codigos distintos.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "CREADO", "Nombre": "Creado", "Descripcion": "Fila insertada. La deduce el interceptor.", "Orden": 1 },
+    { "Codigo": "ACTUALIZADO", "Nombre": "Actualizado", "Descripcion": "Fila modificada. La deduce el interceptor.", "Orden": 2 },
+    { "Codigo": "ELIMINADO", "Nombre": "Eliminado", "Descripcion": "Baja logica (IsActive = false) o borrado fisico. La deduce el interceptor.", "Orden": 3 },
+    { "Codigo": "RESTAURADO", "Nombre": "Restaurado", "Descripcion": "Reactivacion (IsActive = true). La deduce el interceptor.", "Orden": 4 },
+    { "Codigo": "ANULADO", "Nombre": "Anulado", "Descripcion": "Un servicio lo registro: la cotizacion se anulo, que no es lo mismo que borrarla.", "Orden": 5 },
+    { "Codigo": "APROBADO", "Nombre": "Aprobado", "Descripcion": "Un servicio lo registro: un aprobador concedio la solicitud.", "Orden": 6 },
+    { "Codigo": "RECHAZADO", "Nombre": "Rechazado", "Descripcion": "Un servicio lo registro: un aprobador rechazo la solicitud.", "Orden": 7 },
+    { "Codigo": "LOGIN", "Nombre": "Inicio de sesion", "Descripcion": "Un servicio lo registro al autenticar.", "Orden": 8 },
+    { "Codigo": "LOGOUT", "Nombre": "Cierre de sesion", "Descripcion": "Un servicio lo registro al cerrar sesion.", "Orden": 9 },
+    { "Codigo": "ACCESO_DENEGADO", "Nombre": "Acceso denegado", "Descripcion": "Un servicio lo registro cuando una peticion paso sin permiso. Es la traza mas util para detectar un permiso mal asignado.", "Orden": 10 },
+    { "Codigo": "EXPORTADO", "Nombre": "Exportado", "Descripcion": "Un servicio lo registro al descargar el PDF o el Excel.", "Orden": 11 },
+    { "Codigo": "SINCRONIZADO", "Nombre": "Sincronizado", "Descripcion": "Un servicio lo registro al correr el motor ETL de la Fase 12.", "Orden": 12 }
+  ]
+}

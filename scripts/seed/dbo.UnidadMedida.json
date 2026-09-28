@@ -1,0 +1,16 @@
+{
+  "//": "§6.2.1. Catálogo MAESTRO: a diferencia de dbo.*Catalogo, esta tabla es editable desde Administracion y tiene baja lógica. Sus filas siguen viviendo en el seed y no en el código (ADR-018); lo que cambia es que aquí la web las puede editar y dar de baja. Proveniencia: Tabla1[Unidad] y Tabla16[Unidad] del Excel, que traían estos 10 valores. H-09: el Excel trae 'H.H', que es ambiguo (¿horas de trabajo? ¿horas-hombre?). Se normaliza a HH, que es la convención de la unidad de tiempo. ⚠️ No se agregaron unidades 'razonables' que el Excel no trae: kilogramo, Libra, galón imperial, etc. se dan de alta desde Administracion cuando un producto las necesite. Inventar filas aquí es la forma más corta de que un catálogo deje de reflejar lo que el cliente realmente usa.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "ML", "Nombre": "Mililitro", "Abreviatura": "ml", "Orden": 1, "PermiteDecimales": true, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "LT", "Nombre": "Litro", "Abreviatura": "L", "Orden": 2, "PermiteDecimales": true, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "GAL", "Nombre": "Galón", "Abreviatura": "gal", "Orden": 3, "PermiteDecimales": true, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "GR", "Nombre": "Gramo", "Abreviatura": "g", "Orden": 4, "PermiteDecimales": true, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "LTS", "Nombre": "Lata", "Abreviatura": "lat", "Orden": 5, "PermiteDecimales": false, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "BLD", "Nombre": "Bulto", "Abreviatura": "bulto", "Orden": 6, "PermiteDecimales": false, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "UND", "Nombre": "Unidad", "Abreviatura": "und", "Orden": 7, "PermiteDecimales": false, "OrigenDatoId": "EXCEL", "OrigenDatoId": "EXCEL" },
+    { "Codigo": "M2", "Nombre": "Metro cuadrado", "Abreviatura": "m2", "Orden": 8, "PermiteDecimales": true, "OrigenDatoId": "EXCEL", "OrigenDatoId": "EXCEL" },
+    { "Codigo": "KM", "Nombre": "Kilómetro", "Abreviatura": "km", "Orden": 9, "PermiteDecimales": true, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "HH", "Nombre": "Hora", "Abreviatura": "h", "Orden": 10, "PermiteDecimales": true, "OrigenDatoId": "EXCEL" }
+  ]
+}

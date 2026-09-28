@@ -1,0 +1,10 @@
+{
+  "//": "§5.10. Estado del envio. PENDIENTE es lo que reclama el BackgroundService de la cola; los otros tres son finales.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "PENDIENTE", "Nombre": "Pendiente", "Descripcion": "En cola, esperando que lo reclame el BackgroundService.", "Orden": 1 },
+    { "Codigo": "ENVIADA", "Nombre": "Enviada", "Descripcion": "El proveedor acepto el mensaje.", "Orden": 2 },
+    { "Codigo": "FALLIDA", "Nombre": "Fallida", "Descripcion": "Se agotaron los reintentos. Requiere intervencion manual.", "Orden": 3 },
+    { "Codigo": "DESCARTADA", "Nombre": "Descartada", "Descripcion": "Se decidio no enviarla, por ejemplo porque la cotizacion se anulo antes.", "Orden": 4 }
+  ]
+}

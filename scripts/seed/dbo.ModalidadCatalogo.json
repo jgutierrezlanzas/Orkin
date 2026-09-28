@@ -1,0 +1,12 @@
+{
+  "//": "§5.4. Periodicidad de la cotizacion. MENSUAL es la predeterminada y por eso la columna EsPredeterminado existe: la periodicidad que ve el usuario no puede depender del orden de este archivo.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "EVENTUAL", "Nombre": "Eventual", "Descripcion": "Una sola visita, sin recurrencia.", "Orden": 1, "EsPredeterminado": false },
+    { "Codigo": "MENSUAL", "Nombre": "Mensual", "Descripcion": "Una visita al mes.", "Orden": 2, "EsPredeterminado": true },
+    { "Codigo": "BIMESTRAL", "Nombre": "Bimestral", "Descripcion": "Cada dos meses.", "Orden": 3, "EsPredeterminado": false },
+    { "Codigo": "TRIMESTRAL", "Nombre": "Trimestral", "Descripcion": "Cada tres meses.", "Orden": 4, "EsPredeterminado": false },
+    { "Codigo": "SEMESTRAL", "Nombre": "Semestral", "Descripcion": "Cada seis meses.", "Orden": 5, "EsPredeterminado": false },
+    { "Codigo": "ANUAL", "Nombre": "Anual", "Descripcion": "Una vez al ano.", "Orden": 6, "EsPredeterminado": false }
+  ]
+}

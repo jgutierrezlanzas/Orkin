@@ -1,0 +1,12 @@
+{
+  "//": "§5.14. COMO se convierte el texto de un parametro. La columna 'Como se convierte' de la documentacion es la implementacion de ParametrosService, no un dato: por eso el codigo la reconoce por Codigo y falla si aparece un tipo que no sepa convertir. Agregar una fila aqui sin su rama en el codigo es un error de arranque visible, no un parametro que se lea como texto cuando el negocio cree que es un numero.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "TEXTO", "Nombre": "Texto", "Descripcion": "Se devuelve tal cual.", "Orden": 1 },
+    { "Codigo": "ENTERO", "Nombre": "Entero", "Descripcion": "int.TryParse con cultura invariante.", "Orden": 2 },
+    { "Codigo": "DECIMAL", "Nombre": "Decimal", "Descripcion": "decimal.TryParse con cultura invariante. En el seed el punto es punto: un 5,5 es un error, no un cinco y medio.", "Orden": 3 },
+    { "Codigo": "LOGICO", "Nombre": "Logico", "Descripcion": "Admite 1/0, si/no, true/false, verdadero/falso.", "Orden": 4 },
+    { "Codigo": "FECHA", "Nombre": "Fecha", "Descripcion": "DateOnly en formato ISO yyyy-MM-dd.", "Orden": 5 },
+    { "Codigo": "JSON", "Nombre": "JSON", "Descripcion": "Se valida al leer. Un JSON roto falla aqui y no a media operacion, cuando alguien ya lo esta usando.", "Orden": 6 }
+  ]
+}

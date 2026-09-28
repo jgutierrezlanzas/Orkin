@@ -1,0 +1,18 @@
+{
+  "//": "§5.12. QUE métodos de costeo existen. El COMO de cada uno vive en Core.Domain/MotorCalculo, en una clase que declara el mismo Codigo. Si agregas una fila aqui sin su clase, el arranque falla a proposito: es preferible a calcular en silencio con el metodo equivocado.",
+  "claveNatural": "Codigo",
+  "filas": [
+    {
+      "Codigo": "SUMA_SIMPLE",
+      "Nombre": "Suma simple",
+      "Descripcion": "RN-04. Total = suma de insumos + valor mensual de la plantilla. Es el caso residencial: los dos semestres traen la misma informacion y sumarlos seria contarla dos veces.",
+      "Orden": 1
+    },
+    {
+      "Codigo": "PROMEDIO_SEMESTRES",
+      "Nombre": "Promedio de semestres",
+      "Descripcion": "RN-07. Total = promedio de la suma de cada semestre + valor mensual. Es el caso empresarial; replica AVERAGE(SUM(sem1), SUM(sem2)) del Excel.",
+      "Orden": 2
+    }
+  ]
+}

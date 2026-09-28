@@ -1,0 +1,9 @@
+{
+  "//": "§5.8. De donde viene un PRECIO. Distingue lo que llego con la importacion del Excel de lo que cargo una persona a mano, que es lo que permite medir cuanto del dato inicial sobrevivio a la correccion de duplicados (H-10).",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "MANUAL", "Nombre": "Manual", "Descripcion": "Lo cargo una persona desde Administracion.", "Orden": 1 },
+    { "Codigo": "EXCEL", "Nombre": "Importacion inicial desde el Excel", "Descripcion": "Viene del cotizador en Excel.", "Orden": 2 },
+    { "Codigo": "ERP", "Nombre": "ERP", "Descripcion": "Llego por el motor ETL de la Fase 12.", "Orden": 3 }
+  ]
+}

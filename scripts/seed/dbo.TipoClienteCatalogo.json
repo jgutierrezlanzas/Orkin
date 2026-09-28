@@ -1,0 +1,22 @@
+{
+  "//": "§5.1. Segmento del cliente. La columna MetodoCosteoId dice QUE metodo se aplica (dato); la formula vive en el codigo. Ojo: el Excel no deriva el margen del tipo de servicio, asi que aqui no hay columna de margen.",
+  "claveNatural": "Codigo",
+  "filas": [
+    {
+      "Codigo": "RESIDENCIAL",
+      "Nombre": "Residencial",
+      "Descripcion": "Una sola visita de sanitizacion o control. Todo se cobra en el primer semestre.",
+      "Orden": 1,
+      "MetodoCosteoId": "SUMA_SIMPLE",
+      "EsPredeterminado": false
+    },
+    {
+      "Codigo": "EMPRESARIAL",
+      "Nombre": "Empresarial",
+      "Descripcion": "Contrato recurrente con visita periodica y compactacion. El total es el promedio de los dos semestres.",
+      "Orden": 2,
+      "MetodoCosteoId": "PROMEDIO_SEMESTRES",
+      "EsPredeterminado": true
+    }
+  ]
+}

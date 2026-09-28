@@ -1,0 +1,18 @@
+{
+  "//": "§6.2.3. Catalogo MAESTRO. Estas 11 filas son las de la hoja oculta 'Tipos de servicios' (TablaServicios) del Excel, en el mismo orden. El Excel NO deriva el margen del tipo de servicio: la celda H12 es texto informativo, no una formula (H-01). El margen real por tipo de servicio es D-04 y sigue abierto; hasta que llegue vive en dbo.ParametroGeneral.",
+  "//_pendientes": "UnidadMedidaId, EsResidencialPorDefecto y EsEmpresarialPorDefecto se dejan SIN VALOR a proposito. Son datos de preferencia del cliente, no deducibles del Excel: inventarlos haria que el formulario le sugiriera un servicio que el cliente nunca considero parte de su contrato. Se llenan desde Administracion cuando el cliente lo confirme (tarea 2.6).",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "SAN", "Nombre": "Sanitizacion", "Descripcion": "Lavado y desinfeccion de superficies.", "Orden": 1, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "GEN", "Nombre": "Control general", "Descripcion": "Control preventivo de insectos rastreros y voladores.", "Orden": 2, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "TER", "Nombre": "Tratamiento de termitas", "Descripcion": "Termiticida.", "Orden": 3, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "CUC", "Nombre": "Control de cucarachas", "Descripcion": "Cucarachicide con gel y atomizador.", "Orden": 4, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "MOS", "Nombre": "Control de mosquitos y moscas", "Descripcion": "Insecticida espacial y larvicida.", "Orden": 5, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "ROD", "Nombre": "Control de roedores", "Descripcion": "Rodenticida con cebos y trampas.", "Orden": 6, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "GAR", "Nombre": "Control de garrapatas", "Descripcion": "Control de garrapatas, sobre todo en perros.", "Orden": 7, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "MUR", "Nombre": "Control de murcielagos", "Descripcion": "Requiere ventana de vuelo al anochecer; el horario cambia el precio.", "Orden": 8, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "ZOM", "Nombre": "Control de zompopos", "Descripcion": "Mosquito largo de Nicaragua.", "Orden": 9, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "HOR", "Nombre": "Control de hormigas", "Descripcion": "Antuimacro, sobre todo en zonas de cocina y servicio.", "Orden": 10, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "FOS", "Nombre": "Tratamiento con fosfina", "Descripcion": "Fumigacion de almacen o silo. Requiere certificacion del aplicador y aviso previo.", "Orden": 11, "OrigenDatoId": "EXCEL" }
+  ]
+}

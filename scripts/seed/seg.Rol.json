@@ -1,0 +1,90 @@
+{
+  "//": "seg.Rol. La lista de roles es un dato, no un enum: agregar el perfil de un cliente nuevo es una fila aqui y una lista de permisos, sin tocar el codigo. El nombre del rol Administrador NO esta compilado en ningun lado: DbInitializer lo lee del parametro SEG.ROL_ADMINISTRADOR (§6.12).",
+  "//_nota": "Los roles de este archivo son propiedad del seed y el seed nunca los modifica: la regla de idempotencia 'si existe y EsSembrado = 1, no se toca' aplica igual, y como seg.Rol no tiene columna EsSembrado (es una tabla de Identity, no un catálogo) el aplicador la trata como sembrada. Si un administrador cambia los permisos de un rol desde la UI, la siembra posterior NO los revierte. Cambiar la lista de permisos de un rol de sistema, entonces, es un cambio de despliegue: se edita este archivo y se corre con RUN_SEED, o se cambia desde la UI y ya.",
+  "claveNatural": "Name",
+  "filas": [
+    {
+      "Name": "Administrador",
+      "NormalizedName": "ADMINISTRADOR",
+      "Description": "Acceso total, incluidos usuarios, roles, permisos y parametros. El parametro SEG.ROL_ADMINISTRADOR debe seguir diciendo 'Administrador'.",
+      "ConcurrencyStamp": "seed-00000000-0001",
+      "EsSistema": true,
+      "EsActivo": true,
+      "NivelAccesoId": "ADMINISTRADOR",
+      "permisos": [
+        "DASHBOARD.VISUALIZAR",
+        "COTIZACIONES.VER",
+        "COTIZACIONES.VER_TODAS",
+        "COTIZACIONES.CREAR",
+        "COTIZACIONES.EDITAR",
+        "COTIZACIONES.ENVIAR",
+        "COTIZACIONES.ANULAR",
+        "COTIZACIONES.CONVERTIR",
+        "COTIZACIONES.DESCARGAR_PDF",
+        "CLIENTES.VER",
+        "CLIENTES.CREAR",
+        "CLIENTES.EDITAR",
+        "CATALOGOS.VER",
+        "CATALOGOS.EDITAR",
+        "CATALOGOS.PRECIOS_VER",
+        "CATALOGOS.PRECIOS_EDITAR",
+        "APROBACIONES.VER",
+        "APROBACIONES.DECIDIR",
+        "ADMIN.USUARIOS",
+        "ADMIN.ROLES",
+        "ADMIN.PARAMETROS",
+        "AUDITORIA.VER"
+      ]
+    },
+    {
+      "Name": "Supervisor",
+      "NormalizedName": "SUPERVISOR",
+      "Description": "Ve todas las cotizaciones de la empresa, aprueba y administra catalogos y precios. No administra usuarios ni parametros: mover un umbral de aprobacion es una decision de la direccion, no del supervisor de turno.",
+      "ConcurrencyStamp": "seed-00000000-0002",
+      "EsSistema": true,
+      "EsActivo": true,
+      "NivelAccesoId": "SUPERVISOR",
+      "permisos": [
+        "DASHBOARD.VISUALIZAR",
+        "COTIZACIONES.VER",
+        "COTIZACIONES.VER_TODAS",
+        "COTIZACIONES.CREAR",
+        "COTIZACIONES.EDITAR",
+        "COTIZACIONES.ENVIAR",
+        "COTIZACIONES.ANULAR",
+        "COTIZACIONES.DESCARGAR_PDF",
+        "CLIENTES.VER",
+        "CLIENTES.CREAR",
+        "CLIENTES.EDITAR",
+        "CATALOGOS.VER",
+        "CATALOGOS.EDITAR",
+        "CATALOGOS.PRECIOS_VER",
+        "CATALOGOS.PRECIOS_EDITAR",
+        "APROBACIONES.VER",
+        "APROBACIONES.DECIDIR",
+        "AUDITORIA.VER"
+      ]
+    },
+    {
+      "Name": "Vendedor",
+      "NormalizedName": "VENDEDOR",
+      "Description": "Arma y envia sus propias cotizaciones. No ve los precios de compra de ORKIN ni las cotizaciones de otros, y no aprueba nada.",
+      "ConcurrencyStamp": "seed-00000000-0003",
+      "EsSistema": true,
+      "EsActivo": true,
+      "NivelAccesoId": "OPERATIVO",
+      "permisos": [
+        "DASHBOARD.VISUALIZAR",
+        "COTIZACIONES.VER",
+        "COTIZACIONES.CREAR",
+        "COTIZACIONES.EDITAR",
+        "COTIZACIONES.ENVIAR",
+        "COTIZACIONES.DESCARGAR_PDF",
+        "CLIENTES.VER",
+        "CLIENTES.CREAR",
+        "CLIENTES.EDITAR",
+        "CATALOGOS.VER"
+      ]
+    }
+  ]
+}

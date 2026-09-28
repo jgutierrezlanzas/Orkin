@@ -1,0 +1,11 @@
+{
+  "//": "§5.9. Tipo de correo. La columna Destinatario no es una FK: describe a quien le llega, y la logica que arma el remitente y la plantilla vive en NotificacionService (Fase 6).",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "COTIZACION_ENVIADA", "Nombre": "Cotizacion enviada al cliente", "Descripcion": "Va al cliente, con el PDF adjunto.", "Orden": 1 },
+    { "Codigo": "SOLICITUD_APROBACION", "Nombre": "Solicitud de aprobacion", "Descripcion": "Va al aprobador, interno. Nunca sale de la organizacion.", "Orden": 2 },
+    { "Codigo": "APROBACION_CONCEDIDA", "Nombre": "Aprobacion concedida", "Descripcion": "Avisa al cliente de que su cotizacion quedo aprobada.", "Orden": 3 },
+    { "Codigo": "COTIZACION_RECHAZADA", "Nombre": "Cotizacion rechazada", "Descripcion": "Va al vendedor que la creo, para que sepa que tiene que corregirla.", "Orden": 4 },
+    { "Codigo": "COTIZACION_ANULADA", "Nombre": "Cotizacion anulada", "Descripcion": "Va al cliente y al interno: una anulacion que el cliente no sabe es la peor forma de perder un cliente.", "Orden": 5 }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "//": "§5.3. En dbo.DetalleInsumo el semestre es opcional: null = indistinto, que es el caso residencial. Estas dos filas las lee ConstructorConfiguracionMotor al arrancar y exige que sean exactamente dos activas, asi que agregar o quitar una aqui hace fallar el arranque.",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "PRIMERO", "Nombre": "Primer semestre", "Descripcion": "January-Junio, o el servicio unico de la visita.", "Orden": 1 },
+    { "Codigo": "SEGUNDO", "Nombre": "Segundo semestre", "Descripcion": "Julio-Diciembre.", "Orden": 2 }
+  ]
+}

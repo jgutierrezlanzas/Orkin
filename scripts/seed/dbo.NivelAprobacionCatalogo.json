@@ -1,0 +1,9 @@
+{
+  "//": "§5.19. POR QUE se pidio aprobacion. El catalogo dice que reglas existen; los umbrales estan en dbo.ParametroGeneral, porque son exactamente el tipo de valor que el usuario tiene que poder mover sin redesplegar (D-05 sigue abierto).",
+  "claveNatural": "Codigo",
+  "filas": [
+    { "Codigo": "MARGEN_BAJO", "Nombre": "Margen bajo el minimo", "Descripcion": "Se dispara cuando el margen aplicado queda por debajo de APROBACION.MARGEN_MINIMO.", "Orden": 1 },
+    { "Codigo": "MONTO_ALTO", "Nombre": "Monto alto", "Descripcion": "Se dispara cuando el total en cordobaas supera APROBACION.MONTO_MAXIMO_SIN_APROBACION.", "Orden": 2 },
+    { "Codigo": "AMBOS", "Nombre": "Ambos", "Descripcion": "Se cumplen las dos condiciones a la vez. Evita mandar dos solicitudes de aprobacion al aprobador.", "Orden": 3 }
+  ]
+}
