@@ -39,6 +39,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ConsecutivoService>();
         services.AddScoped<EjecutorSql>();
         services.AddScoped<UnidadMedidaService>();
+        services.AddScoped<CategoriaProductoService>();
+        services.AddScoped<TipoServicioService>();
 
         return services;
     }

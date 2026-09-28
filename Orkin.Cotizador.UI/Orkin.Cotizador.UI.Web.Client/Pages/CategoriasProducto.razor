@@ -1,0 +1,160 @@
+@page "/catalogos/categorias-producto"
+@attribute [Authorize("CATALOGOS.VER")]
+@layout MainLayout
+@inject CatalogoService CatalogoService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Categorías de producto</MudText>
+
+    @if (_puedeEditar)
+    {
+        <MudPaper Elevation="2" Class="pa-4 mb-6">
+            <MudText Typo="Typo.h6" Class="mb-4">@(_editando ? "Editar" : "Nueva") categoría</MudText>
+            <MudGrid>
+                <MudItem xs="12" md="2">
+                    <MudTextField @bind-Value="_modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_editando" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_modelo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudNumericField @bind-Value="_modelo.Orden" Label="Orden" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                @if (_editando)
+                {
+                    <MudItem xs="12" md="12">
+                        <MudSwitch @bind-Value="_modelo.EsActivo" Label="Activo" Color="Color.Primary" />
+                    </MudItem>
+                }
+            </MudGrid>
+            <div class="d-flex justify-end mt-4">
+                @if (_editando)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar" Class="mr-2">Cancelar</MudButton>
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar" Disabled="_guardando">
+                    @if (_guardando)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    }
+                    else
+                    {
+                        <MudText>Guardar</MudText>
+                    }
+                </MudButton>
+            </div>
+        </MudPaper>
+    }
+
+    <MudTable Items="_categorias" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Código</MudTh>
+            <MudTh>Nombre</MudTh>
+            <MudTh>Descripción</MudTh>
+            <MudTh>Orden</MudTh>
+            <MudTh>Activo</MudTh>
+            @if (_puedeEditar)
+            {
+                <MudTh>Acciones</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Código">@context.Codigo</MudTd>
+            <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+            <MudTd DataLabel="Descripción">@context.Descripcion</MudTd>
+            <MudTd DataLabel="Orden">@context.Orden</MudTd>
+            <MudTd DataLabel="Activo">
+                <MudIcon Icon="@(context.EsActivo ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" />
+            </MudTd>
+            @if (_puedeEditar)
+            {
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Editar(context))" />
+                </MudTd>
+            }
+        </RowTemplate>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<CategoriaProductoModel> _categorias = [];
+    private CategoriaProductoModel _modelo = new();
+    private bool _cargando;
+    private bool _guardando;
+    private bool _editando;
+    private bool _puedeEditar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+            _puedeEditar = estado.User.HasClaim("orkin:permiso", "CATALOGOS.EDITAR");
+            _categorias = await CatalogoService.ListarCategoriasProductoAsync();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void Editar(CategoriaProductoModel categoria)
+    {
+        _modelo = new CategoriaProductoModel
+        {
+            Id = categoria.Id,
+            Codigo = categoria.Codigo,
+            Nombre = categoria.Nombre,
+            Descripcion = categoria.Descripcion,
+            Orden = categoria.Orden,
+            EsActivo = categoria.EsActivo
+        };
+        _editando = true;
+    }
+
+    private void Cancelar()
+    {
+        _modelo = new CategoriaProductoModel();
+        _editando = false;
+    }
+
+    private async Task Guardar()
+    {
+        _guardando = true;
+        try
+        {
+            ApiResponse<CategoriaProductoModel>? respuesta;
+
+            if (_editando)
+            {
+                respuesta = await CatalogoService.ActualizarCategoriaProductoAsync(_modelo);
+            }
+            else
+            {
+                respuesta = await CatalogoService.CrearCategoriaProductoAsync(_modelo);
+            }
+
+            if (respuesta?.Exito == true)
+            {
+                Snackbar.Add("Guardado correctamente.", Severity.Success);
+                _modelo = new CategoriaProductoModel();
+                _editando = false;
+                _categorias = await CatalogoService.ListarCategoriasProductoAsync();
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

@@ -25,3 +25,55 @@ public sealed record ActualizarUnidadMedidaRequest(
     bool PermiteDecimales,
     int Orden,
     bool EsActivo);
+
+/// <summary>Respuesta de una categoría de producto.</summary>
+public sealed record CategoriaProductoResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    string? Descripcion,
+    int Orden,
+    bool EsActivo);
+
+public sealed record CrearCategoriaProductoRequest(
+    string Codigo,
+    string Nombre,
+    string? Descripcion,
+    int Orden);
+
+public sealed record ActualizarCategoriaProductoRequest(
+    string Nombre,
+    string? Descripcion,
+    int Orden,
+    bool EsActivo);
+
+/// <summary>Respuesta de un tipo de servicio.</summary>
+public sealed record TipoServicioResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    string? Descripcion,
+    Guid? UnidadMedidaId,
+    string? UnidadMedidaNombre,
+    bool EsResidencialPorDefecto,
+    bool EsEmpresarialPorDefecto,
+    int Orden,
+    bool EsActivo);
+
+public sealed record CrearTipoServicioRequest(
+    string Codigo,
+    string Nombre,
+    string? Descripcion,
+    Guid? UnidadMedidaId,
+    bool EsResidencialPorDefecto,
+    bool EsEmpresarialPorDefecto,
+    int Orden);
+
+public sealed record ActualizarTipoServicioRequest(
+    string Nombre,
+    string? Descripcion,
+    Guid? UnidadMedidaId,
+    bool EsResidencialPorDefecto,
+    bool EsEmpresarialPorDefecto,
+    int Orden,
+    bool EsActivo);

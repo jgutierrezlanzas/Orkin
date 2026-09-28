@@ -1,0 +1,187 @@
+@page "/catalogos/tipos-servicio"
+@attribute [Authorize("CATALOGOS.VER")]
+@layout MainLayout
+@inject CatalogoService CatalogoService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Tipos de servicio</MudText>
+
+    @if (_puedeEditar)
+    {
+        <MudPaper Elevation="2" Class="pa-4 mb-6">
+            <MudText Typo="Typo.h6" Class="mb-4">@(_editando ? "Editar" : "Nuevo") tipo de servicio</MudText>
+            <MudGrid>
+                <MudItem xs="12" md="2">
+                    <MudTextField @bind-Value="_modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_editando" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_modelo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudNumericField @bind-Value="_modelo.Orden" Label="Orden" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="Guid?" @bind-Value="_modelo.UnidadMedidaId" Label="Unidad de medida" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                        @foreach (var unidad in _unidades)
+                        {
+                            <MudSelectItem T="Guid?" Value="unidad.Id">@unidad.Nombre (@unidad.Abreviatura)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudSwitch @bind-Value="_modelo.EsResidencialPorDefecto" Label="Residencial" Color="Color.Primary" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudSwitch @bind-Value="_modelo.EsEmpresarialPorDefecto" Label="Empresarial" Color="Color.Primary" />
+                </MudItem>
+                @if (_editando)
+                {
+                    <MudItem xs="12" md="2">
+                        <MudSwitch @bind-Value="_modelo.EsActivo" Label="Activo" Color="Color.Primary" />
+                    </MudItem>
+                }
+            </MudGrid>
+            <div class="d-flex justify-end mt-4">
+                @if (_editando)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar" Class="mr-2">Cancelar</MudButton>
+                }
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar" Disabled="_guardando">
+                    @if (_guardando)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    }
+                    else
+                    {
+                        <MudText>Guardar</MudText>
+                    }
+                </MudButton>
+            </div>
+        </MudPaper>
+    }
+
+    <MudTable Items="_tipos" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Código</MudTh>
+            <MudTh>Nombre</MudTh>
+            <MudTh>Unidad de medida</MudTh>
+            <MudTh>Res.</MudTh>
+            <MudTh>Emp.</MudTh>
+            <MudTh>Orden</MudTh>
+            <MudTh>Activo</MudTh>
+            @if (_puedeEditar)
+            {
+                <MudTh>Acciones</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Código">@context.Codigo</MudTd>
+            <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+            <MudTd DataLabel="Unidad">@(context.UnidadMedidaNombre ?? "-")</MudTd>
+            <MudTd DataLabel="Res.">
+                <MudIcon Icon="@(context.EsResidencialPorDefecto ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" />
+            </MudTd>
+            <MudTd DataLabel="Emp.">
+                <MudIcon Icon="@(context.EsEmpresarialPorDefecto ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" />
+            </MudTd>
+            <MudTd DataLabel="Orden">@context.Orden</MudTd>
+            <MudTd DataLabel="Activo">
+                <MudIcon Icon="@(context.EsActivo ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" />
+            </MudTd>
+            @if (_puedeEditar)
+            {
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Editar(context))" />
+                </MudTd>
+            }
+        </RowTemplate>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<TipoServicioModel> _tipos = [];
+    private List<UnidadMedidaModel> _unidades = [];
+    private TipoServicioModel _modelo = new();
+    private bool _cargando;
+    private bool _guardando;
+    private bool _editando;
+    private bool _puedeEditar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+            _puedeEditar = estado.User.HasClaim("orkin:permiso", "CATALOGOS.EDITAR");
+            _unidades = await CatalogoService.ListarUnidadesMedidaAsync();
+            _tipos = await CatalogoService.ListarTiposServicioAsync();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void Editar(TipoServicioModel tipo)
+    {
+        _modelo = new TipoServicioModel
+        {
+            Id = tipo.Id,
+            Codigo = tipo.Codigo,
+            Nombre = tipo.Nombre,
+            Descripcion = tipo.Descripcion,
+            UnidadMedidaId = tipo.UnidadMedidaId,
+            EsResidencialPorDefecto = tipo.EsResidencialPorDefecto,
+            EsEmpresarialPorDefecto = tipo.EsEmpresarialPorDefecto,
+            Orden = tipo.Orden,
+            EsActivo = tipo.EsActivo
+        };
+        _editando = true;
+    }
+
+    private void Cancelar()
+    {
+        _modelo = new TipoServicioModel();
+        _editando = false;
+    }
+
+    private async Task Guardar()
+    {
+        _guardando = true;
+        try
+        {
+            ApiResponse<TipoServicioModel>? respuesta;
+
+            if (_editando)
+            {
+                respuesta = await CatalogoService.ActualizarTipoServicioAsync(_modelo);
+            }
+            else
+            {
+                respuesta = await CatalogoService.CrearTipoServicioAsync(_modelo);
+            }
+
+            if (respuesta?.Exito == true)
+            {
+                Snackbar.Add("Guardado correctamente.", Severity.Success);
+                _modelo = new TipoServicioModel();
+                _editando = false;
+                _tipos = await CatalogoService.ListarTiposServicioAsync();
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}
