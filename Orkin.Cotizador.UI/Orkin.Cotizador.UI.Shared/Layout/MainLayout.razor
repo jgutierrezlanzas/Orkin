@@ -2,12 +2,19 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 
+@* MudPopoverProvider tiene que estar en el layout, no en la página. Los popovers (tooltip,
+   menú del MudSelect, select múltiple) se renderizan en un contenedor único del layout en vez
+   de en el lugar del componente que los pidió: por eso van acá y no en cada pantalla. Sin él,
+   MudBlazor avisa por consola y el tooltip simplemente no aparece —que es la clase de falla
+   que uno no nota porque lo que falta es algo que nunca estuvo. *@
+<MudPopoverProvider />
+
 <MudLayout>
     @if (MostrarSidebar)
     {
         <MudAppBar Elevation="1" Color="Color.Primary">
             <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
-            <MudText Typo="Typo.h6" Class="ml-3">ORKIN · Cotizador</MudText>
+            <MudText Typo="Typo.h6" Class="ml-3">ORKIN</MudText>
             <MudSpacer />
             <MudText Typo="Typo.body2" Class="mr-3">@_nombreUsuario</MudText>
             <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="CerrarSesion" aria-label="Cerrar sesión" />
@@ -15,7 +22,7 @@
 
         <MudDrawer @bind-Open="_drawerAbierto" Elevation="2" ClipMode="DrawerClipMode.Always">
             <MudDrawerHeader>
-                <MudText Typo="Typo.h6" Color="Color.Primary">Cotizador</MudText>
+                <MudText Typo="Typo.h6" Color="Color.Primary">ORKIN</MudText>
             </MudDrawerHeader>
             <MudNavMenu>
                 <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
@@ -40,6 +47,17 @@
                             <MudNavLink Href="/catalogos/tipos-servicio" Icon="@Icons.Material.Filled.CleaningServices">Tipos de servicio</MudNavLink>
                             <MudNavLink Href="/catalogos/productos" Icon="@Icons.Material.Filled.Inventory">Productos</MudNavLink>
                             <MudNavLink Href="/catalogos/tipos-cambio" Icon="@Icons.Material.Filled.CurrencyExchange">Tipos de cambio</MudNavLink>
+                        }
+
+                        @* Orígenes va aparte de CATALOGOS.VER y no dentro de él: se llena un
+                           catálogo desde el ERP, pero abrir una conexión a la base de un cliente
+                           es un poder distinto a corregir un precio. Quien solo puede ver y
+                           corregir catálogos no tiene por qué ver la lista de servidores de los
+                           clientes, ni aunque no sirva para tocarlos. *@
+                        @if (TienePermiso("CATALOGOS.ORIGENES"))
+                        {
+                            <MudDivider Class="my-1" />
+                            <MudNavLink Href="/catalogos/origenes" Icon="@Icons.Material.Filled.Storage">Orígenes de datos</MudNavLink>
                         }
                     </MudNavGroup>
                 }
@@ -117,6 +135,15 @@
         if (TienePermiso("CATALOGOS.VER"))
         {
             _permisosCatalogos.Add("CATALOGOS.VER");
+        }
+
+        // El grupo de catálogos se abre con cualquiera de los dos permisos, no solo con VER.
+        // Si el grupo dependiera únicamente de CATALOGOS.VER, un rol que puede sincronizar desde
+        // un ERP pero no corregir un precio —un perfil normal, que solo carga y no edita— vería
+        // la página de orígenes en su URL pero no tendría por dónde llegar.
+        if (TienePermiso("CATALOGOS.ORIGENES"))
+        {
+            _permisosCatalogos.Add("CATALOGOS.ORIGENES");
         }
     }
 

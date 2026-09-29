@@ -1,0 +1,640 @@
+@page "/catalogos/origenes"
+@attribute [Authorize("CATALOGOS.ORIGENES")]
+@layout MainLayout
+@inject IntegracionService IntegracionService
+@inject ISnackbar Snackbar
+
+@*
+   -orígenes de datos -
+
+    El orden de la pantalla es el orden en que se configura, no el orden de las tablas:
+    primero una conexión (¿de dónde viene el dato?), después una prueba (¿nos podemos
+    conectar?), después el flujo (¿qué llenamos y desde qué vista?) y por último la
+    corrida. Poner los flujos antes que las conexiones obliga a elegir una conexión
+    en un desplegable que todavía no tiene nada adentro.
+
+    Cada paso se puede repetir sin perder el anterior: probar de nuevo es lo natural
+    cuando el ERP del cliente está caído, y ejecutar de nuevo es lo natural cuando
+    alguien acaba de corregir un precio en su sistema.
+*@
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-1">Orígenes de datos</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4 mud-text-secondary">
+        Conexiones a los ERP de los clientes y flujos que llenan los catálogos desde ellas.
+        La base del cliente se lee, nunca se escribe.
+    </MudText>
+
+    @if (_cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+    }
+
+    <MudExpansionPanels MultiExpansion="true" Elevation="2" Class="mb-4">
+        @* ── 1. Conexiones ──────────────────────────────────────────── *@
+        <MudExpansionPanel Text="1 · Conexiones al ERP" IsInitiallyExpanded="true">
+            <MudPaper Class="pa-4 mb-4 mud-background-gray-light">
+                <MudText Typo="Typo.subtitle1" Class="mb-3">@(_editandoConexion ? "Editar" : "Nueva") conexión</MudText>
+                <MudGrid>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_conexion.Nombre" Label="Nombre" Required="true" RequiredError="Ponga un nombre que lo reconozca"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="2">
+                        <MudTextField @bind-Value="_conexion.Servidor" Label="Servidor" Required="true" RequiredError="Falta el servidor"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="1">
+                        <MudNumericField @bind-Value="_conexion.Puerto" Label="Puerto" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="2">
+                        <MudTextField @bind-Value="_conexion.NombreBaseDatos" Label="Base de datos" Required="true" RequiredError="Falta la base de datos"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="1">
+                        <MudTextField @bind-Value="_conexion.Esquema" Label="Esquema" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="1">
+                        <MudTextField @bind-Value="_conexion.Usuario" Label="Usuario" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="2">
+                        @* Tipo=Password porque la contraseña del ERP de un cliente se teclea en
+                           pantalla compartida más de una vez de lo que uno quisiera. *@
+                        <MudTextField @bind-Value="_contrasenaConexion" Label="@_etiquetaContrasena" InputType="InputType.Password"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                </MudGrid>
+                <MudGrid Class="mt-1">
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_conexion.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="2">
+                        <MudNumericField @bind-Value="_conexion.TiempoEsperaSegundos" Label="Espera (segundos)" Min="1" Max="600"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                </MudGrid>
+
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3" Icon="@Icons.Material.Filled.Info">
+                    Pida al cliente una cuenta de <b>solo lectura</b> y una vista que entregue los
+                    datos con los nombres que espera la plataforma. Si el dato está repartido en
+                    varias tablas, la vista las une: el cotizador no necesita saber cómo lo tiene
+                    guardado el ERP.
+                </MudAlert>
+
+                <div class="d-flex justify-end mt-3">
+                    @if (_editandoConexion)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="CancelarConexion" Class="mr-2">Cancelar</MudButton>
+                    }
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GuardarConexion" Disabled="_guardandoConexion">
+                        @if (_guardandoConexion)
+                        {
+                            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        }
+                        else
+                        {
+                            <MudText>Guardar</MudText>
+                        }
+                    </MudButton>
+                </div>
+            </MudPaper>
+
+            <MudTable Items="_conexiones" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Nombre</MudTh>
+                    <MudTh>Servidor</MudTh>
+                    <MudTh>Base de datos</MudTh>
+                    <MudTh>Estado</MudTh>
+                    <MudTh>Última conexión OK</MudTh>
+                    <MudTh>Flujos</MudTh>
+                    <MudTh>Acciones</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Nombre">
+                        <MudText Typo="Typo.body2">@context.Nombre</MudText>
+                        @if (!string.IsNullOrWhiteSpace(context.Descripcion))
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Descripcion</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Servidor">@context.Servidor@if (context.Puerto is > 0)
+                        {
+                            <span>,@context.Puerto</span>
+                        }</MudTd>
+                    <MudTd DataLabel="Base de datos">@context.NombreBaseDatos</MudTd>
+                    <MudTd DataLabel="Estado">
+                        @* Sin conexión probada no se dibuja el check verde: "todavía no sabemos"
+                           y "funciona" no son lo mismo, y el primero parece el segundo
+                           si se usa el mismo ícono. *@
+                        @if (context.UltimaPruebaOk is null)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Sin probar</MudChip>
+                        }
+                        else if (context.UltimaPruebaOk == true)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">Conectada</MudChip>
+                        }
+                        else
+                        {
+                            <MudTooltip Text="@(context.UltimoError ?? "Falló la conexión")">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Text">Error</MudChip>
+                            </MudTooltip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Última conexión OK">@Fecha(context.UltimaConexionOkUtc)</MudTd>
+                    <MudTd DataLabel="Flujos">@context.TotalFlujos</MudTd>
+                    <MudTd>
+                        <MudTooltip Text="Abrir la conexión y ejecutar un SELECT 1">
+                            <MudIconButton Icon="@Icons.Material.Filled.Lan" Color="Color.Primary" Size="Size.Small" OnClick="@(() => ProbarConexion(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Editar">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EditarConexion(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Class="pa-4 mud-text-secondary">
+                        Todavía no hay ninguna conexión. Empiece por la base del ERP de un cliente.
+                    </MudText>
+                </NoRecordsContent>
+            </MudTable>
+
+            @* Una conexión no se borra desde la web, y es a propósito: los productos que ya se
+               cargaron desde ella guardan su id de procedencia, y borrar la fila los dejaría
+               apuntando a la nada. Cuando el cliente se va, se da de baja el flujo y la conexión
+               queda ahí como historia de dónde vinieron los precios. *@
+            <MudText Typo="Typo.caption" Class="mud-text-secondary d-block mt-2">
+                Una conexión no se elimina: se desactiva, para no dejar sin procedencia los datos
+                que ya se cargaron desde ella.
+            </MudText>
+        </MudExpansionPanel>
+
+        @* ── 2. Flujos ───────────────────────────────────────────────── *@
+        <MudExpansionPanel Text="2 · Flujos de carga" IsInitiallyExpanded="true">
+            <MudPaper Class="pa-4 mb-4 mud-background-gray-light">
+                <MudText Typo="Typo.subtitle1" Class="mb-3">@(_editandoFlujo ? "Editar" : "Nuevo") flujo</MudText>
+                <MudGrid>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_flujo.Nombre" Label="Nombre" Required="true" RequiredError="Ponga un nombre"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudSelect T="Guid" @bind-Value="_flujo.ErpConexionId" Label="Conexión" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var c in _conexiones)
+                            {
+                                <MudSelectItem T="Guid" Value="@c.Id">@c.Nombre</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="2">
+                        <MudSelect T="string" @bind-Value="_flujo.Catalogo" Label="Catálogo" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var cat in CatalogosDisponibles)
+                            {
+                                <MudSelectItem T="string" Value="@cat">@cat</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudTextField @bind-Value="_flujo.Origen" Label="Origen (vista, tabla o consulta)" Required="true" RequiredError="Falta el origen"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      HelperText="Ejemplo: dbo.vw_ProductosOrkin" />
+                    </MudItem>
+                </MudGrid>
+                <MudGrid Class="mt-1">
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_flujo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudExpansionPanels Elevation="0">
+                            <MudExpansionPanel Text="@(string.IsNullOrWhiteSpace(_flujo.MapeoJson) ? "Mapeo de columnas (opcional)" : "Mapeo de columnas (configurado)")">
+                                <MudTextField @bind-Value="_flujo.MapeoJson" Lines="5" Label="Mapeo (JSON)"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              HelperText='Vacío = la vista ya trae los nombres esperados. Con contenido: { "columna del ERP": "Campo nuestro" }' />
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    </MudItem>
+                </MudGrid>
+
+                <div class="d-flex justify-end mt-3">
+                    @if (_editandoFlujo)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="CancelarFlujo" Class="mr-2">Cancelar</MudButton>
+                    }
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GuardarFlujo" Disabled="_guardandoFlujo">
+                        @if (_guardandoFlujo)
+                        {
+                            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        }
+                        else
+                        {
+                            <MudText>Guardar</MudText>
+                        }
+                    </MudButton>
+                </div>
+            </MudPaper>
+
+            <MudTable Items="_flujos" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Flujo</MudTh>
+                    <MudTh>Catálogo</MudTh>
+                    <MudTh>Origen</MudTh>
+                    <MudTh>Última corrida</MudTh>
+                    <MudTh>Resultado</MudTh>
+                    <MudTh>Acciones</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Flujo">
+                        <MudText Typo="Typo.body2">@context.Nombre</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.ConexionNombre</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Catálogo">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">@context.Catalogo</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Origen">
+                        <MudText Typo="Typo.body2" Style="font-family: monospace;">@context.Origen</MudText>
+                        @if (!string.IsNullOrWhiteSpace(context.MapeoJson))
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">con mapeo</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Última corrida">@Fecha(context.UltimaEjecucionUtc)</MudTd>
+                    <MudTd DataLabel="Resultado">
+                        @if (context.UltimaEjecucionUtc is null)
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">Nunca se ha corrido</MudText>
+                        }
+                        else if (!string.IsNullOrEmpty(context.UltimoError))
+                        {
+                            <MudTooltip Text="@context.UltimoError">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Text">Falló</MudChip>
+                            </MudTooltip>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption">
+                                <MudText Typo="Typo.caption" Color="Color.Success">+@context.UltimosInsertados</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Info"> ~@context.UltimosActualizados</MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary"> =@context.UltimosOmitidos</MudText>
+                                @if (context.UltimosRechazados > 0)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Error"> !@context.UltimosRechazados</MudText>
+                                }
+                            </MudText>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        <MudTooltip Text="Cargar el catálogo desde el origen ahora">
+                            <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EjecutarFlujo(context))" Disabled="_ejecutandoFlujoId == context.Id" />
+                        </MudTooltip>
+                        <MudTooltip Text="Ver el historial de corridas">
+                            <MudIconButton Icon="@Icons.Material.Filled.History" Color="Color.Primary" Size="Size.Small" OnClick="@(() => CargarHistorial(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Editar">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EditarFlujo(context))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Quitar">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DarDeBajaFlujo(context))" />
+                        </MudTooltip>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Class="pa-4 mud-text-secondary">
+                        Todavía no hay ningún flujo. Un flujo dice qué catálogo se llena y desde qué
+                        vista del ERP.
+                    </MudText>
+                </NoRecordsContent>
+            </MudTable>
+        </MudExpansionPanel>
+
+        @* ── 3. Historial ────────────────────────────────────────────── *@
+        <MudExpansionPanel Text="@($"3 · Historial{(_flujoHistorial is null ? "" : $" — {_flujoHistorial.Nombre}")}")">
+            @if (_cargandoHistorial)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-2" />
+            }
+
+            @if (_flujoHistorial is not null && _ejecuciones.Count == 0 && !_cargandoHistorial)
+            {
+                <MudText Class="pa-4 mud-text-secondary">Ese flujo no se ha corrido todavía.</MudText>
+            }
+            else if (_ejecuciones.Count > 0)
+            {
+                <MudTable Items="_ejecuciones" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Inicio (UTC)</MudTh>
+                        <MudTh>Estado</MudTh>
+                        <MudTh>Duración</MudTh>
+                        <MudTh>Leídos</MudTh>
+                        <MudTh>Creados</MudTh>
+                        <MudTh>Actualizados</MudTh>
+                        <MudTh>Sin cambio</MudTh>
+                        <MudTh>Rechazados</MudTh>
+                        <MudTh>Error</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Inicio">@Fecha(context.InicioUtc)</MudTd>
+                        <MudTd DataLabel="Estado">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                     Color="@(context.Estado == "CORRECTA" ? Color.Success : context.Estado == "EN_CURSO" ? Color.Info : Color.Error)">
+                                @context.Estado
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Duración">@(context.DuracionMs is { } ms ? $"{ms} ms" : "—")</MudTd>
+                        <MudTd DataLabel="Leídos">@context.RegistrosLeidos</MudTd>
+                        <MudTd DataLabel="Creados">@context.RegistrosCreados</MudTd>
+                        <MudTd DataLabel="Actualizados">@context.RegistrosActualizados</MudTd>
+                        <MudTd DataLabel="Sin cambio">@context.RegistrosSinCambio</MudTd>
+                        <MudTd DataLabel="Rechazados">@context.RegistrosRechazados</MudTd>
+                        <MudTd DataLabel="Error" Style="max-width: 420px;">
+                            @if (!string.IsNullOrEmpty(context.MensajeError))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Error">@context.MensajeError</MudText>
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+</MudContainer>
+
+@code {
+    /// <summary>
+    /// Catálogos a los que hoy hay cargador. Se listan en vez de dejarlos en un campo de texto
+    /// libre porque el nombre va guardado tal cual en <c>int.ErpFlujo</c> y se compara contra
+    /// la tabla de cargadores: escribir "productos" en minúsculas produce un flujo que se guarda
+    /// sin quejarse y falla al ejecutarse, que es la peor forma de fallar.
+    /// </summary>
+    private static readonly string[] CatalogosDisponibles = ["PRODUCTOS"];
+
+    private List<ErpConexionModel> _conexiones = [];
+    private List<ErpFlujoModel> _flujos = [];
+    private List<SincronizacionEjecucionModel> _ejecuciones = [];
+
+    private ErpConexionModel _conexion = new();
+    private string _contrasenaConexion = string.Empty;
+    private bool _editandoConexion;
+
+    private ErpFlujoModel _flujo = new();
+    private bool _editandoFlujo;
+
+    private ErpFlujoModel? _flujoHistorial;
+    private bool _cargando;
+    private bool _guardandoConexion;
+    private bool _guardandoFlujo;
+    private bool _cargandoHistorial;
+    private Guid? _ejecutandoFlujoId;
+
+    private string _etiquetaContrasena => _editandoConexion
+        ? (_conexion.TieneContrasena ? "Contraseña (vacío = dejar la actual)" : "Contraseña")
+        : "Contraseña";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            await Recargar();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task Recargar()
+    {
+        _conexiones = await IntegracionService.ListarConexionesAsync();
+        _flujos = await IntegracionService.ListarFlujosAsync();
+
+        // La conexión seleccionada puede haber desaparecido (se editó en otra pestaña, o la
+        // lista se recargó). Dejarla apuntando a algo que ya no existe convierte el guardado del
+        // flujo siguiente en un error de FK que no dice nada del origen real.
+        if (_flujo.ErpConexionId != Guid.Empty && _conexiones.All(c => c.Id != _flujo.ErpConexionId))
+        {
+            _flujo.ErpConexionId = Guid.Empty;
+        }
+    }
+
+    // ── Conexiones ────────────────────────────────────────────────────────────
+
+    private void EditarConexion(ErpConexionModel conexion)
+    {
+        _conexion = new ErpConexionModel
+        {
+            Id = conexion.Id,
+            Nombre = conexion.Nombre,
+            Descripcion = conexion.Descripcion,
+            Servidor = conexion.Servidor,
+            Puerto = conexion.Puerto,
+            NombreBaseDatos = conexion.NombreBaseDatos,
+            Esquema = conexion.Esquema,
+            Usuario = conexion.Usuario,
+            TiempoEsperaSegundos = conexion.TiempoEsperaSegundos,
+            TieneContrasena = conexion.TieneContrasena
+        };
+
+        // Vacía a propósito: es lo que hace que "vacío" signifique "no la cambio" en vez de
+        // "bórrala". La caja se rellena solo si alguien escribe algo.
+        _contrasenaConexion = string.Empty;
+        _editandoConexion = true;
+    }
+
+    private void CancelarConexion()
+    {
+        _conexion = new ErpConexionModel();
+        _contrasenaConexion = string.Empty;
+        _editandoConexion = false;
+    }
+
+    private async Task GuardarConexion()
+    {
+        if (string.IsNullOrWhiteSpace(_conexion.Nombre)
+            || string.IsNullOrWhiteSpace(_conexion.Servidor)
+            || string.IsNullOrWhiteSpace(_conexion.NombreBaseDatos))
+        {
+            Snackbar.Add("Nombre, servidor y base de datos son obligatorios.", Severity.Warning);
+            return;
+        }
+
+        _guardandoConexion = true;
+        try
+        {
+            ApiResponse<ErpConexionModel>? respuesta;
+
+            if (_editandoConexion)
+            {
+                // La contraseña solo viaja si se escribió algo en la caja. null = déjala.
+                var nueva = string.IsNullOrEmpty(_contrasenaConexion) ? null : _contrasenaConexion;
+                respuesta = await IntegracionService.ActualizarConexionAsync(_conexion, nueva);
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(_contrasenaConexion))
+                {
+                    Snackbar.Add("La conexión necesita contraseña.", Severity.Warning);
+                    return;
+                }
+
+                respuesta = await IntegracionService.CrearConexionAsync(_conexion, _contrasenaConexion);
+            }
+
+            if (respuesta?.Exito == true)
+            {
+                Snackbar.Add("Conexión guardada. Pruébela antes de crear un flujo.", Severity.Success);
+                CancelarConexion();
+                await Recargar();
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar la conexión.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _guardandoConexion = false;
+        }
+    }
+
+    private async Task ProbarConexion(ErpConexionModel conexion)
+    {
+        var respuesta = await IntegracionService.ProbarConexionAsync(conexion.Id);
+
+        if (respuesta?.Exito == true && respuesta.Datos?.Exito == true)
+        {
+            Snackbar.Add($"Conexión correcta ({respuesta.Datos.Milisegundos} ms). {respuesta.Datos.VersionServidor}", Severity.Success);
+        }
+        else
+        {
+            // El motivo va al snackbar entero, sin recortar: "login failed" y "no such database"
+            // son dos llamadas distintas al cliente, y recortar el mensaje las vuelve la misma.
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo abrir la conexión.", Severity.Error);
+        }
+
+        await Recargar();
+    }
+
+    // ── Flujos ────────────────────────────────────────────────────────────────
+
+    private void EditarFlujo(ErpFlujoModel flujo)
+    {
+        _flujo = new ErpFlujoModel
+        {
+            Id = flujo.Id,
+            ErpConexionId = flujo.ErpConexionId,
+            Nombre = flujo.Nombre,
+            Descripcion = flujo.Descripcion,
+            Catalogo = flujo.Catalogo,
+            Origen = flujo.Origen,
+            MapeoJson = flujo.MapeoJson
+        };
+        _editandoFlujo = true;
+    }
+
+    private void CancelarFlujo()
+    {
+        _flujo = new ErpFlujoModel();
+        _editandoFlujo = false;
+    }
+
+    private async Task GuardarFlujo()
+    {
+        if (string.IsNullOrWhiteSpace(_flujo.Nombre)
+            || string.IsNullOrWhiteSpace(_flujo.Origen)
+            || _flujo.ErpConexionId == Guid.Empty)
+        {
+            Snackbar.Add("Nombre, conexión y origen son obligatorios.", Severity.Warning);
+            return;
+        }
+
+        _guardandoFlujo = true;
+        try
+        {
+            var respuesta = _editandoFlujo
+                ? await IntegracionService.ActualizarFlujoAsync(_flujo)
+                : await IntegracionService.CrearFlujoAsync(_flujo);
+
+            if (respuesta?.Exito == true)
+            {
+                Snackbar.Add("Flujo guardado.", Severity.Success);
+                CancelarFlujo();
+                await Recargar();
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar el flujo.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _guardandoFlujo = false;
+        }
+    }
+
+    private async Task EjecutarFlujo(ErpFlujoModel flujo)
+    {
+        _ejecutandoFlujoId = flujo.Id;
+        try
+        {
+            var respuesta = await IntegracionService.EjecutarFlujoAsync(flujo.Id);
+
+            if (respuesta?.Exito == true && respuesta.Datos is { } r)
+            {
+                Snackbar.Add(
+                    $"{flujo.Nombre}: {r.Insertados} nuevos, {r.Actualizados} actualizados, " +
+                    $"{r.Omitidos} sin cambio, {r.Rechazados} rechazados.",
+                    r.Rechazados > 0 ? Severity.Warning : Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo ejecutar el flujo.", Severity.Error);
+            }
+
+            await Recargar();
+
+            // El historial se refresca junto con la corrida: si alguien acaba de ver un fallo
+            // y ejecuta, la fila nueva tiene que aparecer sin que tenga que pedirlo.
+            if (_flujoHistorial?.Id == flujo.Id)
+            {
+                _ejecuciones = await IntegracionService.ListarEjecucionesAsync(flujo.Id);
+            }
+        }
+        finally
+        {
+            _ejecutandoFlujoId = null;
+        }
+    }
+
+    private async Task CargarHistorial(ErpFlujoModel flujo)
+    {
+        _flujoHistorial = flujo;
+        _cargandoHistorial = true;
+        try
+        {
+            _ejecuciones = await IntegracionService.ListarEjecucionesAsync(flujo.Id);
+        }
+        finally
+        {
+            _cargandoHistorial = false;
+        }
+    }
+
+    private async Task DarDeBajaFlujo(ErpFlujoModel flujo)
+    {
+        var respuesta = await IntegracionService.DarDeBajaFlujoAsync(flujo.Id);
+
+        Snackbar.Add(
+            respuesta?.Exito == true ? "Flujo dado de baja." : respuesta?.Mensaje ?? "No se pudo dar de baja.",
+            respuesta?.Exito == true ? Severity.Success : Severity.Error);
+
+        await Recargar();
+    }
+
+    /// <summary>
+    /// Fecha en formato local legible, o un guion. La bitácora guarda UTC porque es la única
+    /// forma de comparar corridas de clientes en zonas horarias distintas; mostrarla en UTC en
+    /// pantalla haría que dos corridas parecieran descolocadas cuando no lo están.
+    /// </summary>
+    private static string Fecha(DateTime? utc) =>
+        utc is null ? "—" : utc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
+}

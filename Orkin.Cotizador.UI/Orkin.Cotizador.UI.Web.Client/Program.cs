@@ -22,10 +22,25 @@ public class Program
         });
 
         builder.Services.AddMudServices();
-        builder.Services.AddAuthorizationCore();
+
+        // ── Autorización ────────────────────────────────────────────────────────────
+        // El nombre de una política es el código del permiso (CATALOGOS.ORIGENES, …), y en el
+        // cliente no hay catálogo de permisos: se resuelve cualquier nombre contra el claim
+        // "orkin:permiso" del token. Ver PoliticaPermisoProvider para por qué y para qué caso
+        // falla.
+        builder.Services.AddAuthorizationCore(options =>
+        {
+            options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+        });
+        builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationPolicyProvider, PoliticaPermisoProvider>();
+        builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler, ManejadorPermiso>();
+
         builder.Services.AddScoped<AuthService>();
         builder.Services.AddScoped<CatalogoService>();
         builder.Services.AddScoped<CotizacionService>();
+        builder.Services.AddScoped<IntegracionService>();
         builder.Services.AddScoped<CustomAuthStateProvider>();
         builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<CustomAuthStateProvider>());
 
