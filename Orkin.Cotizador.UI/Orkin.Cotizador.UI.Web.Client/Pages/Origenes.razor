@@ -30,6 +30,146 @@
         <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
     }
 
+    @* ── Simulación ────────────────────────────────────────────────────────── *@
+    @if (_simulandoFlujoId is not null || _simulacion is not null)
+    {
+        <MudPaper Class="pa-4 mb-4" Outlined="true" Style="border-left: 4px solid var(--mud-palette-primary);">
+            <div class="d-flex align-center justify-space-between mb-3">
+                <MudText Typo="Typo.h6" Color="Color.Primary">
+                    Simulación — @_simulacionFlujoNombre
+                </MudText>
+                @if (_simulacion is not null)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="CerrarSimulacion" />
+                }
+            </div>
+
+            @if (_simulacion is null)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-2" />
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Leyendo el origen y calculando qué haría, sin escribir nada.
+                </MudText>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-3" Dense="true" Variant="Variant.Outlined">
+                    <b>Esto no modificó nada.</b> Es una previdencia: la misma carga, con el paso
+                    de escritura cortado. Nada de lo que sigue tocó el catálogo, y esta simulación
+                    no aparece en el historial porque no fue una corrida.
+                </MudAlert>
+
+                <MudGrid Class="mb-3">
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Se crearían</MudText>
+                        <MudText Typo="Typo.h6" Color="@(_simulacion.Insertados > 0 ? Color.Success : Color.Default)">
+                            @_simulacion.Insertados
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Cambiarían</MudText>
+                        <MudText Typo="Typo.h6" Color="@(_simulacion.Actualizados > 0 ? Color.Info : Color.Default)">
+                            @_simulacion.Actualizados
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Sin cambio</MudText>
+                        <MudText Typo="Typo.h6">@_simulacion.Omitidos</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Se rechazarían</MudText>
+                        <MudText Typo="Typo.h6" Color="@(_simulacion.Rechazados > 0 ? Color.Error : Color.Default)">
+                            @_simulacion.Rechazados
+                        </MudText>
+                    </MudItem>
+                </MudGrid>
+
+                @if (_simulacion.Rechazados > 0)
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mb-3" Dense="true" Variant="Variant.Outlined">
+                        @_simulacion.Rechazados filas no se podrían transformar.
+                        @(_simulacion.Rechazos.FirstOrDefault() is { } primero
+                            ? $" La primera está en la fila {primero.NumeroFila}: {primero.Motivo}"
+                            : string.Empty)
+                    </MudAlert>
+                }
+
+                <div class="d-flex align-center justify-space-between mb-2">
+                    <MudText Typo="Typo.subtitle1">Detalle por fila</MudText>
+                    <MudChipSet Filter="true" SelectedValue="_filtroSimulacion"
+                                SelectedValueChanged="@((string v) => _filtroSimulacion = v)">
+                        <MudChip T="string" Value="@("TODOS")" Variant="Variant.Outlined">Todas (@_simulacion.Total)</MudChip>
+                        <MudChip T="string" Value="@("CAMBIOS")" Variant="Variant.Outlined">Cambian (@(_simulacion.Insertados + _simulacion.Actualizados))</MudChip>
+                        <MudChip T="string" Value="@("OMITIR")" Variant="Variant.Outlined">Sin cambio (@_simulacion.Omitidos)</MudChip>
+                    </MudChipSet>
+                </div>
+
+                @if (!HayCambiosVisibles)
+                {
+                    <MudText Class="pa-4 mud-text-secondary">
+                        @(_filtroSimulacion == "CAMBIOS"
+                            ? "Ningún campo cambiaría: la carga sería no-op."
+                            : "Ninguna fila sin cambio.")
+                    </MudText>
+                }
+                else
+                {
+                    <MudTable Items="@CambiosFiltrados" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0"
+                              Outlined="true" Style="max-height: 420px; overflow: auto;">
+                        <HeaderContent>
+                            <MudTh>Fila</MudTh>
+                            <MudTh>Código</MudTh>
+                            <MudTh>Acción</MudTh>
+                            <MudTh>Campos</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Fila">@context.NumeroFila</MudTd>
+                            <MudTd DataLabel="Código">
+                                <code>@(context.CodigoExterno ?? "—")</code>
+                            </MudTd>
+                            <MudTd DataLabel="Acción">
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                         Color="@ColorDeAccion(context.Accion)">@context.Accion</MudChip>
+                            </MudTd>
+                            <MudTd DataLabel="Campos">
+                                @if (context.Campos.Count == 0)
+                                {
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                        @(context.Accion == "Omitir" ? "Idéntica" : "Se crea la fila")
+                                    </MudText>
+                                }
+                                else
+                                {
+                                            @* Tabla anidada: el contexto se renombra a "campo" porque el
+                                       de fuera ya se llama "context" y Razor no admite que dos
+                                       RowTemplate anidados compartan el nombre. *@
+                                    <MudTable Items="@context.Campos" Dense="true" Elevation="0"
+                                              Style="background: transparent; box-shadow: none;">
+                                        <RowTemplate Context="campo">
+                                            <MudTd DataLabel="Campo" Style="border: none; padding: 0 8px 0 0;">
+                                                <b>@campo.Campo:</b>
+                                            </MudTd>
+                                            <MudTd DataLabel="Antes" Style="border: none; padding: 0 8px 0 0;">
+                                                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                                    @(campo.Anterior ?? "(vacío)")
+                                                </MudText>
+                                            </MudTd>
+                                            <MudTd DataLabel="Después" Style="border: none; padding: 0;">
+                                                <MudText Typo="Typo.body2" Color="Color.Primary">
+                                                    @(campo.Nuevo ?? "(vacío)")
+                                                </MudText>
+                                            </MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                }
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            }
+        </MudPaper>
+    }
+
     <MudExpansionPanels MultiExpansion="true" Elevation="2" Class="mb-4">
         @* ── 1. Conexiones ──────────────────────────────────────────── *@
         <MudExpansionPanel Text="1 · Conexiones al ERP" IsInitiallyExpanded="true">
@@ -283,6 +423,9 @@
                         }
                     </MudTd>
                     <MudTd>
+                        <MudTooltip Text="Simular: ver qué haría sin escribir nada">
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Primary" Size="Size.Small" OnClick="@(() => SimularFlujo(context))" Disabled="_simulandoFlujoId == context.Id" />
+                        </MudTooltip>
                         <MudTooltip Text="Cargar el catálogo desde el origen ahora">
                             <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EjecutarFlujo(context))" Disabled="_ejecutandoFlujoId == context.Id" />
                         </MudTooltip>
@@ -384,6 +527,59 @@
     private bool _guardandoFlujo;
     private bool _cargandoHistorial;
     private Guid? _ejecutandoFlujoId;
+    private Guid? _simulandoFlujoId;
+
+    // Simulación: el resultado que se está mirando, el flujo al que pertenece y el filtro de
+    // la grilla. El filtro existe porque con 111 filas el caso normal es "no cambia nada", y una
+    // grilla de 111 líneas todas iguales esconde el hecho interesante: las tres que sí cambian.
+    private SimulacionFlujoModel? _simulacion;
+    private string? _simulacionFlujoNombre;
+    private string _filtroSimulacion = "TODOS";
+
+    private IEnumerable<CambioSimuladoModel> CambiosFiltrados =>
+        _simulacion?.Cambios.Where(AplicaFiltroSimulacion) ?? [];
+
+    private bool AplicaFiltroSimulacion(CambioSimuladoModel c) => _filtroSimulacion switch
+    {
+        "CAMBIOS" => c.Accion is "Insertar" or "Actualizar" or "Adoptar",
+        "OMITIR" => c.Accion == "Omitir",
+        _ => true
+    };
+
+    private bool HayCambiosVisibles => CambiosFiltrados.Any();
+
+    private async Task SimularFlujo(ErpFlujoModel flujo)
+    {
+        _simulandoFlujoId = flujo.Id;
+        _simulacion = null;
+        _simulacionFlujoNombre = flujo.Nombre;
+        _filtroSimulacion = "TODOS";
+
+        try
+        {
+            var respuesta = await IntegracionService.SimularFlujoAsync(flujo.Id);
+
+            if (respuesta?.Exito == true && respuesta.Datos is { } r)
+            {
+                _simulacion = r;
+            }
+            else
+            {
+                _simulacion = null;
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo simular el flujo.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _simulandoFlujoId = null;
+        }
+    }
+
+    private void CerrarSimulacion()
+    {
+        _simulacion = null;
+        _simulacionFlujoNombre = null;
+    }
 
     private string _etiquetaContrasena => _editandoConexion
         ? (_conexion.TieneContrasena ? "Contraseña (vacío = dejar la actual)" : "Contraseña")
@@ -629,6 +825,20 @@
 
         await Recargar();
     }
+
+    /// <summary>
+    /// Color de la acción en la grilla. "Adoptar" va en advertencia y no en información porque
+    /// es el caso que merece una segunda mirada: la fila ya existía y alguien la escribió a mano
+    /// (o la subió del Excel), y con la simulación de encima va a pasar a ser propiedad del ERP.
+    /// Que el ERP gane la fila es lo correcto, pero no debería pasar desapercibido.
+    /// </summary>
+    private static Color ColorDeAccion(string accion) => accion switch
+    {
+        "Insertar" => Color.Success,
+        "Actualizar" => Color.Info,
+        "Adoptar" => Color.Warning,
+        _ => Color.Default
+    };
 
     /// <summary>
     /// Fecha en formato local legible, o un guion. La bitácora guarda UTC porque es la única

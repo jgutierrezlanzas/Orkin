@@ -288,6 +288,36 @@ public sealed class OrigenesController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Corre el flujo <b>sin escribir nada</b> y devuelve lo que haría: cuántos registros
+    /// crearía, cuántos cambiarían —con el valor anterior y el nuevo de cada campo— y cuáles
+    /// no se podrían transformar.
+    /// <para>Existe porque la forma de romper un catálogo no es que la carga falle: es que
+    /// funcione y traiga el dato equivocado. Una vista mal armada, una columna corrida un
+    /// lugar, un precio en otra moneda — nada de eso da error, dan datos buenos con la
+    /// etiqueta de la fuente equivocada. Con la simulación se ve antes de que entren.</para>
+    /// <para>No deja rastro en la bitácora ni toca el estado del flujo: una simulación no es
+    /// una corrida, y anotarla ahí haría que el historial dijera que se modificó el catálogo
+    /// cuando no se modificó nada.</para>
+    /// </summary>
+    [HttpPost("flujos/{id:guid}/simular")]
+    public async Task<IResult> SimularFlujo(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var resultado = await _servicio.SimularFlujoAsync(id, cancellationToken);
+            return ApiResponse<SimulacionFlujoResponse>.Ok(AResponse(resultado)).AHttp();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return ApiResponse<SimulacionFlujoResponse>.Error("NO_ENCONTRADO", ex.Message).AHttp();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApiResponse<SimulacionFlujoResponse>.Error("DATO_INVALIDO", ex.Message).AHttp();
+        }
+    }
+
     /// <summary>Historial de corridas del flujo, de la más reciente a la más vieja.</summary>
     [HttpGet("flujos/{id:guid}/ejecuciones")]
     public async Task<IResult> ListarEjecuciones(
@@ -357,4 +387,30 @@ public sealed class OrigenesController : ControllerBase
         e.RegistrosSinCambio,
         e.RegistrosRechazados,
         e.MensajeError);
+
+    /// <summary>
+    /// Traduce el resultado de la simulación al formato de transporte. El enum se pasa a texto
+    /// con <c>ToString()</c> a propósito: el nombre del miembro ya es exactamente la palabra que
+    /// quiere leer la persona que está mirando la pantalla ("Actualizar", "Adoptar"), así que
+    /// no hace falta una tabla de traducción que se pueda quedar vieja.
+    /// </summary>
+    private static SimulacionFlujoResponse AResponse(ResultadoCarga r) => new(
+        r.Catalogo,
+        r.Total,
+        r.Insertados,
+        r.Actualizados,
+        r.Omitidos,
+        r.Rechazados,
+
+        // Solo cuentan como "cambio" las filas que hay que escribir. Las omitidas no lo son, y
+        // las de acción Adoptar sí: la fila existe pero pasa a ser de otra fuente, lo cual es
+        // un cambio aunque ningún campo de negocio cambie.
+        r.Cambios.Any(c => c.Accion is AccionSimulada.Actualizar or AccionSimulada.Insertar or AccionSimulada.Adoptar),
+        r.Cambios.Select(c => new CambioSimuladoResponse(
+            c.NumeroFila,
+            c.CodigoExterno,
+            c.Accion.ToString(),
+            c.Campos.Select(f => new CampoSimuladoResponse(f.Campo, f.Anterior, f.Nuevo)).ToList())).ToList(),
+        r.Rechazos.Select(x => new RechazoCargaResponse(x.NumeroFila, x.CodigoExterno, x.Motivo, x.FilaJson)).ToList(),
+        r.EjecutadoUtc);
 }

@@ -390,6 +390,30 @@ public sealed class IntegracionService
     public async Task<ResultadoCarga> EjecutarFlujoAsync(
         Guid erpFlujoId,
         CancellationToken cancellationToken = default)
+        => await CorrerFlujoAsync(erpFlujoId, esSimulacion: false, cancellationToken);
+
+    /// <summary>
+    /// Corre el flujo <b>sin escribir nada</b> y devuelve lo que haría, con el detalle de los
+    /// campos que tocaría en cada fila.
+    /// <para>La diferencia con <see cref="EjecutarFlujoAsync"/> no está en la lectura, que es
+    /// idéntica, sino en dos cosas que se saltan: la escritura en el catálogo y la fila de la
+    /// bitácora. Lo segundo importa más de lo que parece —una simulación no es una corrida, y
+    /// anotarla en la bitácora haría que la lista de ejecuciones dijera que el catálogo se
+    /// tocó cuando no se tocó—. Quien mira la bitácora para saber qué le pasó al catálogo tiene
+    /// que poder confiar en que cada fila de esa tabla fue una carga real.</para>
+    /// <para>Sí se lee del ERP, y por eso una simulación puede fallar si el ERP está caído: es
+    /// el mismo dato el que se está previendo, y una previdencia sin haber leído no prevee
+    /// nada.</para>
+    /// </summary>
+    public async Task<ResultadoCarga> SimularFlujoAsync(
+        Guid erpFlujoId,
+        CancellationToken cancellationToken = default)
+        => await CorrerFlujoAsync(erpFlujoId, esSimulacion: true, cancellationToken);
+
+    private async Task<ResultadoCarga> CorrerFlujoAsync(
+        Guid erpFlujoId,
+        bool esSimulacion,
+        CancellationToken cancellationToken)
     {
         var flujo = await ObtenerFlujoAsync(erpFlujoId, cancellationToken)
             ?? throw new KeyNotFoundException("El flujo no existe.");
@@ -410,7 +434,13 @@ public sealed class IntegracionService
             SolicitadoPor = _usuario.UsuarioId
         };
 
-        _contexto.SincronizacionEjecucion.Add(ejecucion);
+        // En simulación no se crea la fila de bitácora, y con ella no se toca el estado del flujo
+        // ni el de la conexión. Ver la nota de SimularFlujoAsync: la bitácora tiene que poder
+        // leerse como "esto es lo que le pasó al catálogo", sin filas de mentira en el medio.
+        if (!esSimulacion)
+        {
+            _contexto.SincronizacionEjecucion.Add(ejecucion);
+        }
 
         var cadena = ConstruirCadena(conexion);
 
@@ -421,7 +451,10 @@ public sealed class IntegracionService
             const string mensaje = "La conexión no tiene usuario o contraseña configurados. " +
                 "Vuelva a editarla y guárdela de nuevo para cifrar la contraseña.";
 
-            await RegistrarFalloAsync(flujo, conexion, ejecucion, reloj, mensaje);
+            if (!esSimulacion)
+            {
+                await RegistrarFalloAsync(flujo, conexion, ejecucion, reloj, mensaje);
+            }
 
             // Faltan credenciales: es un problema de configuración de la conexión, no del ERP.
             // Se devuelve como error de validación (400) y no como fallo del servidor.
@@ -433,7 +466,8 @@ public sealed class IntegracionService
             Catalogo = flujo.Catalogo,
             TipoOrigen = "SQL_SERVER",
             MapeoColumnas = LeerMapeo(flujo.MapeoJson),
-            ErpConexionId = conexion.Id
+            ErpConexionId = conexion.Id,
+            EsSimulacion = esSimulacion
         };
 
         try
@@ -442,14 +476,23 @@ public sealed class IntegracionService
             var resultado = await _proceso.EjecutarAsync(configuracion, lector, cancellationToken);
 
             reloj.Stop();
-            await RegistrarExitoAsync(flujo, conexion, ejecucion, reloj, resultado);
+
+            if (!esSimulacion)
+            {
+                await RegistrarExitoAsync(flujo, conexion, ejecucion, reloj, resultado);
+            }
 
             return resultado;
         }
         catch (Exception ex)
         {
             reloj.Stop();
-            await RegistrarFalloAsync(flujo, conexion, ejecucion, reloj, ex.Message);
+
+            if (!esSimulacion)
+            {
+                await RegistrarFalloAsync(flujo, conexion, ejecucion, reloj, ex.Message);
+            }
+
             throw;
         }
     }

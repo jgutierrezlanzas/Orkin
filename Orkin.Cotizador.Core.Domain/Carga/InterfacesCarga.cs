@@ -65,6 +65,21 @@ public sealed record ConfiguracionCarga
     /// del ERP del dato inicial de Excel o corregido a mano. <c>null</c> en cargas manuales.
     /// </summary>
     public Guid? ErpConexionId { get; init; }
+
+    /// <summary>
+    /// <c>true</c> = no escribir nada: correr la carga entera y devolver lo que
+    /// <em>haría</em>, sin hacerlo.
+    /// <para>El cargador decide insert / actualizar / omitir con la misma lógica en los dos
+    /// modos; lo único que cambia es si aplica la decisión. Por eso una simulación no es una
+    /// función aparte que se parece a la carga: es la carga con el último paso cortado, y por
+    /// eso sirve para prever el resultado en vez de trabajarlo dos veces.</para>
+    /// <para>⚠️ <b>El nombre importa.</b> Simular no es un "cargar en seco" que a veces
+    /// escribe: es la garantía de que no se escribe. Por eso el proceso de carga, en este modo,
+    /// no llama a <c>SaveChanges</c> y además verifica que el rastreador de cambios esté limpio
+    /// al terminar. Si algún cargador futuro se olvida de la bandera, la simulación falla con un
+    /// error que lo dice, en vez de dejar medio catálogo cargado en la base del cliente.</para>
+    /// </summary>
+    public bool EsSimulacion { get; init; }
 }
 
 /// <summary>
@@ -86,10 +101,48 @@ public sealed record ResultadoCarga
 
     public IReadOnlyList<RechazoCarga> Rechazos { get; init; } = [];
 
+    /// <summary>
+    /// Qué haría esta carga, fila por fila, con el detalle de los campos que tocaría. Solo se
+    /// llena en simulación (<c>ConfiguracionCarga.EsSimulacion</c>); en una carga real va vacío,
+    /// porque lo que la carga real hizo ya está en la base y en la bitácora.
+    /// </summary>
+    public IReadOnlyList<CambioSimulado> Cambios { get; init; } = [];
+
     public DateTime EjecutadoUtc { get; init; } = DateTime.UtcNow;
 
     public int Total => Insertados + Actualizados + Omitidos + Rechazados;
 }
+
+/// <summary>Qué haría una fila en la base, sin tocarla.</summary>
+public enum AccionSimulada
+{
+    /// <summary>La fila no existe: se crearía.</summary>
+    Insertar,
+
+    /// <summary>La fila existe y algunos campos cambiarían.</summary>
+    Actualizar,
+
+    /// <summary>La fila existe y el hash coincide: no se tocaría.</summary>
+    Omitir,
+
+    /// <summary>
+    /// La fila ya existía por Excel o a mano, y el ERP trae ese mismo código: se le pondría la
+    /// conexión y el origen del precio del ERP. Va aparte de <see cref="Actualizar"/> porque es
+    /// el cambio que más sorprende: una fila que alguien escribió a mano pasa a ser de otra
+    /// fuente, y eso no se ve en un contador.
+    /// </summary>
+    Adoptar
+}
+
+/// <summary>Un campo que una simulación cambiaría, con el valor de antes y el de después.</summary>
+public sealed record CampoSimulado(string Campo, string? Anterior, string? Nuevo);
+
+/// <summary>Lo que una simulación haría con una fila del origen.</summary>
+public sealed record CambioSimulado(
+    int NumeroFila,
+    string? CodigoExterno,
+    AccionSimulada Accion,
+    IReadOnlyList<CampoSimulado> Campos);
 
 /// <summary>Una fila que no se pudo cargar, con la fila original y el motivo.</summary>
 public sealed record RechazoCarga(

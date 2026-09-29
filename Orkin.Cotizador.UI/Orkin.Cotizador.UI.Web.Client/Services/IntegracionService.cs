@@ -145,4 +145,15 @@ public sealed class IntegracionService
         var response = await _http.PostAsync($"api/origenes/flujos/{flujoId}/ejecutar", null);
         return await response.Content.ReadFromJsonAsync<ApiResponse<ResultadoCargaModel>>();
     }
+
+    /// <summary>
+    /// Simula la ejecución sin escribir. No refresca nada detrás: simular no cambia el estado
+    /// del flujo ni agrega una fila al historial, así que la pantalla no tiene por qué repintarse
+    /// y quien simula no debería ver moverse nada.
+    /// </summary>
+    public async Task<ApiResponse<SimulacionFlujoModel>?> SimularFlujoAsync(Guid flujoId)
+    {
+        var response = await _http.PostAsync($"api/origenes/flujos/{flujoId}/simular", null);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<SimulacionFlujoModel>>();
+    }
 }

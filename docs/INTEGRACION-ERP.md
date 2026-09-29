@@ -554,7 +554,7 @@ y un solo motor (SQL Server).
 |---|---|
 | `ErpOrigen` / `ErpMapeoCampo` como tablas (12.2) | El origen y el mapeo viven **en la misma fila** de `int.ErpFlujo` (`Origen` + `MapeoJson`). Con un origen por flujo no hay nada que normalizar en tablas separadas, y partir el mapeo en filas obliga a unite al leerlo. Si aparece el segundo origen por flujo, se extrae. |
 | `IErpConector` / `SqlServerErpConector` (12.4–12.5) | Hoy hay un `ILectorOrigen` (`LectorSqlServer`) que lee y devuelve filas. La abstracción de conector se necesita cuando el segundo ERP sea de otra tecnología; con uno solo sería una interfaz con un solo implementador. |
-| Simulación previa obligatoria (12.10) | Falta. Es la pieza que más urge: hoy el flujo escribe a medida que lee, y una vista mal armada alcanza a cargar el catálogo antes de que nadie la mire. |
+| ~~Simulación previa obligatoria (12.10)~~ | **Hecha** (§9.5). Era la pieza que más urgía. |
 | Programación automática (12.11–12.12) | Falta. Hoy la sincronización se dispara a mano desde la pantalla. El motor de carga ya sabe ser idempotente (hash), así que correr cada 5 minutos no es peligroso. |
 | Los otros catálogos (12.x) | Hay cargador de `PRODUCTOS` únicamente. Los demás siguen el mismo camino: un `CargadorX` más un `MapeoPorDefecto`. |
 | Alta/baja de productos (12.8, §5) | El cargador actual hace *upsert*, no baja. Una baja automática sin aviso borra insumos de cotizaciones abiertas. |
@@ -668,6 +668,53 @@ dato; el segundo no. Por eso es un permiso aparte, en vez de colgar de `CATALOGO
 con un permiso solo, o se le daba a todo el que corrige precios —y entonces la gente de ventas
 veía la lista de servidores de los clientes— o no se le daba a nadie y había que abrir la puerta
 completa.
+
+### 9.5 Simulación previa: correr el flujo sin escribir (12.10)
+
+El botón **Simular** corre el flujo entero —lee del ERP, transforma, valida, decide fila por fila— y
+**no escribe nada**. Devuelve los cuatro contadores de siempre más el detalle de qué campos
+cambiaría en cada fila, con el valor de antes y el de después.
+
+```
+POST api/origenes/flujos/{id}/simular   →  { total, insertados, actualizados, omitidos,
+                                            rechazados, habriaCambios, cambios[], rechazos[] }
+```
+
+La forma de romper un catálogo no es que la carga falle: es que **funcione** y traiga el dato
+equivocado. Una vista mal armada, una columna corrida un lugar, un precio en otra moneda — nada
+de eso da error, da datos buenos con la etiqueta de la fuente equivocada. Con la simulación se ve
+antes de que entren.
+
+**No es una segunda implementación del cargador, es el mismo con el último paso cortado.** La
+decisión insert / actualizar / omitir se toma con el mismo código en los dos modos; lo único que
+se bifurca es si se aplica. Esto importa más de lo que parece: una simulación aparte divergiría de
+la carga real con el tiempo, y una simulación que no predice la carga real es **peor que no
+tener simulación**, porque alguien le creería.
+
+Tres mecanismos sostienen esa promesa:
+
+| Mecanismo | Para qué |
+|---|---|
+| `ConfiguracionCarga.EsSimulacion` | La bandera. El cargador construye las entidades pero no las adjunta al contexto, y el proceso de carga no llama a `SaveChanges`. |
+| Verificación del change tracker | Al terminar, el cargador comprueba que no quede nada pendiente de guardar. Si un cargador futuro se olvida de la bandera, **falla con un error que lo dice** en vez de dejar medio catálogo cargado en silencio. |
+| Hash simulado en paralelo | En simulación las entidades no se tocan, así que un código repetido en el origen necesita su propia memoria para comportarse como en la carga real: 1 alta + 1 omisión, no 2 altas. |
+
+**No deja rastro en la bitácora.** Una simulación no es una corrida: no escribe en
+`int.SincronizacionEjecucion` ni toca el estado del flujo o de la conexión. La bitácora tiene que
+poder leerse como *"esto es lo que le pasó al catálogo"*, sin filas de mentira en el medio.
+
+#### Lo que se comprobó contra `OrkinClienteDemo`
+
+| Paso | Resultado |
+|---|---|
+| Sin cambios | `0 / 0 / 111 omitidas`. Base igual: 111 productos, ninguno con `UltimaSyncUtc` reciente, bitácora sin filas nuevas. |
+| Se cambió un artículo en `dbo.ARTICULO` (nombre y costo) | Simular: `1 actualizado`, diff exacto (`Bacterol → DESINFECTANTE PRO`, `0.90 → 1,234.56`). **La base seguía sin tocarse.** |
+| Se ejecutó de verdad | `1 actualizado / 110 sin cambio` — exactamente lo simulado. |
+| Se restauró el ERP | `0 / 0 / 111`. La ida y vuelta cierra. |
+
+Las pruebas automatizadas (`Orkin.Cotizador.Tests/Carga/SimulacionCargaTests.cs`) fijan las dos
+promesas: que la simulación no inserta, no modifica y no adopta; y que sus contadores coinciden
+con los de la carga real, incluso con códigos repetidos en el origen.
 
 ---
 

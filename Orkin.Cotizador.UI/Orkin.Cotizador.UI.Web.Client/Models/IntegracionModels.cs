@@ -115,3 +115,47 @@ public sealed class RechazoCargaModel
     public string? CodigoExterno { get; set; }
     public string Motivo { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Lo que un flujo haría si se ejecutara, sin ejecutarlo.
+/// <para>Trae <see cref="Cambios"/> con el detalle siempre, no solo los que cambian: el filtro
+/// del diálogo deja ver los omitidos, porque "estas 111 filas no se tocan" es información, no
+/// relleno.</para>
+/// </summary>
+public sealed class SimulacionFlujoModel
+{
+    public string Catalogo { get; set; } = string.Empty;
+    public int Total { get; set; }
+    public int Insertados { get; set; }
+    public int Actualizados { get; set; }
+    public int Omitidos { get; set; }
+    public int Rechazados { get; set; }
+
+    /// <summary>Hay al menos un campo que cambiaría. Distingue "no pasa nada" de "cambia el 30%".</summary>
+    public bool HabriaCambios { get; set; }
+
+    public List<CambioSimuladoModel> Cambios { get; set; } = [];
+    public List<RechazoCargaModel> Rechazos { get; set; } = [];
+    public DateTime SimuladoUtc { get; set; }
+
+    /// <summary>Las filas que de verdad se tocarían, para el contador de la portada.</summary>
+    public int AModificar => Cambios.Count(c => c.Accion is "Actualizar" or "Adoptar");
+}
+
+public sealed class CambioSimuladoModel
+{
+    public int NumeroFila { get; set; }
+    public string? CodigoExterno { get; set; }
+
+    /// <summary>"Insertar", "Actualizar", "Omitir" o "Adoptar". Texto, no número: llega del servidor así.</summary>
+    public string Accion { get; set; } = string.Empty;
+
+    public List<CampoSimuladoModel> Campos { get; set; } = [];
+}
+
+public sealed class CampoSimuladoModel
+{
+    public string Campo { get; set; } = string.Empty;
+    public string? Anterior { get; set; }
+    public string? Nuevo { get; set; }
+}

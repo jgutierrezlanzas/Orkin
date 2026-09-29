@@ -14,6 +14,13 @@
 
   <ItemGroup>
     <PackageReference Include="xunit.v3" Version="4.0.1" />
+    <!--
+      InMemory es para las pruebas del cargador. No es una segunda base de datos: no se conecta a
+      ningún servidor, no valida SQL ni restricciones. Se usa para comprobar la promesa de que una
+      simulación no escribe, que es una propiedad de la lógica del cargador y se verifica sin SQL.
+      El motor de cálculo sigue sin base de datos, como siempre (ADR-005).
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup>
