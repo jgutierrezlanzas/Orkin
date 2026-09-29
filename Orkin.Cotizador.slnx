@@ -12,4 +12,11 @@
   <Project Path="Orkin.Cotizador.UI/Orkin.Cotizador.UI.Shared/Orkin.Cotizador.UI.Shared.csproj" />
   <Project Path="Orkin.Cotizador.UI/Orkin.Cotizador.UI.Web/Orkin.Cotizador.UI.Web.csproj" />
   <Project Path="Orkin.Cotizador.UI/Orkin.Cotizador.UI.Web.Client/Orkin.Cotizador.UI.Web.Client.csproj" />
+  <!--
+    Herramienta de apoyo, no parte del producto. Puebla la base ficticia del cliente
+    (scripts/demo-cliente) con los datos del Excel de ORKIN, para poder probar el ETL de
+    integración sin un ERP real. Vive en la solución para que se compile y se revise junto con
+    el resto, pero no la publica nadie.
+  -->
+  <Project Path="tools/Orkin.DemoCliente.CargarDatos/Orkin.DemoCliente.CargarDatos.csproj" />
 </Solution>

@@ -129,6 +129,12 @@ public static class ServiceCollectionExtensions
         // porque cada carga puede tener su propio archivo o su propia conexión.
         services.AddScoped<Carga.ProcesoCargaService>();
 
+        // ── Integración con el ERP (Fase 12) ─────────────────────────────────────
+        // El cifrador de secretos (la contraseña del ERP del cliente nunca se guarda en claro)
+        // se registra acá y no en la capa de aplicación porque es una pieza de infraestructura
+        // que la aplicación consume.
+        services.AddSingleton<Carga.CifradorSecreto>();
+
         return services;
     }
 

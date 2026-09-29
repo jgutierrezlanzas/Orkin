@@ -306,6 +306,16 @@ public static class Program
         // bitácora registre el usuario real y no uno de relleno.
         construccion.Services.RemoveAll<IContextoUsuario>();
         construccion.Services.AddScoped<IContextoUsuario, ContextoUsuarioHttp>();
+
+        // ── Data Protection ────────────────────────────────────────────────────────
+        // Cifra la contraseña de la conexión al ERP del cliente (int.ErpConexion).
+        // <para><b>Las claves tienen que vivir fuera del contenedor.</b> Sin un volumen que las
+        // persista, una reconstrucción regenera el juego de claves y las contraseñas ya guardadas
+        // dejan de descifrarse: la conexión sigue en la lista, con su servidor y su usuario, y al
+        // probarla responde que no tiene credenciales. En docker-compose el volumen está montado en
+        // <c>/root/.aspnet/DataProtection-Keys</c>; en producción hay que además cifrarlas y
+        // respaldarlas, porque perder ese volumen es perder el acceso de todos los clientes.</para>
+        construccion.Services.AddDataProtection();
     }
 
     /// <summary>

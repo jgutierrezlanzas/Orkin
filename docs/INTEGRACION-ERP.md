@@ -1,10 +1,14 @@
-# ORKIN · Cotizador Web — Integración con ERP
+# ORKIN — Integración con ERP
 
-> **Estado:** 🟡 Diseño cerrado. **No implementado** — es la Fase 12.
+> **Estado:** 🟡 Diseño cerrado, **primera versión funcionando** (solo lectura, productos).
 > **Alcance:** **una sola dirección** — el ERP alimenta los catálogos del cotizador. La web **nunca**
 > escribe en el ERP del cliente (**D-19**).
 > **Estructura de datos:** [`BASE-DE-DATOS.md`](BASE-DE-DATOS.md) §7.
-> **Fecha:** 2026-09-27
+> **Fecha:** 2026-09-27 · **Actualizado:** 2026-09-29 — ver §9, "Lo que ya está construido".
+>
+> La §9 describe lo que existe en el código hoy, que es menos que el diseño de las §1–8. Las
+> secciones de diseño se conservan completas porque siguen siendo la referencia de lo que falta,
+> no porque todo esté pendiente de hacer.
 
 ---
 
@@ -534,6 +538,136 @@ Nunca se puede activar un flujo sin haber pasado por **Simular**.
 > conexiones de forma permanente. Es la garantía, visible, de que el cotizador nunca toca la base
 > del cliente. Cuando en el futuro se discuta la orden de compra (D-19), esta línea es lo primero
 > que cambia.
+
+---
+
+## 9. Lo que ya está construido (2026-09-29)
+
+La primera versión es **funcional de punta a punta** y está probada contra una base de datos
+ficticia que simula el ERP de un cliente. Alcanza el recorrido completo —conectar, leer una vista,
+transformar, cargar, omitir lo que no cambió y dejar bitácora— con un solo catálogo (`PRODUCTOS`)
+y un solo motor (SQL Server).
+
+### 9.1 Qué quedó fuera de esta versión, y por qué
+
+| Fuera | Por qué ahora |
+|---|---|
+| `ErpOrigen` / `ErpMapeoCampo` como tablas (12.2) | El origen y el mapeo viven **en la misma fila** de `int.ErpFlujo` (`Origen` + `MapeoJson`). Con un origen por flujo no hay nada que normalizar en tablas separadas, y partir el mapeo en filas obliga a unite al leerlo. Si aparece el segundo origen por flujo, se extrae. |
+| `IErpConector` / `SqlServerErpConector` (12.4–12.5) | Hoy hay un `ILectorOrigen` (`LectorSqlServer`) que lee y devuelve filas. La abstracción de conector se necesita cuando el segundo ERP sea de otra tecnología; con uno solo sería una interfaz con un solo implementador. |
+| Simulación previa obligatoria (12.10) | Falta. Es la pieza que más urge: hoy el flujo escribe a medida que lee, y una vista mal armada alcanza a cargar el catálogo antes de que nadie la mire. |
+| Programación automática (12.11–12.12) | Falta. Hoy la sincronización se dispara a mano desde la pantalla. El motor de carga ya sabe ser idempotente (hash), así que correr cada 5 minutos no es peligroso. |
+| Los otros catálogos (12.x) | Hay cargador de `PRODUCTOS` únicamente. Los demás siguen el mismo camino: un `CargadorX` más un `MapeoPorDefecto`. |
+| Alta/baja de productos (12.8, §5) | El cargador actual hace *upsert*, no baja. Una baja automática sin aviso borra insumos de cotizaciones abiertas. |
+| Alertas por correo (12.15) | Falta. Hoy el que se entera de un fallo es quien mira la bitácora. |
+
+### 9.2 Lo que sí quedó, y cómo está resuelto
+
+**El origen es una vista, tabla o consulta — no una tabla.**
+
+Es la decisión de diseño que más importa, y la que el cliente va a notar primero. No se le pide
+a nadie que reorganice su base: se le pide **una vista** que entregue los datos como los espera la
+plataforma. Si el dato del cliente vive repartido en `ARTICULO` + `UNIDAD` + `GRUPO` con nombres de
+columna propios, la vista las une y normaliza. El cargador no lo sabe y no lo necesita.
+
+La demo de `scripts/demo-cliente/` es exactamente ese caso: el ERP ficticio tiene esas tres
+tablas, con unidades suyas (`ml`, `Litro`, `H.H`, `lb`, `Bolsa`, `Rollo`, `Yarda`, `Par`), y el
+contrato es la vista `dbo.vw_ProductosOrkin`, que las une y traduce los códigos de unidad a los
+nuestros (`ML`, `LT`, `H.H`, `LB`, `BOLSA`, `ROLLO`, `YARDA`, `PAR`).
+
+> **La normalización va en la vista, no en el cargador.** Un cargador que sabe que `Litro` es
+> `LT` tiene que mantener una lista de sinónimos por cliente, y esa lista se desactualiza en
+> silencio: el día que el ERP agrega una unidad, la fila se rechaza sin que nadie se entere.
+> En la vista, el cambio es del DBA, que es quien sabe.
+
+**Mapeo por identidad cuando no hay `MapeoJson`.**
+
+Si el flujo no trae mapeo, se usan los nombres de campo que ya espera el cargador (`Codigo`,
+`Nombre`, `CategoriaCodigo`, `UnidadMedidaCodigo`, `CostoActual`, `PrecioVentaActual`,
+`VidaUtilMeses`). Es el caso más común: la vista ya se construyó con esos nombres.
+
+**La búsqueda de existentes está acotada por conexión.**
+
+`CargadorProductos` busca por `Codigo` **dentro de la conexión que está corriendo**. Sin ese
+`WHERE`, dos clientes con el mismo código (`001 - Aceite`) se pisan entre ellos y el catálogo
+termina con el precio del último que sincronizó.
+
+**Adopción de filas huérfanas.**
+
+`dbo.Producto.Codigo` es único a nivel de tabla, pero el ERP no lo sabe. Un producto que entró
+por el Excel y después llega del ERP con el mismo código no se inserta: se **adopta**. La adopción
+se cuenta como *actualizado*, no como insertado, y se escribe siempre (sin mirar el hash) para no
+dejar la conexión sin reclamar sus propias filas.
+
+> Sin esta adopción el `INSERT` revienta con `UX_Producto_Codigo`, y el mensaje dice "violación de
+> clave", que no dice "el producto ya existe desde otro origen". Es exactamente el escenario real:
+> el Excel es el histórico, el ERP es el presente, y hay una ventana de solapamiento.
+
+**La contraseña nunca sale y nunca se ve.**
+
+`int.ErpConexion.ContrasenaCifrada` es `varbinary(max)` cifrado con **ASP.NET Core Data
+Protection**, con propósito `Orkin.Cotizador.ErpConexion.Contrasena.v1`. El DTO de respuesta lleva
+`TieneContrasena: bool` y jamás la contraseña. Si el juego de claves rota, el descifrado devuelve
+`null` en vez de lanzar: la conexión queda marcada como "sin credenciales" y hay que
+reconfigurarla, sin que el error diga "clave inválida" cuando el problema era otro.
+
+> En `docker-compose.yml` las claves viven en el volumen `orkin-dp-keys`. Sin eso, cada
+> `up --build` regenera el juego y todas las conexiones guardadas dejan de descifrar. En
+> producción hay que cifrarlo y respaldarlo: perder ese volumen es perder el acceso de todos los
+> clientes conectados.
+
+**Solo lectura, en tres capas y ninguna por convención.**
+
+`EsSoloLectura` tiene `CHECK (EsSoloLectura = 1)` en la base, así que ni una sentencia escrita a
+mano desde SSMS puede ponerlo en `0`. El lector no tiene métodos de escritura. Y la cuenta que se
+pide al cliente es de solo lectura.
+
+**Bitácora de cada corrida.**
+
+`int.SincronizacionEjecucion` guarda inicio, fin, duración, estado y los cuatro contadores (leídos,
+creados, actualizados, sin cambio, rechazados), más el mensaje de error cuando falla. La lista de
+flujos muestra el resultado de la última corrida; la pantalla de orígenes muestra el historial.
+
+**La idempotencia está probada con `HashContenido`.**
+
+Correr el mismo flujo dos veces seguidas da `111 insertados` y después `111 omitidos`, sin tocar
+una sola fila. Es lo que permite programar la sincronización sin miedo cuando llegue (12.11).
+
+### 9.3 Cómo se prueba, de punta a punta
+
+Con Docker levantado y la base del cliente ficticio creada:
+
+```powershell
+# 1. Esquema del ERP ficticio (ARTICULO + UNIDAD + GRUPO + la vista contrato)
+Get-Content scripts\demo-cliente\01-esquema.sql -Raw |
+  docker exec -i orkin-db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "OrkinDev_2026" -C -b
+
+# 2. Datos desde el Excel de ORKIN (111 artículos, 1309 días de TC, 11 servicios)
+dotnet run --project tools\Orkin.DemoCliente.CargarDatos -- "Cotizador Original - Agosto 31 2026.xlsm"
+
+# 3. API arriba (aplica migraciones y siembra al arrancar)
+docker compose up -d --build
+```
+
+Y en `http://localhost:59793/catalogos/origenes`, con `admin@orkin.local`:
+
+1. **Conexión** → servidor `db`, puerto `1433`, base `OrkinClienteDemo`, usuario `sa`.
+2. **Probar** → debe decir "Conexión correcta" y el tiempo que tardó.
+3. **Flujo** → catálogo `PRODUCTOS`, origen `dbo.vw_ProductosOrkin`, mapeo vacío.
+4. **Ejecutar** → `111` nuevos.
+5. **Ejecutar otra vez** → `111` sin cambio.
+6. **Historial** → las dos corridas, con duración y contadores.
+
+> El paso 2 tiene que ir contra `OrkinClienteDemo` y no contra la base de la plataforma: si se
+> corre con la cadena de la plataforma, el cargador se está leyendo a sí mismo.
+
+### 9.4 El permiso `CATALOGOS.ORIGENES`
+
+Abrir una conexión a la base de datos de un cliente **no** es lo mismo que corregir un precio de
+un producto. El primero puede leer catálogos completos de un ERP y cambiar de dónde viene el
+dato; el segundo no. Por eso es un permiso aparte, en vez de colgar de `CATALOGOS.EDITAR`:
+con un permiso solo, o se le daba a todo el que corrige precios —y entonces la gente de ventas
+veía la lista de servidores de los clientes— o no se le daba a nadie y había que abrir la puerta
+completa.
 
 ---
 

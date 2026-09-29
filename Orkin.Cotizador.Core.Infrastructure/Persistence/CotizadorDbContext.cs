@@ -91,6 +91,11 @@ public class CotizadorDbContext : DbContext
     // ── aud · Auditoría (append-only) ───────────────────────────────────────────
     public DbSet<RegistroAuditoria> RegistroAuditoria => Set<RegistroAuditoria>();
 
+    // ── int · Integración con el ERP del cliente (Fase 12) ─────────────────────
+    public DbSet<ErpConexion> ErpConexion => Set<ErpConexion>();
+    public DbSet<ErpFlujo> ErpFlujo => Set<ErpFlujo>();
+    public DbSet<SincronizacionEjecucion> SincronizacionEjecucion => Set<SincronizacionEjecucion>();
+
     public CotizadorDbContext(DbContextOptions<CotizadorDbContext> options) : base(options)
     {
     }
@@ -137,6 +142,7 @@ public class CotizadorDbContext : DbContext
         ConfigurarNegocio(modelBuilder);
         ConfigurarCatalogosMaestros(modelBuilder);
         ConfigurarSistema(modelBuilder);
+        ConfigurarIntegracion(modelBuilder);
     }
 
     // ═════════════════════════════════════════════════════════════════════════════
@@ -212,9 +218,50 @@ public class CotizadorDbContext : DbContext
         where T : class
     {
         builder.Property("CodigoExterno").HasColumnName("CodigoExterno").HasMaxLength(100);
-        builder.Property("ErpConexionId").HasColumnName("ErpConexionId");
         builder.Property("HashContenido").HasColumnName("HashContenido").HasColumnType("binary(32)");
         builder.Property("UltimaSyncUtc").HasColumnName("UltimaSyncUtc").HasColumnType("datetime2(3)");
+
+        // La procedencia del dato apunta a la conexión del ERP de la que salió. Antes de que
+        // `int.ErpConexion` existiera la columna era huérfana —un Guid sin ninguna tabla detrás—
+        // y por eso nada impedía escribir un Id que no correspondía a ninguna conexión real.
+        // Con la tabla creada, la relación le da sentido y la integridad: una fila sincronizada
+        // siempre tiene una conexión real que la trajo.
+        //
+        // Se declara aquí y no en `ConfigurarIntegracion` porque la navegación no se usa: el
+        // valor se resuelve con un `join` explícito contra `int.ErpConexion` cuando se quiere
+        // mostrar de dónde vino la fila (mismo criterio que las FK de catálogos, más arriba).
+        builder.Property("ErpConexionId").HasColumnName("ErpConexionId");
+        builder.HasOne(typeof(ErpConexion))
+            .WithMany()
+            .HasForeignKey("ErpConexionId")
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    /// <summary>
+    /// Los dos índices que la sincronización necesita para no recorrer el catálogo entero
+    /// (§5.20 y §5.24 de `BASE-DE-DATOS.md`).
+    /// <para><b>El único filtrado:</b> el par <c>(ErpConexionId, CodigoExterno)</c> identifica un
+    /// dato <i>sincronizado</i>. Una fila cargada a mano o desde Excel no tiene conexión ni código
+    /// externo, así que <c>NULL</c> no compite con <c>NULL</c>: la base no los considera
+    /// duplicados. Por eso el índice lleva <c>WHERE</c> en vez de confiar en la lógica de SQL
+    /// Server, que sí trataría esas filas como iguales entre sí.</para>
+    /// <para><b>Por qué no es único el segundo:</b> alimenta la detección de cambios por
+    /// <c>HashContenido</c> —busca las filas cuya huella no coincide con la del origen— y ahí
+    /// puede haber muchas con la misma huella sin que eso sea un error.</para>
+    /// </summary>
+    private static void ConfigurarIndicesProcedencia<T>(
+        EntityTypeBuilder<T> builder,
+        string nombreUnico,
+        string nombrePendientes)
+        where T : class
+    {
+        builder.HasIndex("ErpConexionId", "CodigoExterno")
+            .IsUnique()
+            .HasFilter("[ErpConexionId] IS NOT NULL AND [CodigoExterno] IS NOT NULL")
+            .HasDatabaseName(nombreUnico);
+
+        builder.HasIndex("ErpConexionId", "HashContenido")
+            .HasDatabaseName(nombrePendientes);
     }
 
     /// <summary>
@@ -597,6 +644,7 @@ public class CotizadorDbContext : DbContext
         ConfigurarFkOrigen(cliente, "OrigenDatoId", "OrigenDatoId", typeof(OrigenDatoCatalogo));
         cliente.HasIndex(c => c.Codigo).IsUnique().HasDatabaseName("UX_Cliente_Codigo");
         cliente.HasIndex(c => c.Nombre).HasDatabaseName("IX_Cliente_Nombre");
+        ConfigurarIndicesProcedencia(cliente, "UX_Cliente_ErpCodigoExterno", "IX_Cliente_ErpPendientes");
         cliente.HasOne(c => c.TipoCliente).WithMany().HasForeignKey(c => c.TipoClienteId).OnDelete(DeleteBehavior.Restrict);
 
         // ── dbo.Producto ─────────────────────────────────────────────────────────
@@ -614,6 +662,7 @@ public class CotizadorDbContext : DbContext
         ConfigurarFkOrigen(producto, "OrigenPrecioId", "OrigenPrecio", typeof(OrigenPrecioCatalogo));
         producto.HasIndex(p => p.Codigo).IsUnique().HasDatabaseName("UX_Producto_Codigo");
         producto.HasIndex(p => new { p.Nombre, p.IsActive }).HasDatabaseName("IX_Producto_Nombre");
+        ConfigurarIndicesProcedencia(producto, "UX_Producto_ErpCodigoExterno", "IX_Producto_ErpPendientes");
         producto.HasOne(p => p.Categoria).WithMany().HasForeignKey(p => p.CategoriaId).OnDelete(DeleteBehavior.Restrict);
         producto.HasOne(p => p.UnidadMedida).WithMany().HasForeignKey(p => p.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
         producto.HasMany(p => p.Precios).WithOne(pe => pe.Producto).HasForeignKey(pe => pe.ProductoId).OnDelete(DeleteBehavior.Cascade);
@@ -647,6 +696,7 @@ public class CotizadorDbContext : DbContext
         activo.Property(a => a.MesesVidaUtil).HasColumnName("MesesVidaUtil").IsRequired();
         ConfigurarFkOrigen(activo, "OrigenPrecioId", "OrigenPrecio", typeof(OrigenPrecioCatalogo));
         activo.HasIndex(a => a.Codigo).IsUnique().HasDatabaseName("UX_ActivoAmortizable_Codigo");
+        ConfigurarIndicesProcedencia(activo, "UX_ActivoAmortizable_ErpCodigoExterno", "IX_ActivoAmortizable_ErpPendientes");
         activo.HasOne(a => a.Categoria).WithMany().HasForeignKey(a => a.CategoriaId).OnDelete(DeleteBehavior.Restrict);
         activo.HasOne(a => a.UnidadMedida).WithMany().HasForeignKey(a => a.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
         activo.HasMany(a => a.Precios).WithOne(p => p.ActivoAmortizable).HasForeignKey(p => p.ActivoAmortizableId).OnDelete(DeleteBehavior.Cascade);
@@ -960,6 +1010,107 @@ public class CotizadorDbContext : DbContext
         documento.Property(d => d.Hash).HasColumnName("Hash").HasColumnType("binary(32)");
         documento.Property(d => d.GeneradoUtc).HasColumnName("GeneradoUtc").HasColumnType("datetime2(3)");
         documento.HasIndex(d => new { d.CotizacionId, d.TipoId }).HasDatabaseName("IX_Documento_Cotizacion");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════════
+    //  Integración con el ERP del cliente (esquema int, Fase 12)
+    // ═════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// El anclaje ETL: la conexión al ERP del cliente, el flujo que llena un catálogo y la
+    /// bitácora de cada corrida.
+    /// <para><b>El <c>CHECK (EsSoloLectura = 1)</c> es deliberado (D-19):</b> convierte
+    /// "no escribimos en el ERP del cliente" en una restricción de base, no en una promesa del
+    /// código. La columna se conserva para que la prohibición sea explícita y auditable.</para>
+    /// </summary>
+    private static void ConfigurarIntegracion(ModelBuilder modelBuilder)
+    {
+        // ── int.ErpConexion ──────────────────────────────────────────────────────
+        var conexion = modelBuilder.Entity<ErpConexion>();
+        ConfigurarBase(conexion);
+        conexion.ToTable("ErpConexion", Esquemas.Integracion,
+            t => t.HasCheckConstraint("CK_ErpConexion_SoloLectura", "[EsSoloLectura] = 1"));
+        conexion.Property(c => c.Nombre).HasColumnName("Nombre").HasMaxLength(150).IsRequired();
+        conexion.Property(c => c.Descripcion).HasColumnName("Descripcion").HasMaxLength(500);
+        conexion.Property(c => c.TipoProveedor).HasColumnName("TipoProveedor").IsRequired();
+        conexion.Property(c => c.Servidor).HasColumnName("Servidor").HasMaxLength(200).IsRequired();
+        conexion.Property(c => c.Puerto).HasColumnName("Puerto");
+        conexion.Property(c => c.NombreBaseDatos).HasColumnName("NombreBaseDatos").HasMaxLength(200).IsRequired();
+        conexion.Property(c => c.Esquema).HasColumnName("Esquema").HasMaxLength(100);
+        conexion.Property(c => c.MetodoAutenticacion).HasColumnName("MetodoAutenticacion").IsRequired();
+        conexion.Property(c => c.Usuario).HasColumnName("Usuario").HasMaxLength(200);
+        conexion.Property(c => c.ContrasenaCifrada).HasColumnName("ContrasenaCifrada").HasColumnType("varbinary(max)");
+        conexion.Property(c => c.TiempoEsperaSegundos).HasColumnName("TiempoEsperaSegundos").HasDefaultValue(30);
+        conexion.Property(c => c.LoteRegistros).HasColumnName("LoteRegistros").HasDefaultValue(500);
+        conexion.Property(c => c.EsSoloLectura).HasColumnName("EsSoloLectura").HasDefaultValue(true);
+        conexion.Property(c => c.Estado).HasColumnName("Estado").IsRequired();
+        conexion.Property(c => c.UltimaConexionOkUtc).HasColumnName("UltimaConexionOkUtc").HasColumnType("datetime2(3)");
+        conexion.Property(c => c.UltimoError).HasColumnName("UltimoError").HasMaxLength(2000);
+        conexion.Property(c => c.UltimoErrorUtc).HasColumnName("UltimoErrorUtc").HasColumnType("datetime2(3)");
+        conexion.HasIndex(c => c.Nombre).IsUnique().HasDatabaseName("UX_ErpConexion_Nombre");
+
+        // ── int.ErpFlujo ─────────────────────────────────────────────────────────
+        var flujo = modelBuilder.Entity<ErpFlujo>();
+        ConfigurarBase(flujo);
+        flujo.ToTable("ErpFlujo", Esquemas.Integracion);
+        flujo.Property(f => f.ErpConexionId).HasColumnName("ErpConexionId").IsRequired();
+        flujo.Property(f => f.Nombre).HasColumnName("Nombre").HasMaxLength(150).IsRequired();
+        flujo.Property(f => f.Descripcion).HasColumnName("Descripcion").HasMaxLength(500);
+        flujo.Property(f => f.Catalogo).HasColumnName("Catalogo").HasMaxLength(40).IsRequired();
+        flujo.Property(f => f.Origen).HasColumnName("Origen").HasMaxLength(2000).IsRequired();
+        flujo.Property(f => f.MapeoJson).HasColumnName("MapeoJson").HasColumnType("nvarchar(max)");
+        flujo.Property(f => f.TipoDisparador).HasColumnName("TipoDisparador").IsRequired();
+        flujo.Property(f => f.IntervaloSegundos).HasColumnName("IntervaloSegundos");
+        flujo.Property(f => f.ModoExtraccion).HasColumnName("ModoExtraccion").IsRequired();
+        flujo.Property(f => f.Estado).HasColumnName("Estado").IsRequired();
+        flujo.Property(f => f.UltimaEjecucionUtc).HasColumnName("UltimaEjecucionUtc").HasColumnType("datetime2(3)");
+        flujo.Property(f => f.UltimoEstado).HasColumnName("UltimoEstado");
+        flujo.Property(f => f.UltimoError).HasColumnName("UltimoError").HasMaxLength(2000);
+        flujo.Property(f => f.UltimosInsertados).HasColumnName("UltimosInsertados").HasDefaultValue(0);
+        flujo.Property(f => f.UltimosActualizados).HasColumnName("UltimosActualizados").HasDefaultValue(0);
+        flujo.Property(f => f.UltimosOmitidos).HasColumnName("UltimosOmitidos").HasDefaultValue(0);
+        flujo.Property(f => f.UltimosRechazados).HasColumnName("UltimosRechazados").HasDefaultValue(0);
+        flujo.Property(f => f.FallosConsecutivos).HasColumnName("FallosConsecutivos").HasDefaultValue((short)0);
+        flujo.HasIndex(f => new { f.ErpConexionId, f.Nombre }).IsUnique()
+            .HasDatabaseName("UX_ErpFlujo_ConexionNombre");
+        flujo.HasOne(f => f.Conexion).WithMany().HasForeignKey(f => f.ErpConexionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ── int.SincronizacionEjecucion ──────────────────────────────────────────
+        var ejecucion = modelBuilder.Entity<SincronizacionEjecucion>();
+        ejecucion.ToTable("SincronizacionEjecucion", Esquemas.Integracion);
+        ejecucion.HasKey(e => e.Id);
+        ejecucion.Property(e => e.Id).HasColumnName("Id").ValueGeneratedOnAdd();
+        ejecucion.Property(e => e.ErpConexionId).HasColumnName("ErpConexionId").IsRequired();
+        ejecucion.Property(e => e.ErpFlujoId).HasColumnName("ErpFlujoId").IsRequired();
+        ejecucion.Property(e => e.TipoDisparador).HasColumnName("TipoDisparador").IsRequired();
+        ejecucion.Property(e => e.Estado).HasColumnName("Estado").IsRequired();
+        ejecucion.Property(e => e.InicioUtc).HasColumnName("InicioUtc").HasColumnType("datetime2(3)").IsRequired();
+        ejecucion.Property(e => e.FinUtc).HasColumnName("FinUtc").HasColumnType("datetime2(3)");
+        ejecucion.Property(e => e.DuracionMs).HasColumnName("DuracionMs");
+        ejecucion.Property(e => e.RegistrosLeidos).HasColumnName("RegistrosLeidos").HasDefaultValue(0);
+        ejecucion.Property(e => e.RegistrosCreados).HasColumnName("RegistrosCreados").HasDefaultValue(0);
+        ejecucion.Property(e => e.RegistrosActualizados).HasColumnName("RegistrosActualizados").HasDefaultValue(0);
+        ejecucion.Property(e => e.RegistrosSinCambio).HasColumnName("RegistrosSinCambio").HasDefaultValue(0);
+        ejecucion.Property(e => e.RegistrosRechazados).HasColumnName("RegistrosRechazados").HasDefaultValue(0);
+        ejecucion.Property(e => e.RegistrosDesactivados).HasColumnName("RegistrosDesactivados").HasDefaultValue(0);
+        ejecucion.Property(e => e.MensajeError).HasColumnName("MensajeError").HasMaxLength(2000);
+        ejecucion.Property(e => e.SolicitadoPor).HasColumnName("SolicitadoPor");
+        ejecucion.HasIndex(e => new { e.ErpFlujoId, e.InicioUtc })
+            .HasDatabaseName("IX_SincronizacionEjecucion_FlujoInicio");
+        ejecucion.HasIndex(e => new { e.Estado, e.InicioUtc })
+            .HasDatabaseName("IX_SincronizacionEjecucion_EstadoInicio");
+        ejecucion.HasOne(e => e.Flujo).WithMany().HasForeignKey(e => e.ErpFlujoId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // La FK directa a la conexión es `Restrict`, no `Cascade`, y no por descuido: borrar una
+        // conexión ya borra sus flujos en cascada, y cada flujo borra sus ejecuciones. Con
+        // `Cascade` también acá, SQL Server ve dos rutas de cascada hacia la misma fila
+        // (conexión → flujo → ejecución, y conexión → ejecución) y se niega a crear la
+        // restricción con el error 1785. La columna se conserva porque se consulta por
+        // conexión —"qué se corrió contra este ERP"— sin tener que unir con el flujo.
+        ejecucion.HasOne(e => e.Conexion).WithMany().HasForeignKey(e => e.ErpConexionId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     // ── Conversores de zona horaria ─────────────────────────────────────────────────────────────

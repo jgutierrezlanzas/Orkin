@@ -22,6 +22,7 @@
     { "Codigo": "CATALOGOS.EDITAR", "Nombre": "Editar catalogos", "ModuloId": "CATALOGOS", "Orden": 2 },
     { "Codigo": "CATALOGOS.PRECIOS_VER", "Nombre": "Ver precios de compra", "Descripcion": "Un vendedor no necesita ver cuanto se le compra a ORKIN el producto para poder venderlo.", "ModuloId": "CATALOGOS", "Orden": 3 },
     { "Codigo": "CATALOGOS.PRECIOS_EDITAR", "Nombre": "Editar precios de compra", "ModuloId": "CATALOGOS", "Orden": 4 },
+    { "Codigo": "CATALOGOS.ORIGENES", "Nombre": "Administrar origenes de datos", "Descripcion": "Configurar origenes externos (ERP/BD del cliente) y disparar las sincronizaciones ETL que llenan los catalogos.", "ModuloId": "CATALOGOS", "Orden": 5 },
 
     { "Codigo": "APROBACIONES.VER", "Nombre": "Ver aprobaciones", "ModuloId": "APROBACIONES", "Orden": 1 },
     { "Codigo": "APROBACIONES.DECIDIR", "Nombre": "Decidir aprobaciones", "Descripcion": "Aprobar o rechazar. Se separa de APROBACIONES.VER para que nadie pueda aprobar su propia solicitud: el servicio valida que el aprobador no sea el autor.", "ModuloId": "APROBACIONES", "Orden": 2 },

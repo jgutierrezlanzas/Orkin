@@ -8,6 +8,10 @@
     { "Codigo": "REPELENTE", "Nombre": "Repelente", "Descripcion": "Repelentes y ahuyentadores.", "Orden": 3, "OrigenDatoId": "MANUAL" },
     { "Codigo": "BULK", "Nombre": "Insumos de limpieza", "Descripcion": "Productos de limpieza a granel. El nombre en ingles del Excel se corrige aqui.", "Orden": 4, "OrigenDatoId": "MANUAL" },
     { "Codigo": "SERVICIO", "Nombre": "Servicio", "Descripcion": "Mano de obra y visitas. No es un insumo consumible: se cobra como servicio y no se descuenta del inventario.", "Orden": 5, "OrigenDatoId": "MANUAL" },
+    { "Codigo": "QUIMICO", "Nombre": "Productos químicos", "Descripcion": "Familia del ERP: línea de productos químicos (plaguicidas y afines).", "Orden": 6, "OrigenDatoId": "ERP" },
+    { "Codigo": "MATERIAL", "Nombre": "Materiales y trampas", "Descripcion": "Familia del ERP: trampas, cebaderos y materiales de captura.", "Orden": 7, "OrigenDatoId": "ERP" },
+    { "Codigo": "EQUIPO_PROTECCION", "Nombre": "Equipo de protección personal", "Descripcion": "Familia del ERP: EPP usado por el personal técnico.", "Orden": 8, "OrigenDatoId": "ERP" },
+    { "Codigo": "GENERAL", "Nombre": "General", "Descripcion": "Familia del ERP: combustibles, distancia y artículos sin línea asignada.", "Orden": 9, "OrigenDatoId": "ERP" },
     { "Codigo": "SIN_CATEGORIA", "Nombre": "Sin categoria", "Descripcion": "Destino temporal de lo que no se pudo clasificar. No es una categoria real: el objetivo de la tarea 2.6 es que termine vacia.", "Orden": 99, "OrigenDatoId": "SISTEMA" }
   ]
 }

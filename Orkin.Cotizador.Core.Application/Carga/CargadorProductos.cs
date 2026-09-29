@@ -43,6 +43,20 @@ public sealed class CargadorProductos : ICargadorCatalogo
             .Where(c => c.IsActive)
             .ToDictionaryAsync(c => c.Codigo, c => c.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
+        // El origen del precio se resuelve por código y no por id fijo: el id depende del orden en
+        // que la semilla insertó las filas. Del ERP viene "ERP"; de un archivo manual, "EXCEL".
+        var origenPrecioId = await _contexto.OrigenPrecioCatalogo
+            .AsNoTracking()
+            .Where(o => o.Codigo == (configuracion.ErpConexionId != null ? "ERP" : "EXCEL"))
+            .Select(o => o.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (origenPrecioId == 0)
+        {
+            throw new InvalidOperationException(
+                "No está sembrado el catálogo OrigenPrecio (falta EXCEL/ERP). Corra la semilla.");
+        }
+
         // Filas existentes por CodigoExterno, para decidir insert vs update vs omit.
         var codigosExternos = new List<string>();
         foreach (var fila in filas)
@@ -52,9 +66,35 @@ public sealed class CargadorProductos : ICargadorCatalogo
             if (codigo is not null) codigosExternos.Add(codigo);
         }
 
+        // Dos búsquedas, y la diferencia entre ellas es el corazón de la idempotencia:
+        //
+        // 1. `existentes` — lo que YA es de esta conexión. Son las filas que trajo una corrida
+        //    anterior. Se reconocen por (conexión, código externo) y, según el hash, se
+        //    actualizan o se omiten. Acotar por conexión es lo que impide que dos ERPs distintos
+        //    con el mismo "PQ-0001" se pisen entre sí: sin ese filtro, la segunda conexión
+        //    encontraría la fila de la primera y la sobrescribiría con datos de otro cliente,
+        //    dejando la fila diciendo que vino de un ERP del que no vino.
+        //
+        // 2. `huerfanas` — lo que entró a mano o por Excel antes de que existiera esta conexión
+        //    y que nadie más ha reclamado. Son las que se adoptan en la primera corrida del ERP.
         var existentes = await _contexto.Producto
-            .Where(p => p.CodigoExterno != null && codigosExternos.Contains(p.CodigoExterno))
+            .Where(p => p.ErpConexionId == configuracion.ErpConexionId
+                     && p.CodigoExterno != null
+                     && codigosExternos.Contains(p.CodigoExterno))
             .ToDictionaryAsync(p => p.CodigoExterno!, StringComparer.OrdinalIgnoreCase, cancellationToken);
+
+        // La adopción es lo que hace que el ERP pueda llegar después que el Excel sin romper. El
+        // Excel original y el ERP del cliente traen el MISMO artículo con el mismo código, y
+        // `Codigo` es único en `dbo.Producto`: sin este paso, la corrida intentaría insertar
+        // los productos nuevos con códigos que ya existen y la base los rechazaría a todos con
+        // UX_Producto_Codigo, que es el síntoma clásico de "el Excel y el ERP traen lo mismo".
+        //
+        // Solo se adoptan filas sin conexión (`ErpConexionId == NULL`). Una fila que ya tiene
+        // conexión no se toca: si el mismo código aparece en dos ERPs, son dos productos
+        // distintos y el segundo tiene que ser una fila nueva.
+        var huerfanas = await _contexto.Producto
+            .Where(p => p.ErpConexionId == null && codigosExternos.Contains(p.Codigo))
+            .ToDictionaryAsync(p => p.Codigo, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
         var numeroFila = 1;
 
@@ -125,6 +165,38 @@ public sealed class CargadorProductos : ICargadorCatalogo
                         actualizados++;
                     }
                 }
+                else if (huerfanas.Remove(codigo, out var huerfana))
+                {
+                    // ── Adopción ────────────────────────────────────────────────────────
+                    // La fila ya existía (vía Excel o captura manual) y el ERP trae el mismo
+                    // artículo. Se reescribe con los datos del ERP y se le pone de qué conexión
+                    // vino: a partir de aquí el ERP es la fuente de verdad de esta fila.
+                    //
+                    // Se cuenta como actualizado y no como insertado porque la fila ya estaba
+                    // en la base: el contador tiene que responder "¿cuántas filas nuevas hay en
+                    // el catálogo?", que es la pregunta que se hace uno al mirar el resultado.
+                    //
+                    // Se escribe siempre, sin mirar el hash: adopted la fila ya cambia (le
+                    // cambian la conexión y el origen del precio), así que omitirla por tener la
+                    // misma huella dejaría la conexión sin reclamar y la próxima corrida
+                    // intentaría adoptarla otra vez, para siempre.
+                    huerfana.CodigoExterno = codigo;
+                    huerfana.ErpConexionId = configuracion.ErpConexionId;
+                    huerfana.OrigenPrecioId = origenPrecioId;
+                    huerfana.Nombre = nombre;
+                    huerfana.Descripcion = descripcion;
+                    huerfana.CategoriaId = categoriaId;
+                    huerfana.UnidadMedidaId = unidadId;
+                    huerfana.CostoActual = costo;
+                    huerfana.PrecioVentaActual = precioVenta;
+                    huerfana.VidaUtilMeses = vidaUtil;
+                    huerfana.HashContenido = Convert.FromHexString(hash);
+                    huerfana.UltimaSyncUtc = DateTime.UtcNow;
+                    huerfana.UpdatedAt = DateTime.UtcNow;
+
+                    existentes[codigo] = huerfana;
+                    actualizados++;
+                }
                 else
                 {
                     var nuevo = new Producto
@@ -138,7 +210,8 @@ public sealed class CargadorProductos : ICargadorCatalogo
                         CostoActual = costo,
                         PrecioVentaActual = precioVenta,
                         VidaUtilMeses = vidaUtil,
-                        OrigenPrecioId = 2, // EXCEL (del seed OrigenPrecioCatalogo)
+                        OrigenPrecioId = origenPrecioId,
+                        ErpConexionId = configuracion.ErpConexionId,
                         CodigoExterno = codigo,
                         HashContenido = Convert.FromHexString(hash),
                         UltimaSyncUtc = DateTime.UtcNow,

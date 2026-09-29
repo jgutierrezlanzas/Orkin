@@ -50,6 +50,9 @@ public static class ServiceCollectionExtensions
         // Proceso de carga desde origen externo (Fase 2.5): un cargador por catálogo.
         services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorProductos>();
 
+        // Integración con el ERP del cliente (Fase 12): conexiones, flujos y sus corridas.
+        services.AddScoped<Integracion.IntegracionService>();
+
         return services;
     }
 }

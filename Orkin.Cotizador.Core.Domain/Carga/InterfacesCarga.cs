@@ -58,6 +58,13 @@ public sealed record ConfiguracionCarga
     /// Las columnas que no estén en el mapeo se ignoran.
     /// </summary>
     public required IReadOnlyDictionary<string, string> MapeoColumnas { get; init; }
+
+    /// <summary>
+    /// La conexión ERP de la que salieron los datos, si el origen es un flujo de integración.
+    /// Se escribe en las filas nuevas (<c>ErpConexionId</c>) para distinguir el dato sincronizado
+    /// del ERP del dato inicial de Excel o corregido a mano. <c>null</c> en cargas manuales.
+    /// </summary>
+    public Guid? ErpConexionId { get; init; }
 }
 
 /// <summary>

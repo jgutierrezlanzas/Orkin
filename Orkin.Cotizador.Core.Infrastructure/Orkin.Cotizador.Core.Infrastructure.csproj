@@ -39,6 +39,12 @@
     -->
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
     <!--
+      Data Protection: cifra la contraseña de la conexión al ERP del cliente (int.ErpConexion.
+      ContrasenaCifrada). Nunca se guarda en claro. Solo las abstracciones; la implementación
+      (DpKeyStore en el contenedor) la registra el host.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Abstractions" Version="10.0.12" />
+    <!--
       ClosedXML: lee y escribe .xlsx. Se usa en el lector de origen Excel del proceso de
       carga de catálogos (Fase 2.5) y en la exportación a Excel (Fase 4.16).
       MIT license, sin restricciones comerciales.

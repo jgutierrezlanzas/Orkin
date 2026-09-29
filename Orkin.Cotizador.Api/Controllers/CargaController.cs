@@ -43,14 +43,23 @@ public sealed class CargaController : ControllerBase
         if (archivo is null || archivo.Length == 0)
         {
             return ApiResponse<ResultadoCarga>
-                .Error("ARCHIVO_VACIO", "Adjunte un archivo Excel (.xlsx).")
+                .Error("ARCHIVO_VACIO", "Adjunte un archivo Excel (.xlsx o .xlsm).")
                 .AHttp();
         }
 
-        if (!archivo.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        // Se aceptan los dos formatos a propósito, y no por generosidad. El archivo del cliente
+        // es un `.xlsm` —tiene macros, y el cotizador de Excel las usa para calcular—, así que
+        // rechazar `.xlsm` por la extensión le negaría a ORKIN la carga de su propio histórico.
+        // Los dos son el mismo formato: un paquete OOXML (zip) con una hoja XML adentro, y
+        // ClosedXML los abre igual. Lo que no se puede es un `.xls` viejo (binario, formato
+        // BIFF8): no es el mismo archivo con otro nombre, es otro formato, y por eso queda fuera.
+        var esExcel = archivo.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase)
+                   || archivo.FileName.EndsWith(".xlsm", StringComparison.OrdinalIgnoreCase);
+
+        if (!esExcel)
         {
             return ApiResponse<ResultadoCarga>
-                .Error("FORMATO_NO_SOPORTADO", "El archivo debe ser .xlsx.")
+                .Error("FORMATO_NO_SOPORTADO", "El archivo debe ser .xlsx o .xlsm.")
                 .AHttp();
         }
 

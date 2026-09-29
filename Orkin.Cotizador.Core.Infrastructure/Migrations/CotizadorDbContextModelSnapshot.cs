@@ -309,6 +309,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_CategoriaProducto_Codigo");
 
+                    b.HasIndex("ErpConexionId");
+
                     b.HasIndex("OrigenDatoId");
 
                     b.ToTable("CategoriaProducto", "dbo");
@@ -1432,6 +1434,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_TipoServicio_Codigo");
 
+                    b.HasIndex("ErpConexionId");
+
                     b.HasIndex("OrigenDatoId");
 
                     b.HasIndex("UnidadMedidaId");
@@ -1620,6 +1624,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_UnidadMedida_Codigo");
 
+                    b.HasIndex("ErpConexionId");
+
                     b.HasIndex("OrigenDatoId");
 
                     b.ToTable("UnidadMedida", "dbo");
@@ -1743,6 +1749,14 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.HasIndex("OrigenPrecioId");
 
                     b.HasIndex("UnidadMedidaId");
+
+                    b.HasIndex("ErpConexionId", "CodigoExterno")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ActivoAmortizable_ErpCodigoExterno")
+                        .HasFilter("[ErpConexionId] IS NOT NULL AND [CodigoExterno] IS NOT NULL");
+
+                    b.HasIndex("ErpConexionId", "HashContenido")
+                        .HasDatabaseName("IX_ActivoAmortizable_ErpPendientes");
 
                     b.ToTable("ActivoAmortizable", "dbo", t =>
                         {
@@ -1900,6 +1914,14 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.HasIndex("OrigenDatoId");
 
                     b.HasIndex("TipoClienteId");
+
+                    b.HasIndex("ErpConexionId", "CodigoExterno")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Cliente_ErpCodigoExterno")
+                        .HasFilter("[ErpConexionId] IS NOT NULL AND [CodigoExterno] IS NOT NULL");
+
+                    b.HasIndex("ErpConexionId", "HashContenido")
+                        .HasDatabaseName("IX_Cliente_ErpPendientes");
 
                     b.ToTable("Cliente", "dbo");
                 });
@@ -2698,6 +2720,283 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.ToTable("DocumentoGenerado", "dbo");
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Id")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<byte[]>("ContrasenaCifrada")
+                        .HasColumnType("varbinary(max)")
+                        .HasColumnName("ContrasenaCifrada");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatedBy");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Descripcion");
+
+                    b.Property<bool>("EsSoloLectura")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("EsSoloLectura");
+
+                    b.Property<string>("Esquema")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Esquema");
+
+                    b.Property<byte>("Estado")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("Estado");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IsActive");
+
+                    b.Property<int>("LoteRegistros")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(500)
+                        .HasColumnName("LoteRegistros");
+
+                    b.Property<byte>("MetodoAutenticacion")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("MetodoAutenticacion");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)")
+                        .HasColumnName("Nombre");
+
+                    b.Property<string>("NombreBaseDatos")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("NombreBaseDatos");
+
+                    b.Property<int?>("Puerto")
+                        .HasColumnType("int")
+                        .HasColumnName("Puerto");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion")
+                        .HasColumnName("RowVersion");
+
+                    b.Property<string>("Servidor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Servidor");
+
+                    b.Property<int>("TiempoEsperaSegundos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(30)
+                        .HasColumnName("TiempoEsperaSegundos");
+
+                    b.Property<byte>("TipoProveedor")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("TipoProveedor");
+
+                    b.Property<DateTime?>("UltimaConexionOkUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UltimaConexionOkUtc");
+
+                    b.Property<string>("UltimoError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("UltimoError");
+
+                    b.Property<DateTime?>("UltimoErrorUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UltimoErrorUtc");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UpdatedBy");
+
+                    b.Property<string>("Usuario")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Usuario");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ErpConexion_Nombre");
+
+                    b.ToTable("ErpConexion", "int", t =>
+                        {
+                            t.HasCheckConstraint("CK_ErpConexion_SoloLectura", "[EsSoloLectura] = 1");
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ErpFlujo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Id")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("Catalogo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasColumnName("Catalogo");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatedBy");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Descripcion");
+
+                    b.Property<Guid>("ErpConexionId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ErpConexionId");
+
+                    b.Property<byte>("Estado")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("Estado");
+
+                    b.Property<short>("FallosConsecutivos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((short)0)
+                        .HasColumnName("FallosConsecutivos");
+
+                    b.Property<int?>("IntervaloSegundos")
+                        .HasColumnType("int")
+                        .HasColumnName("IntervaloSegundos");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IsActive");
+
+                    b.Property<string>("MapeoJson")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("MapeoJson");
+
+                    b.Property<byte>("ModoExtraccion")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("ModoExtraccion");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)")
+                        .HasColumnName("Nombre");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("Origen");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion")
+                        .HasColumnName("RowVersion");
+
+                    b.Property<byte>("TipoDisparador")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("TipoDisparador");
+
+                    b.Property<DateTime?>("UltimaEjecucionUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UltimaEjecucionUtc");
+
+                    b.Property<string>("UltimoError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("UltimoError");
+
+                    b.Property<byte?>("UltimoEstado")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("UltimoEstado");
+
+                    b.Property<int>("UltimosActualizados")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("UltimosActualizados");
+
+                    b.Property<int>("UltimosInsertados")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("UltimosInsertados");
+
+                    b.Property<int>("UltimosOmitidos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("UltimosOmitidos");
+
+                    b.Property<int>("UltimosRechazados")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("UltimosRechazados");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UpdatedBy");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ErpConexionId", "Nombre")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ErpFlujo_ConexionNombre");
+
+                    b.ToTable("ErpFlujo", "int");
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.NotificacionEnviada", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3223,6 +3522,14 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
                     b.HasIndex("UnidadMedidaId");
 
+                    b.HasIndex("ErpConexionId", "CodigoExterno")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Producto_ErpCodigoExterno")
+                        .HasFilter("[ErpConexionId] IS NOT NULL AND [CodigoExterno] IS NOT NULL");
+
+                    b.HasIndex("ErpConexionId", "HashContenido")
+                        .HasDatabaseName("IX_Producto_ErpPendientes");
+
                     b.HasIndex("Nombre", "IsActive")
                         .HasDatabaseName("IX_Producto_Nombre");
 
@@ -3418,6 +3725,99 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.ToTable("RolPermiso", "seg");
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.SincronizacionEjecucion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Id");
+
+                    b.Property<int?>("DuracionMs")
+                        .HasColumnType("int")
+                        .HasColumnName("DuracionMs");
+
+                    b.Property<Guid>("ErpConexionId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ErpConexionId");
+
+                    b.Property<Guid>("ErpFlujoId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ErpFlujoId");
+
+                    b.Property<byte>("Estado")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("Estado");
+
+                    b.Property<DateTime?>("FinUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("FinUtc");
+
+                    b.Property<DateTime>("InicioUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("InicioUtc");
+
+                    b.Property<string>("MensajeError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("MensajeError");
+
+                    b.Property<int>("RegistrosActualizados")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("RegistrosActualizados");
+
+                    b.Property<int>("RegistrosCreados")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("RegistrosCreados");
+
+                    b.Property<int>("RegistrosDesactivados")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("RegistrosDesactivados");
+
+                    b.Property<int>("RegistrosLeidos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("RegistrosLeidos");
+
+                    b.Property<int>("RegistrosRechazados")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("RegistrosRechazados");
+
+                    b.Property<int>("RegistrosSinCambio")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("RegistrosSinCambio");
+
+                    b.Property<Guid?>("SolicitadoPor")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("SolicitadoPor");
+
+                    b.Property<byte>("TipoDisparador")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("TipoDisparador");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ErpConexionId");
+
+                    b.HasIndex("ErpFlujoId", "InicioUtc")
+                        .HasDatabaseName("IX_SincronizacionEjecucion_FlujoInicio");
+
+                    b.HasIndex("Estado", "InicioUtc")
+                        .HasDatabaseName("IX_SincronizacionEjecucion_EstadoInicio");
+
+                    b.ToTable("SincronizacionEjecucion", "int");
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.TipoCambio", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3494,6 +3894,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnName("Valor");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ErpConexionId");
 
                     b.HasIndex("FuenteId");
 
@@ -3804,6 +4206,11 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Catalogos.CategoriaProducto", b =>
                 {
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", null)
+                        .WithMany()
+                        .HasForeignKey("ErpConexionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.OrigenDatoCatalogo", null)
                         .WithMany()
                         .HasForeignKey("OrigenDatoId")
@@ -3824,6 +4231,11 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Catalogos.TipoServicio", b =>
                 {
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", null)
+                        .WithMany()
+                        .HasForeignKey("ErpConexionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.OrigenDatoCatalogo", null)
                         .WithMany()
                         .HasForeignKey("OrigenDatoId")
@@ -3857,6 +4269,11 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Catalogos.UnidadMedida", b =>
                 {
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", null)
+                        .WithMany()
+                        .HasForeignKey("ErpConexionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.OrigenDatoCatalogo", null)
                         .WithMany()
                         .HasForeignKey("OrigenDatoId")
@@ -3869,6 +4286,11 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.CategoriaProducto", "Categoria")
                         .WithMany()
                         .HasForeignKey("CategoriaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", null)
+                        .WithMany()
+                        .HasForeignKey("ErpConexionId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.OrigenPrecioCatalogo", null)
@@ -3890,6 +4312,11 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.Cliente", b =>
                 {
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", null)
+                        .WithMany()
+                        .HasForeignKey("ErpConexionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.OrigenDatoCatalogo", null)
                         .WithMany()
                         .HasForeignKey("OrigenDatoId")
@@ -4037,6 +4464,17 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.Navigation("Semestre");
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ErpFlujo", b =>
+                {
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", "Conexion")
+                        .WithMany()
+                        .HasForeignKey("ErpConexionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conexion");
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ParametroGeneral", b =>
                 {
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.TipoDatoParametroCatalogo", "TipoDato")
@@ -4100,6 +4538,11 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasForeignKey("CategoriaId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", null)
+                        .WithMany()
+                        .HasForeignKey("ErpConexionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.OrigenPrecioCatalogo", null)
                         .WithMany()
                         .HasForeignKey("OrigenPrecioId")
@@ -4147,8 +4590,32 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.Navigation("Rol");
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.SincronizacionEjecucion", b =>
+                {
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", "Conexion")
+                        .WithMany()
+                        .HasForeignKey("ErpConexionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ErpFlujo", "Flujo")
+                        .WithMany()
+                        .HasForeignKey("ErpFlujoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conexion");
+
+                    b.Navigation("Flujo");
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.TipoCambio", b =>
                 {
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", null)
+                        .WithMany()
+                        .HasForeignKey("ErpConexionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.FuenteTipoCambioCatalogo", "Fuente")
                         .WithMany()
                         .HasForeignKey("FuenteId")

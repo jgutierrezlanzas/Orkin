@@ -11,6 +11,11 @@
     { "Codigo": "UND", "Nombre": "Unidad", "Abreviatura": "und", "Orden": 7, "PermiteDecimales": false, "OrigenDatoId": "EXCEL", "OrigenDatoId": "EXCEL" },
     { "Codigo": "M2", "Nombre": "Metro cuadrado", "Abreviatura": "m2", "Orden": 8, "PermiteDecimales": true, "OrigenDatoId": "EXCEL", "OrigenDatoId": "EXCEL" },
     { "Codigo": "KM", "Nombre": "Kilómetro", "Abreviatura": "km", "Orden": 9, "PermiteDecimales": true, "OrigenDatoId": "EXCEL" },
-    { "Codigo": "HH", "Nombre": "Hora", "Abreviatura": "h", "Orden": 10, "PermiteDecimales": true, "OrigenDatoId": "EXCEL" }
+    { "Codigo": "HH", "Nombre": "Hora", "Abreviatura": "h", "Orden": 10, "PermiteDecimales": true, "OrigenDatoId": "EXCEL" },
+    { "Codigo": "LB", "Nombre": "Libra", "Abreviatura": "lb", "Orden": 11, "PermiteDecimales": true, "OrigenDatoId": "ERP" },
+    { "Codigo": "BOLSA", "Nombre": "Bolsa", "Abreviatura": "bolsa", "Orden": 12, "PermiteDecimales": false, "OrigenDatoId": "ERP" },
+    { "Codigo": "ROLLO", "Nombre": "Rollo", "Abreviatura": "rollo", "Orden": 13, "PermiteDecimales": false, "OrigenDatoId": "ERP" },
+    { "Codigo": "YARDA", "Nombre": "Yarda", "Abreviatura": "yarda", "Orden": 14, "PermiteDecimales": false, "OrigenDatoId": "ERP" },
+    { "Codigo": "PAR", "Nombre": "Par", "Abreviatura": "par", "Orden": 15, "PermiteDecimales": false, "OrigenDatoId": "ERP" }
   ]
 }
