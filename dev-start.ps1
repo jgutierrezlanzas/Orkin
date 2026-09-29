@@ -13,7 +13,7 @@
     Al terminar:
       - API:  http://localhost:5031 (Swagger: /swagger)
       - Web:  http://localhost:59793
-      - BD:   localhost:1433 (OrkinCotizador)
+      - BD:   localhost:1433 (Orkin)
 
 .USAGE
     .\dev-start.ps1          # levanta todo
@@ -28,7 +28,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = $PSScriptRoot
 
-Write-Host '=== ORKIN Cotizador - dev-start ===' -ForegroundColor Green
+Write-Host '=== ORKIN Plataforma - dev-start ===' -ForegroundColor Green
 
 if (-not $SoloWeb) {
     # 1. Levantar SQL Server + API en Docker

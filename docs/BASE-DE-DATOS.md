@@ -2092,24 +2092,29 @@ END
 
 ```sql
 -- Ejecutar UNA vez, con el usuario que será dueño de la base.
-IF DB_ID(N'OrkinCotizador') IS NULL
-    CREATE DATABASE [OrkinCotizador] COLLATE SQL_Latin1_General_CP1_CI_AS;
+--
+-- El nombre es "Orkin", sin el sufijo del módulo. La plataforma va a tener más módulos que el
+-- cotizador, y todos van a vivir en esta misma base: el nombre de la base no es el lugar donde
+-- se decide qué módulos existen. Los módulos se distinguen por el ESQUEMA (dbo, seg, aud, int),
+-- no por la base.
+IF DB_ID(N'Orkin') IS NULL
+    CREATE DATABASE [Orkin] COLLATE SQL_Latin1_General_CP1_CI_AS;
 GO
-USE [OrkinCotizador];
+USE [Orkin];
 GO
 
 -- Rol de aplicación (la app NUNCA usa sa/dbo)
-IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'OrkinCotizadorApp')
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'OrkinApp')
 BEGIN
-    CREATE LOGIN [OrkinCotizadorApp]
+    CREATE LOGIN [OrkinApp]
         WITH PASSWORD = N'<lo inyecta dev-start.ps1 desde .env>', CHECK_POLICY = ON;
-    CREATE USER [OrkinCotizadorApp] FOR LOGIN [OrkinCotizadorApp];
-    ALTER ROLE db_ddladmin ADD MEMBER [OrkinCotizadorApp];   -- necesario para que `dotnet ef` aplique migraciones
+    CREATE USER [OrkinApp] FOR LOGIN [OrkinApp];
+    ALTER ROLE db_ddladmin ADD MEMBER [OrkinApp];   -- necesario para que `dotnet ef` aplique migraciones
 END
 GO
 
 -- Aislamiento de lectura: evita bloqueos entre el motor de cálculo (lecturas) y el guardado
-ALTER DATABASE [OrkinCotizador] SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
+ALTER DATABASE [Orkin] SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
 GO
 ```
 
