@@ -32,12 +32,19 @@ public sealed class CargaController : ControllerBase
     /// </summary>
     /// <param name="catalogo">PRODUCTOS, CLIENTES, etc.</param>
     /// <param name="hoja">Nombre de la hoja dentro del archivo. Opcional: si no se envía, se lee la primera.</param>
+    /// <param name="filaEncabezado">
+    /// Fila (1-based) donde están los nombres de columna. Opcional: si no se envía, se toma la
+    /// primera fila usada de la hoja, que es lo correcto en un archivo que empieza con los
+    /// encabezados. Hace falta cuando el archivo tiene un título arriba: sin esto el título se
+    /// lee como el nombre de una columna y todas las filas se rechazan por el mismo campo.
+    /// </param>
     [HttpPost("excel/{catalogo}")]
     [Consumes("multipart/form-data")]
     public async Task<IResult> CargarDesdeExcel(
         string catalogo,
         [FromForm] IFormFile archivo,
         [FromQuery] string? hoja = null,
+        [FromQuery] int filaEncabezado = 0,
         CancellationToken cancellationToken = default)
     {
         if (archivo is null || archivo.Length == 0)
@@ -84,7 +91,7 @@ public sealed class CargaController : ControllerBase
         try
         {
             await using var stream = archivo.OpenReadStream();
-            var lector = new LectorExcel(stream, hoja);
+            var lector = new LectorExcel(stream, hoja, filaEncabezado);
 
             var resultado = await _proceso.EjecutarAsync(configuracion, lector, cancellationToken);
 
@@ -118,6 +125,16 @@ public static class MapeosPorDefecto
                 ["CODIGO"] = "Codigo",
                 ["Nombre"] = "Nombre",
                 ["NOMBRE"] = "Nombre",
+
+                // El Excel de ORKIN llama a la columna de descripción "PRODUCTO", no "Nombre".
+                // Sin esta entrada, un archivo correcto se rechaza entero con "El campo 'Nombre'
+                // es obligatorio" en las 134 filas, que manda al soporte a suspectar del
+                // archivo en vez del mapeo. La comparación es OrdinalIgnoreCase, así que esta
+                // entrada cubre PRODUCTO, Producto y producto.
+                ["Producto"] = "Nombre",
+                ["Descripción del producto"] = "Nombre",
+                ["Descripcion del producto"] = "Nombre",
+                ["Descripción Producto"] = "Nombre",
                 ["Descripción"] = "Descripcion",
                 ["Descripcion"] = "Descripcion",
                 ["Categoria"] = "CategoriaCodigo",
