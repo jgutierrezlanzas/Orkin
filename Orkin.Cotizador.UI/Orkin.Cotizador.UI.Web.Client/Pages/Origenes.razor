@@ -30,6 +30,62 @@
         <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
     }
 
+    @* ── Programación ──────────────────────────────────────────────────────── *@
+    @if (_programando is not null)
+    {
+        <MudPaper Class="pa-4 mb-4" Outlined="true" Style="border-left: 4px solid var(--mud-palette-primary);">
+            <div class="d-flex align-center justify-space-between mb-3">
+                <MudText Typo="Typo.h6" Color="Color.Primary">
+                    Sincronización automática — @_programando.Nombre
+                </MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="CerrarProgramacion" />
+            </div>
+
+            <MudText Typo="Typo.body2" Class="mb-3 mud-text-secondary">
+                Con la sincronización activa, el motor corre este flujo sin que nadie le dé ejecutar.
+                Cada corrida que no cambie nada no se anota en el historial: lo que no pasó se ve en
+                el «último intento» de la tabla, y el historial guarda solo lo que sí pasó.
+            </MudText>
+
+            <MudSelect T="string" Label="Cuándo corre" @bind-Value="_tipoDisparador" Class="mb-3">
+                <MudSelectItem T="string" Value="@("MANUAL")">Solo cuando yo le dé ejecutar</MudSelectItem>
+                <MudSelectItem T="string" Value="@("PROGRAMADO")">Cada cierto tiempo, automáticamente</MudSelectItem>
+            </MudSelect>
+
+            @if (_tipoDisparador == "PROGRAMADO")
+            {
+                <MudSelect T="int" Label="Cada cuánto" @bind-Value="_intervaloSegundos" Class="mb-1">
+                    @foreach (var opcion in _intervalosSugeridos)
+                    {
+                        <MudSelectItem T="int" Value="@opcion">@TextoIntervalo(opcion)</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudText Typo="Typo.caption" Class="mb-3 mud-text-secondary">
+                    El mínimo son 10 segundos. Más rápido que eso son miles de consultas diarias
+                    contra la base de producción del cliente, y la diferencia para quien cotiza
+                    entre 10 y 30 segundos no se nota.
+                </MudText>
+
+                <MudNumericField T="int?" Label="Máximo de registros por corrida (opcional)"
+                                 @bind-Value="_maximoRegistrosPorCorrida" Class="mb-3"
+                                 HelperText="Sin tope, salvo que el ERP del cliente sea lento." />
+
+                <MudNumericField T="short" Label="Corridas fallidas seguidas antes de pausar"
+                                 @bind-Value="_maximoFallosConsecutivos" Class="mb-3"
+                                 HelperText="Es lo que impide que un ERP caído reciba intentos para siempre." />
+            }
+
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="GuardarProgramacion" Disabled="_guardandoProgramacion">
+                    Guardar
+                </MudButton>
+                <MudButton Variant="Variant.Text" OnClick="CerrarProgramacion">Cancelar</MudButton>
+            </div>
+        </MudPaper>
+    }
+
     @* ── Simulación ────────────────────────────────────────────────────────── *@
     @if (_simulandoFlujoId is not null || _simulacion is not null)
     {
@@ -378,6 +434,7 @@
                     <MudTh>Flujo</MudTh>
                     <MudTh>Catálogo</MudTh>
                     <MudTh>Origen</MudTh>
+                    <MudTh>Programación</MudTh>
                     <MudTh>Última corrida</MudTh>
                     <MudTh>Resultado</MudTh>
                     <MudTh>Acciones</MudTh>
@@ -397,7 +454,49 @@
                             <MudText Typo="Typo.caption" Class="mud-text-secondary">con mapeo</MudText>
                         }
                     </MudTd>
-                    <MudTd DataLabel="Última corrida">@Fecha(context.UltimaEjecucionUtc)</MudTd>
+                    <MudTd DataLabel="Programación">
+                        @if (context.EsPausado)
+                        {
+                            <MudTooltip Text="@($"Pausado. {context.MotivoPausa}")">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Pausado</MudChip>
+                            </MudTooltip>
+                        }
+                        else if (context.EstaProgramado)
+                        {
+                            <MudText Typo="Typo.body2">Cada @TextoIntervalo(context.IntervaloSegundos!.Value)</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                @if (context.ProximaEjecucionUtc is { } prox)
+                                {
+                                    @($"próxima en {CuentaRegresiva(prox)}")
+                                }
+                                else
+                                {
+                                    @(context.UltimoIntentoUtc is null
+                                        ? "sin correr"
+                                        : $"último intento {Fecha(context.UltimoIntentoUtc)}")
+                                }
+                            </MudText>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="mud-text-secondary">Manual</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Última corrida">
+                        @Fecha(context.UltimaEjecucionUtc)
+                        @* El latido va aparte de la última corrida porque un flujo que corre cada
+                           10 s y no cambia nada no deja fila en la bitácora, pero sí se está
+                           sincronizando. Sin esto, la columna diría «hace 3 horas» de un flujo
+                           que no ha parado de correr. *@
+                        @if (context.EstaProgramado && context.UltimoIntentoUtc is { } intento
+                                 && context.UltimaEjecucionUtc is { } ultima
+                                 && (intento - ultima).TotalMinutes >= 1)
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                intento @Fecha(intento)
+                            </MudText>
+                        }
+                    </MudTd>
                     <MudTd DataLabel="Resultado">
                         @if (context.UltimaEjecucionUtc is null)
                         {
@@ -432,6 +531,24 @@
                         <MudTooltip Text="Ver el historial de corridas">
                             <MudIconButton Icon="@Icons.Material.Filled.History" Color="Color.Primary" Size="Size.Small" OnClick="@(() => CargarHistorial(context))" />
                         </MudTooltip>
+                        @if (context.EsPausado)
+                        {
+                            <MudTooltip Text="Reanudar la sincronización automática">
+                                <MudIconButton Icon="@Icons.Material.Filled.PlayCircle" Color="Color.Success" Size="Size.Small" OnClick="@(() => ReanudarFlujo(context))" Disabled="_programandoFlujoId == context.Id" />
+                            </MudTooltip>
+                        }
+                        else if (context.EstaProgramado)
+                        {
+                            <MudTooltip Text="Pausar la sincronización automática">
+                                <MudIconButton Icon="@Icons.Material.Filled.PauseCircle" Color="Color.Warning" Size="Size.Small" OnClick="@(() => PausarFlujo(context))" Disabled="_programandoFlujoId == context.Id" />
+                            </MudTooltip>
+                        }
+                        else
+                        {
+                            <MudTooltip Text="Programar la sincronización automática">
+                                <MudIconButton Icon="@Icons.Material.Filled.Schedule" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EditarProgramacion(context))" />
+                            </MudTooltip>
+                        }
                         <MudTooltip Text="Editar">
                             <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EditarFlujo(context))" />
                         </MudTooltip>
@@ -535,6 +652,18 @@
     private SimulacionFlujoModel? _simulacion;
     private string? _simulacionFlujoNombre;
     private string _filtroSimulacion = "TODOS";
+
+    // Programación: el flujo cuya sincronización automática se está configurando y los valores
+    // del formulario. Viven aparte de los del flujo de la fila porque son una edición en curso: si
+    // alguien abre el panel, cambia el intervalo a 60 s y se arrepiente, la tabla no debe mostrar
+    // 60 s mientras el panel está abierto, ni guardarlos sin que se pulse Guardar.
+    private ErpFlujoModel? _programando;
+    private string _tipoDisparador = "MANUAL";
+    private int _intervaloSegundos = 300;
+    private int? _maximoRegistrosPorCorrida;
+    private short _maximoFallosConsecutivos = 5;
+    private bool _guardandoProgramacion;
+    private Guid? _programandoFlujoId;
 
     private IEnumerable<CambioSimuladoModel> CambiosFiltrados =>
         _simulacion?.Cambios.Where(AplicaFiltroSimulacion) ?? [];
@@ -847,4 +976,160 @@
     /// </summary>
     private static string Fecha(DateTime? utc) =>
         utc is null ? "—" : utc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
+
+    // ── Programación ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Los intervalos que se ofrecen. No es una lista arbitraria: son los escalones de §4.3 del
+    /// documento, empezando por el más frecuente que se puede configurar sin machacar la base del
+    /// cliente. Cada uno es un número que una persona pueda defender frente a un DBA.
+    /// </summary>
+    private static readonly int[] _intervalosSugeridos =
+        [10, 30, 60, 300, 900, 3600, 86400];
+
+    private static string TextoIntervalo(int segundos) => segundos switch
+    {
+        <= 0 => "—",
+        86400 => "día",
+        3600 => "hora",
+        900 => "15 min",
+        300 => "5 min",
+        60 => "minuto",
+        30 => "30 segundos",
+        _ => $"{segundos} segundos"
+    };
+
+    /// <summary>
+    /// Cuánto falta para la próxima corrida, en palabras. Se redondea al segundo porque a menos
+    /// de eso el número cambia entre un repintado y el siguiente y parece un contador roto.
+    /// </summary>
+    private static string CuentaRegresiva(DateTime proximaUtc)
+    {
+        var segundos = (proximaUtc.ToLocalTime() - DateTime.Now).TotalSeconds;
+
+        if (segundos <= 0)
+        {
+            return "ahora";
+        }
+
+        if (segundos < 60)
+        {
+            return $"{(int)Math.Ceiling(segundos)} s";
+        }
+
+        if (segundos < 3600)
+        {
+            return $"{(int)Math.Ceiling(segundos / 60)} min";
+        }
+
+        return segundos < 86400
+            ? $"{(int)Math.Ceiling(segundos / 3600)} h"
+            : $"{(int)Math.Ceiling(segundos / 86400)} d";
+    }
+
+    private void EditarProgramacion(ErpFlujoModel flujo)
+    {
+        _programando = flujo;
+        _tipoDisparador = flujo.EstaProgramado ? "PROGRAMADO" : "MANUAL";
+        _intervaloSegundos = flujo.IntervaloSegundos ?? 300;
+
+        // Si el flujo ya tenía un intervalo que no está en la lista, se pone el más cercano por
+        // encima en vez de borrarlo: quien configuró 120 s no quiere que al guardar le cambien
+        // el intervalo a 5 minutos sin haberlo pedido.
+        if (flujo.IntervaloSegundos is { } actual && !_intervalosSugeridos.Contains(actual))
+        {
+            _intervaloSegundos = _intervalosSugeridos.FirstOrDefault(s => s >= actual, 86400);
+        }
+
+        _maximoRegistrosPorCorrida = flujo.MaximoRegistrosPorCorrida;
+        _maximoFallosConsecutivos = flujo.MaximoFallosConsecutivos > 0
+            ? flujo.MaximoFallosConsecutivos
+            : (short)5;
+    }
+
+    private void CerrarProgramacion()
+    {
+        _programando = null;
+        _guardandoProgramacion = false;
+    }
+
+    private async Task GuardarProgramacion()
+    {
+        if (_programando is not { } flujo)
+        {
+            return;
+        }
+
+        _guardandoProgramacion = true;
+        try
+        {
+            var respuesta = await IntegracionService.ConfigurarProgramacionAsync(
+                flujo.Id,
+                _tipoDisparador,
+                _tipoDisparador == "PROGRAMADO" ? _intervaloSegundos : null,
+                _tipoDisparador == "PROGRAMADO" ? _maximoRegistrosPorCorrida : null,
+                _tipoDisparador == "PROGRAMADO" ? _maximoFallosConsecutivos : null);
+
+            if (respuesta?.Exito == true)
+            {
+                Snackbar.Add(
+                    _tipoDisparador == "PROGRAMADO"
+                        ? $"{flujo.Nombre}: se sincronizará cada {TextoIntervalo(_intervaloSegundos)}."
+                        : $"{flujo.Nombre}: vuelve a sincronizarse solo cuando se le pida.",
+                    Severity.Success);
+                CerrarProgramacion();
+                await Recargar();
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar la programación.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _guardandoProgramacion = false;
+        }
+    }
+
+    private async Task PausarFlujo(ErpFlujoModel flujo)
+    {
+        _programandoFlujoId = flujo.Id;
+        try
+        {
+            var respuesta = await IntegracionService.PausarFlujoAsync(flujo.Id);
+
+            Snackbar.Add(
+                respuesta?.Exito == true
+                    ? $"{flujo.Nombre}: pausado. Ya no se va a tocar hasta que lo reanudes."
+                    : respuesta?.Mensaje ?? "No se pudo pausar.",
+                respuesta?.Exito == true ? Severity.Success : Severity.Error);
+
+            await Recargar();
+        }
+        finally
+        {
+            _programandoFlujoId = null;
+        }
+    }
+
+    private async Task ReanudarFlujo(ErpFlujoModel flujo)
+    {
+        _programandoFlujoId = flujo.Id;
+        try
+        {
+            var respuesta = await IntegracionService.ReanudarFlujoAsync(flujo.Id);
+
+            Snackbar.Add(
+                respuesta?.Exito == true
+                    ? $"{flujo.Nombre}: reanudado. La primera corrida sale ahora."
+                    : respuesta?.Mensaje ?? "No se pudo reanudar.",
+                respuesta?.Exito == true ? Severity.Success : Severity.Error);
+
+            await Recargar();
+        }
+        finally
+        {
+            _programandoFlujoId = null;
+        }
+    }
 }

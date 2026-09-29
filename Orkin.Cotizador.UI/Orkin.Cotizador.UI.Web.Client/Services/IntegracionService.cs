@@ -156,4 +156,44 @@ public sealed class IntegracionService
         var response = await _http.PostAsync($"api/origenes/flujos/{flujoId}/simular", null);
         return await response.Content.ReadFromJsonAsync<ApiResponse<SimulacionFlujoModel>>();
     }
+
+    // ── Programación ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Programa el flujo o lo devuelve a manual. Refresca la lista porque la respuesta trae el
+    /// flujo ya con la ventana calculada, y esa ventana es lo que la pantalla muestra.
+    /// </summary>
+    public async Task<ApiResponse<ErpFlujoModel>?> ConfigurarProgramacionAsync(
+        Guid flujoId,
+        string tipoDisparador,
+        int? intervaloSegundos,
+        int? maximoRegistrosPorCorrida = null,
+        short? maximoFallosConsecutivos = null)
+    {
+        var cuerpo = new
+        {
+            tipoDisparador,
+            intervaloSegundos,
+            maximoRegistrosPorCorrida,
+            maximoFallosConsecutivos
+        };
+
+        var response = await _http.PutAsJsonAsync($"api/origenes/flujos/{flujoId}/programacion", cuerpo);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<ErpFlujoModel>>();
+    }
+
+    /// <summary>Pausa el flujo. El motivo es lo que va a explicar el flujo parado dentro de un mes.</summary>
+    public async Task<ApiResponse<ErpFlujoModel>?> PausarFlujoAsync(Guid flujoId, string? motivo = null)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"api/origenes/flujos/{flujoId}/pausar", new { motivo });
+        return await response.Content.ReadFromJsonAsync<ApiResponse<ErpFlujoModel>>();
+    }
+
+    /// <summary>Reanuda un flujo pausado, lo pausara una persona o el motor por fallos seguidos.</summary>
+    public async Task<ApiResponse<ErpFlujoModel>?> ReanudarFlujoAsync(Guid flujoId)
+    {
+        var response = await _http.PostAsync($"api/origenes/flujos/{flujoId}/reanudar", null);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<ErpFlujoModel>>();
+    }
 }

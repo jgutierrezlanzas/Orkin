@@ -135,6 +135,11 @@ public static class ServiceCollectionExtensions
         // que la aplicación consume.
         services.AddSingleton<Carga.CifradorSecreto>();
 
+        // El reclamo atómico de flujos vencidos. Es infraestructura y no aplicación porque habla
+        // SQL crudo (UPDLOCK/READPAST), y esa es una decisión de la base. El motor que lo usa
+        // está un nivel más arriba, en la capa de aplicación, porque necesita correr cargas.
+        services.AddScoped<Integracion.ReclamadorFlujos>();
+
         return services;
     }
 

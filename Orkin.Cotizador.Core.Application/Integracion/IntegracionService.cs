@@ -26,6 +26,13 @@ public sealed record ResultadoPruebaConexion(
 /// </summary>
 public sealed class IntegracionService
 {
+    /// <summary>
+    /// El intervalo más corto que se puede programar. Tiene que coincidir con el
+    /// <c>CK_ErpFlujo_IntervaloMinimo</c> de la base; la base manda y esta constante solo sirve
+    /// para poder explicar el límite con un mensaje que se pueda leer en la pantalla.
+    /// </summary>
+    public const int IntervaloMinimoSegundos = 10;
+
     private readonly CotizadorDbContext _contexto;
     private readonly CifradorSecreto _cifrador;
     private readonly ProcesoCargaService _proceso;
@@ -299,6 +306,11 @@ public sealed class IntegracionService
             Origen = origen.Trim(),
             MapeoJson = string.IsNullOrWhiteSpace(mapeoJson) ? null : mapeoJson.Trim(),
             TipoDisparador = IntegracionCatalogos.TipoDisparadorManual,
+            // El desfase se tira una vez, acá, y no se vuelve a tocar. Fijarlo desde el
+            // nacimiento del flujo es lo que reparte la carga entre los clientes: si se
+            // recalculara en cada guardado, todos los flujos reprogramados el mismo día acabarían
+            // con desfases alineados y volverían a pegarle al ERP del cliente a la vez.
+            DesfaseSegundos = (short)Random.Shared.Next(0, 31),
             ModoExtraccion = IntegracionCatalogos.ModoExtraccionCompleta,
             Estado = IntegracionCatalogos.EstadoFlujoActivo
         };
@@ -306,6 +318,144 @@ public sealed class IntegracionService
         _contexto.ErpFlujo.Add(entidad);
         await _contexto.SaveChangesAsync(cancellationToken);
         return entidad;
+    }
+
+    // ── Programación (12.11) ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Programa un flujo: cada cuántos segundos correr solo, o lo devuelve a manual.
+    /// <para>Al activar la programación la primera corrida es <b>inmediata</b>
+    /// (<c>ProximaEjecucionUtc = ahora</c>), no «dentro de un intervalo». Quien enciende el
+    /// automático lo hace para ver que funciona, y esperar un ciclo entero para comprobarlo es
+    /// pedirle que crea que no funcionó.</para>
+    /// </summary>
+    public async Task<ErpFlujo> ConfigurarProgramacionAsync(
+        Guid id,
+        string tipoDisparador,
+        int? intervaloSegundos,
+        int? maximoRegistrosPorCorrida = null,
+        short? maximoFallosConsecutivos = null,
+        CancellationToken cancellationToken = default)
+    {
+        var entidad = await ObtenerFlujoAsync(id, cancellationToken)
+            ?? throw new KeyNotFoundException("El flujo no existe.");
+
+        var tipo = InterpretarTipoDisparador(tipoDisparador);
+
+        // Se valida acá y no solo con el CHECK de la base. El CHECK no se puede saltar, pero un
+        // `DbUpdateException` con el texto del constraint no es una respuesta que se pueda
+        // mostrar tal cual en la pantalla; este mensaje sí.
+        if (tipo != IntegracionCatalogos.TipoDisparadorManual
+            && intervaloSegundos is null)
+        {
+            throw new ArgumentException(
+                "Un flujo programado necesita un intervalo. Para volverlo manual, deje el intervalo vacío.");
+        }
+
+        if (intervaloSegundos is < IntervaloMinimoSegundos)
+        {
+            throw new ArgumentException(
+                $"El intervalo no puede ser menor de {IntervaloMinimoSegundos} segundos. " +
+                "Por debajo de eso son más de 8.600 consultas diarias contra el ERP del cliente, " +
+                "y eso no se le pide a la base de producción de nadie.");
+        }
+
+        if (maximoRegistrosPorCorrida is <= 0)
+        {
+            throw new ArgumentException("El máximo de registros por corrida tiene que ser mayor que cero, o vacío para no poner tope.");
+        }
+
+        entidad.TipoDisparador = tipo;
+        entidad.IntervaloSegundos = tipo == IntegracionCatalogos.TipoDisparadorManual
+            ? null
+            : intervaloSegundos;
+
+        if (maximoRegistrosPorCorrida is not null)
+        {
+            entidad.MaximoRegistrosPorCorrida = maximoRegistrosPorCorrida;
+        }
+
+        if (maximoFallosConsecutivos is > 0)
+        {
+            entidad.MaximoFallosConsecutivos = maximoFallosConsecutivos.Value;
+        }
+
+        entidad.EsPausado = false;
+        entidad.MotivoPausa = null;
+        entidad.FallosConsecutivos = 0;
+        entidad.Estado = IntegracionCatalogos.EstadoFlujoActivo;
+
+        // Inmediata, no «dentro del intervalo». Ver la nota del método.
+        entidad.ProximaEjecucionUtc = tipo == IntegracionCatalogos.TipoDisparadorManual
+            ? null
+            : DateTime.UtcNow;
+
+        await _contexto.SaveChangesAsync(cancellationToken);
+        return entidad;
+    }
+
+    /// <summary>Pausa un flujo a mano. El motor deja de tocarlo y queda escrito por qué.</summary>
+    public async Task<ErpFlujo> PausarFlujoAsync(
+        Guid id,
+        string? motivo = null,
+        CancellationToken cancellationToken = default)
+    {
+        var entidad = await ObtenerFlujoAsync(id, cancellationToken)
+            ?? throw new KeyNotFoundException("El flujo no existe.");
+
+        entidad.EsPausado = true;
+        // Se borra la ventana, no se deja en el pasado: un flujo pausado no tiene «próxima
+        // corrida», y dejarla vencida haría que la pantalla dijera que está al día cuando en
+        // realidad no se está sincronizando desde hace una hora.
+        entidad.ProximaEjecucionUtc = null;
+        entidad.MotivoPausa = string.IsNullOrWhiteSpace(motivo)
+            ? "Pausado a mano desde la pantalla de orígenes."
+            : motivo.Trim();
+
+        await _contexto.SaveChangesAsync(cancellationToken);
+        return entidad;
+    }
+
+    /// <summary>
+    /// Reanuda un flujo pausado, sea a mano o por el corte de fallos. La primera corrida sale
+    /// inmediata, y el contador de fallos vuelve a cero: si no, el motor pausaría otra vez en la
+    /// primera vuelta sin ni siquiera haber intentado una.
+    /// </summary>
+    public async Task<ErpFlujo> ReanudarFlujoAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var entidad = await ObtenerFlujoAsync(id, cancellationToken)
+            ?? throw new KeyNotFoundException("El flujo no existe.");
+
+        entidad.EsPausado = false;
+        entidad.MotivoPausa = null;
+        entidad.FallosConsecutivos = 0;
+        entidad.Estado = IntegracionCatalogos.EstadoFlujoActivo;
+        entidad.UltimoError = null;
+        entidad.ProximaEjecucionUtc = entidad.IntervaloSegundos is null
+            ? null
+            : DateTime.UtcNow;
+
+        await _contexto.SaveChangesAsync(cancellationToken);
+        return entidad;
+    }
+
+    /// <summary>
+    /// Traduce el texto que manda la pantalla al byte de la base. Acepta el nombre o el número,
+    /// porque una llamada hecha a mano con <c>curl</c> no va a saber el nombre de memoria.
+    /// </summary>
+    private static byte InterpretarTipoDisparador(string? texto)
+    {
+        var t = texto?.Trim();
+
+        return t?.ToUpperInvariant() switch
+        {
+            "MANUAL" or "1" => IntegracionCatalogos.TipoDisparadorManual,
+            "PROGRAMADO" or "3" => IntegracionCatalogos.TipoDisparadorProgramado,
+            "EVENTO" or "5" => IntegracionCatalogos.TipoDisparadorEvento,
+            null or "" => IntegracionCatalogos.TipoDisparadorManual,
+            _ => throw new ArgumentException(
+                $"'{texto}' no es un tipo de disparador válido. Use MANUAL, PROGRAMADO o EVENTO.")
+        };
     }
 
     public async Task<ErpFlujo> ActualizarFlujoAsync(
@@ -383,14 +533,31 @@ public sealed class IntegracionService
     /// <summary>
     /// Corre un flujo: lee del origen (la vista, tabla o consulta que el cliente configuró) y
     /// llena el catálogo con el <see cref="ICargadorCatalogo"/> correspondiente.
-    /// <para>Cada corrida deja fila en la bitácora <c>int.SincronizacionEjecucion</c>, exista o no
-    /// el éxito: una sincronización que falló y no se registró es indistinguishable de una que
-    /// nunca se disparó.</para>
+    /// <para>La corrida manual <b>siempre</b> deja fila en la bitácora
+    /// <c>int.SincronizacionEjecucion</c>, haya éxito o no: alguien la pidió a mano y tiene que
+    /// poder ver qué pasó, incluso si no pasó nada —«lo corrí y no se movió nada» es una
+    /// respuesta, y sin bitácora sería indistinguible de «nunca lo corrí».</para>
     /// </summary>
     public async Task<ResultadoCarga> EjecutarFlujoAsync(
         Guid erpFlujoId,
         CancellationToken cancellationToken = default)
-        => await CorrerFlujoAsync(erpFlujoId, esSimulacion: false, cancellationToken);
+        => await CorrerFlujoAsync(erpFlujoId, esSimulacion: false, registrarSiempre: true, cancellationToken);
+
+    /// <summary>
+    /// Corre el flujo como lo haría el motor de programación, sin que nadie lo haya pedido: la
+    /// corrida que no cambia nada no deja fila.
+    /// <para>Es la contraparte de <see cref="EjecutarFlujoAsync"/> en la única cosa en que se
+    /// diferencian, y la razón es aritmética. Un flujo cada 30 segundos son 2.880 corridas
+    /// diarias; a 10 segundos, 8.640. Anotarlas todas llena la bitácora de filas que dicen
+    /// «0 creados, 0 actualizados, 0 rechazados» y borra de ella la información para la que
+    /// existe: qué le pasó a este catálogo.</para>
+    /// <para>Lo que sí se anota siempre es el fallo, porque una sincronización rota que no
+    /// aparece en ninguna parte es indistinguible de un flujo que nadie configuró.</para>
+    /// </summary>
+    public async Task<ResultadoCarga> EjecutarFlujoProgramadoAsync(
+        Guid erpFlujoId,
+        CancellationToken cancellationToken = default)
+        => await CorrerFlujoAsync(erpFlujoId, esSimulacion: false, registrarSiempre: false, cancellationToken);
 
     /// <summary>
     /// Corre el flujo <b>sin escribir nada</b> y devuelve lo que haría, con el detalle de los
@@ -408,11 +575,12 @@ public sealed class IntegracionService
     public async Task<ResultadoCarga> SimularFlujoAsync(
         Guid erpFlujoId,
         CancellationToken cancellationToken = default)
-        => await CorrerFlujoAsync(erpFlujoId, esSimulacion: true, cancellationToken);
+        => await CorrerFlujoAsync(erpFlujoId, esSimulacion: true, registrarSiempre: false, cancellationToken);
 
     private async Task<ResultadoCarga> CorrerFlujoAsync(
         Guid erpFlujoId,
         bool esSimulacion,
+        bool registrarSiempre,
         CancellationToken cancellationToken)
     {
         var flujo = await ObtenerFlujoAsync(erpFlujoId, cancellationToken)
@@ -424,6 +592,15 @@ public sealed class IntegracionService
         var inicio = DateTime.UtcNow;
         var reloj = System.Diagnostics.Stopwatch.StartNew();
 
+        // El latido se fija al empezar, no al terminar. Se fija acá porque «cuándo intentamos por
+        // última vez» es una pregunta del intento, y si la corrida se cuelga o el proceso muere
+        // a media lectura, el latido ya está puesto y la pantalla no muestra un flujo congelado
+        // como si no se hubiera Corrido en días.
+        if (!esSimulacion)
+        {
+            flujo.UltimoIntentoUtc = inicio;
+        }
+
         var ejecucion = new SincronizacionEjecucion
         {
             ErpConexionId = conexion.Id,
@@ -434,13 +611,15 @@ public sealed class IntegracionService
             SolicitadoPor = _usuario.UsuarioId
         };
 
-        // En simulación no se crea la fila de bitácora, y con ella no se toca el estado del flujo
-        // ni el de la conexión. Ver la nota de SimularFlujoAsync: la bitácora tiene que poder
-        // leerse como "esto es lo que le pasó al catálogo", sin filas de mentira en el medio.
-        if (!esSimulacion)
-        {
-            _contexto.SincronizacionEjecucion.Add(ejecucion);
-        }
+        // La fila de bitácora NO se agrega todavía. Se agrega al final, cuando ya se sabe si esta
+        // corrida dejó rastro, porque para la programada esa es la decisión y tomarla antes sería
+        // tomarla a ciegas. Agregarla antes no cambiaba nada en la base —EF no escribe hasta el
+        // SaveChanges— y por eso moverla acá no cuesta una escritura: cuesta una línea de código
+        // menos que leer.
+        //
+        // En simulación no se agrega nunca, y con ella no se toca el estado del flujo ni el de la
+        // conexión. Ver la nota de SimularFlujoAsync: la bitácora tiene que poder leerse como
+        // "esto es lo que le pasó al catálogo", sin filas de mentira en el medio.
 
         var cadena = ConstruirCadena(conexion);
 
@@ -479,7 +658,14 @@ public sealed class IntegracionService
 
             if (!esSimulacion)
             {
-                await RegistrarExitoAsync(flujo, conexion, ejecucion, reloj, resultado);
+                // La corrida programada que no movió nada no deja fila. Se decide acá y no antes
+                // porque recién acá se sabe.
+                if (registrarSiempre || resultado.HayCambios)
+                {
+                    _contexto.SincronizacionEjecucion.Add(ejecucion);
+                }
+
+                await RegistrarExitoAsync(flujo, conexion, ejecucion, reloj, resultado, hayBitacora: registrarSiempre || resultado.HayCambios);
             }
 
             return resultado;
@@ -490,6 +676,10 @@ public sealed class IntegracionService
 
             if (!esSimulacion)
             {
+                // El fallo se anota siempre, sin mirar `registrarSiempre`. Un flujo roto que no
+                // aparece en la bitácora es indistinguible de un flujo que nadie configuró, y
+                // eso es justo el fallo que hay que poder ver.
+                _contexto.SincronizacionEjecucion.Add(ejecucion);
                 await RegistrarFalloAsync(flujo, conexion, ejecucion, reloj, ex.Message);
             }
 
@@ -530,12 +720,19 @@ public sealed class IntegracionService
         return mapeo;
     }
 
+    /// <param name="hayBitacora">
+    /// Si esta corrida dejó fila en la bitácora. Cuando es <c>false</c> —corrida programada que
+    /// no cambió nada— <see cref="ErpFlujo.UltimaEjecucionUtc"/> no avanza, porque ese campo
+    /// responde «¿cuándo fue la última corrida que puedo abrir en el historial?», y esta no está
+    /// en el historial. El latido del flujo lo lleva <see cref="ErpFlujo.UltimoIntentoUtc"/>.
+    /// </param>
     private async Task RegistrarExitoAsync(
         ErpFlujo flujo,
         ErpConexion conexion,
         SincronizacionEjecucion ejecucion,
         System.Diagnostics.Stopwatch reloj,
-        ResultadoCarga resultado)
+        ResultadoCarga resultado,
+        bool hayBitacora)
     {
         ejecucion.Estado = resultado.Rechazados > 0
             ? IntegracionCatalogos.EstadoSincronizacionEnCurso
@@ -548,7 +745,14 @@ public sealed class IntegracionService
         ejecucion.FinUtc = DateTime.UtcNow;
         ejecucion.DuracionMs = (int)Math.Min(int.MaxValue, reloj.Elapsed.TotalMilliseconds);
 
-        flujo.UltimaEjecucionUtc = ejecucion.InicioUtc;
+        if (hayBitacora)
+        {
+            flujo.UltimaEjecucionUtc = ejecucion.InicioUtc;
+        }
+
+        // El estado del flujo sí se actualiza aunque no haya bitácora: describe si el flujo está
+        // sano, no si dejó registro. Un flujo que corre cada 10 s y va bien está bien, y decirlo es
+        // más cierto que dejarlo en el estado de la última corrida que sí se anotó.
         flujo.UltimoEstado = ejecucion.Estado;
         flujo.UltimoError = null;
         flujo.FallosConsecutivos = 0;

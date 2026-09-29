@@ -74,7 +74,21 @@ public sealed record ErpFlujoResponse(
     int UltimosActualizados,
     int UltimosOmitidos,
     int UltimosRechazados,
-    string? UltimoError);
+    string? UltimoError,
+    // ── Programación ─────────────────────────────────────────────────────────
+    // `tipoDisparador` viaja como texto y no como número: la pantalla tiene que poder decir
+    // "Programado" sin una tabla de traducción que se pueda quedar vieja, igual que se hizo
+    // con la acción simulada. El 1/3/5 de la base es un detalle interno.
+    string TipoDisparador,
+    int? IntervaloSegundos,
+    short DesfaseSegundos,
+    int? MaximoRegistrosPorCorrida,
+    short MaximoFallosConsecutivos,
+    DateTime? ProximaEjecucionUtc,
+    DateTime? UltimoIntentoUtc,
+    bool EsPausado,
+    string? MotivoPausa,
+    short FallosConsecutivos);
 
 public sealed record CrearErpFlujoRequest(
     Guid ErpConexionId,
@@ -89,6 +103,24 @@ public sealed record ActualizarErpFlujoRequest(
     string Catalogo,
     string Origen,
     string? MapeoJson);
+
+/// <summary>
+/// Cómo debe correr un flujo a partir de ahora.
+/// <para><c>TipoDisparador</c> y <c>IntervaloSegundos</c> van juntos y se validan juntos: un
+/// intervalo sin <c>PROGRAMADO</c> no hace nada, y <c>PROGRAMADO</c> sin intervalo no puede
+/// arrancar. Se manda <c>intervaloSegundos = null</c> para volver a manual.</para>
+/// <para><c>DesfaseSegundos</c> no se manda. Se asigna una vez, al crear el flujo, y no se vuelve
+/// a tocar: es lo que reparte la carga entre los clientes y recalcularlo en cada guardado
+/// movería el pico de lugar sin querer.</para>
+/// </summary>
+public sealed record ConfigurarProgramacionRequest(
+    string TipoDisparador,
+    int? IntervaloSegundos,
+    int? MaximoRegistrosPorCorrida,
+    short? MaximoFallosConsecutivos);
+
+/// <summary>Pausa a mano. El motivo es opcional pero se muestra, y es lo que explica el flujo parado.</summary>
+public sealed record PausarFlujoRequest(string? Motivo);
 
 /// <summary>Una corrida del flujo, de la bitácora.</summary>
 public sealed record SincronizacionEjecucionResponse(

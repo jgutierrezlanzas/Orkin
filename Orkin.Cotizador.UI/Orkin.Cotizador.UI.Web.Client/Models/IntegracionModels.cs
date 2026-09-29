@@ -78,6 +78,28 @@ public sealed class ErpFlujoModel
     public int UltimosOmitidos { get; set; }
     public int UltimosRechazados { get; set; }
     public string? UltimoError { get; set; }
+
+    // ── Programación ─────────────────────────────────────────────────────────
+    public string TipoDisparador { get; set; } = "MANUAL";
+    public int? IntervaloSegundos { get; set; }
+    public short DesfaseSegundos { get; set; }
+    public int? MaximoRegistrosPorCorrida { get; set; }
+    public short MaximoFallosConsecutivos { get; set; }
+    public DateTime? ProximaEjecucionUtc { get; set; }
+    public DateTime? UltimoIntentoUtc { get; set; }
+    public bool EsPausado { get; set; }
+    public string? MotivoPausa { get; set; }
+    public short FallosConsecutivos { get; set; }
+
+    /// <summary>
+    /// ¿Está el motor pendiente sobre este flujo? Programado, con ventana y sin pausar.
+    /// <para>Es lo que decide si la pantalla muestra la cuenta regresiva o el botón de
+    /// programar. No se deduce de <c>TipoDisparador</c> solo, porque un flujo pausado sigue
+    /// siendo «programado» en su configuración: lo que dejó de correr fue el motor, y la
+    /// pantalla tiene que poder distinguir las dos cosas.</para>
+    /// </summary>
+    public bool EstaProgramado =>
+        TipoDisparador == "PROGRAMADO" && IntervaloSegundos is > 0 && !EsPausado;
 }
 
 /// <summary>Una corrida del flujo, de la bitácora.</summary>

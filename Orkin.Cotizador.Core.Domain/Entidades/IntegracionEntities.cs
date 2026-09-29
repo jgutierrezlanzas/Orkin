@@ -25,8 +25,33 @@ public static class IntegracionCatalogos
     public const byte EstadoFlujoActivo = 3;
     public const byte EstadoFlujoConError = 5;
 
-    /// <summary><c>int.TipoDisparadorCatalogo</c>: 1 = MANUAL (por ahora solo disparo manual).</summary>
+    /// <summary><c>int.TipoDisparadorCatalogo</c>: 1 = MANUAL.</summary>
     public const byte TipoDisparadorManual = 1;
+
+    /// <summary>
+    /// <c>int.TipoDisparadorCatalogo</c>: 3 = PROGRAMADO. El motor corre el flujo cada
+    /// <see cref="ErpFlujo.IntervaloSegundos"/> segundos por su cuenta.
+    /// <para>El 3 y no el 2 es el mismo criterio del resto de catálogos de <c>int</c>
+    /// (BORRADOR=1, activo=3, CON_ERROR=5): deja el 2 libre para el valor que se agregue después,
+    /// sin tener que renumerar filas ya sembradas.</para>
+    /// </summary>
+    public const byte TipoDisparadorProgramado = 3;
+
+    /// <summary>
+    /// <c>int.TipoDisparadorCatalogo</c>: 5 = EVENTO. El flujo se despierta cuando el ERP avisa por
+    /// webhook (12.12). Sigue teniendo sondeo de respaldo, porque un evento que no llega no
+    /// distingue de un ERP que no notifica.
+    /// </summary>
+    public const byte TipoDisparadorEvento = 5;
+
+    /// <summary>
+    /// Fallos consecutivos a partir de los cuales el flujo se pausa solo. Está en el código y no en
+    /// <c>int</c> como catálogo porque no es un dato de negocio que alguien edite desde
+    /// Administración: es la política de seguridad del motor contra su propio error de bucle.
+    /// <para>Sin este corte, un ERP caído produce un bucle infinito de intentos fallidos contra la
+    /// base de un cliente, a razón de uno cada 10 segundos, para siempre.</para>
+    /// </summary>
+    public const short MaximoFallosConsecutivosPorDefecto = 5;
 
     /// <summary><c>int.ModoExtraccionCatalogo</c>: 1 = COMPLETA. La incremental (2) es fase posterior.</summary>
     public const byte ModoExtraccionCompleta = 1;
@@ -118,11 +143,76 @@ public class ErpFlujo : BaseEntity
     /// </summary>
     public string? MapeoJson { get; set; }
 
-    /// <summary>FK → <c>int.TipoDisparadorCatalogo</c>. Hoy solo MANUAL.</summary>
+    /// <summary>FK → <c>int.TipoDisparadorCatalogo</c>: MANUAL, PROGRAMADO o EVENTO.</summary>
     public byte TipoDisparador { get; set; } = IntegracionCatalogos.TipoDisparadorManual;
 
-    /// <summary>Programado: cada cuántos segundos. <c>null</c> = sin programación (solo manual).</summary>
+    /// <summary>
+    /// Cada cuántos segundos corre el flujo cuando es <c>PROGRAMADO</c> o <c>EVENTO</c>.
+    /// <c>null</c> = solo manual.
+    /// <para>Es configurable y no un constante porque es la latencia prometida a quien mira el
+    /// precio, y esa latencia no es la misma para todos los catálogos: el tipo de cambio se mueve
+    /// una vez al día y el precio de un producto, cada hora. Poner un único intervalo fijo
+    /// obligaría a gastar en el cliente un presupuesto de consultas que no necesita.</para>
+    /// <para>El piso de 10 segundos lo impone la base (<c>CK_ErpFlujo_IntervaloMinimo</c>), no
+    /// este código: un flujo guardado con 2 segundos tiene que ser imposible, no improbable.</para>
+    /// </summary>
     public int? IntervaloSegundos { get; set; }
+
+    /// <summary>
+    /// Corrimiento aleatorio de 0 a 30 segundos sobre <see cref="IntervaloSegundos"/>.
+    /// <para>Existe porque todos los flujos programados se crean el mismo día y, sin este
+    /// desfase, todos golpean el ERP del cliente en el mismo instante. A las 12:00:00 exactas
+    /// llegarían a la vez las consultas de los ocho clientes, y ese pico no lo generó ninguno de
+    /// los usuarios de esos ERP: lo generó nuestra configuración.</para>
+    /// <para>Se asigna una vez, al crear el flujo, y no se recalcula: cambiarlo en cada arranque
+    /// movería el pico de lugar sin querer, que es justo lo que se quiere evitar.</para>
+    /// </summary>
+    public short DesfaseSegundos { get; set; }
+
+    /// <summary>
+    /// Tope de filas por corrida; <c>null</c> = sin tope.
+    /// <para>Es la válvula para cuando el cliente pide frecuencia alta sobre un ERP lento: se
+    /// sincronizan las primeras N filas y el resto espera a la corrida siguiente, en vez de que
+    /// una lectura de 40.000 filas tarde un minuto y se solape con la que ya arrancó.</para>
+    /// </summary>
+    public int? MaximoRegistrosPorCorrida { get; set; }
+
+    /// <summary>
+    /// Cuántos fallos seguidos se toleran antes de que el motor pause el flujo.
+    /// Por defecto <see cref="IntegracionCatalogos.MaximoFallosConsecutivosPorDefecto"/>.
+    /// </summary>
+    public short MaximoFallosConsecutivos { get; set; }
+        = IntegracionCatalogos.MaximoFallosConsecutivosPorDefecto;
+
+    /// <summary>
+    /// Cuándo le toca correr a este flujo. <c>null</c> = nunca: solo manual, o pausado.
+    /// <para>El motor no calcula la próxima ejecución en cada vuelta: la lee de aquí, y es el
+    /// reclamo atómico el que la avanza. Esa es la diferencia entre un planificador que decide y
+    /// uno que choca con otra instancia al decidir.</para>
+    /// </summary>
+    public DateTime? ProximaEjecucionUtc { get; set; }
+
+    /// <summary>
+    /// Último intento, haya funcionado o no. Es el latido del flujo.
+    /// <para>Va aparte de <see cref="UltimaEjecucionUtc"/>, que solo avanza con corridas que
+    /// dejan rastro en la bitácora. Un flujo que corre cada 10 s y no cambia nada deja
+    /// <see cref="UltimaEjecucionUtc"/> quieto durante horas, y sin este campo la pantalla
+    /// diría "nunca se ha corrido" de un flujo que no ha parado de correr.</para>
+    /// </summary>
+    public DateTime? UltimoIntentoUtc { get; set; }
+
+    /// <summary>
+    /// El motor lo pausó tras <see cref="MaximoFallosConsecutivos"/> fallos seguidos. Mientras
+    /// está en <c>true</c> el flujo no se programa ni se toca, hasta que alguien lo reanude.
+    /// <para>Es un estado propio y no un <c>Estado = CON_ERROR</c> porque significan cosas
+    /// distintas: <c>CON_ERROR</c> es «la última corrida falló» y se recupera sola en la
+    /// siguiente; pausado es «dejemos de golpear el ERP de este cliente hasta que alguien lo
+    /// mire».</para>
+    /// </summary>
+    public bool EsPausado { get; set; }
+
+    /// <summary>Por qué se pausó. Se muestra en la UI: una pausa que nadie puede leer no existe.</summary>
+    public string? MotivoPausa { get; set; }
 
     /// <summary>FK → <c>int.ModoExtraccionCatalogo</c>. Hoy solo COMPLETA.</summary>
     public byte ModoExtraccion { get; set; } = IntegracionCatalogos.ModoExtraccionCompleta;
@@ -149,8 +239,18 @@ public class ErpFlujo : BaseEntity
 }
 
 /// <summary>
-/// Bitácora de cada corrida de un flujo (Fase 12, `BASE-DE-DATOS.md` §7.10). Es append-only:
-/// cada ejecución —manual o programada— deja su fila con contadores y resultado.
+/// Bitácora de las corridas de un flujo (Fase 12, `BASE-DE-DATOS.md` §7.10). Es append-only: una
+/// fila por corrida, con contadores y resultado.
+/// <para><b>Qué corridas dejan fila no es lo mismo para todas</b>, y es una decisión, no un
+/// descuido. La corrida manual siempre deja. La programada deja solo si insertó, actualizó,
+/// desactivó o rechazó algo, o si falló. El motivo es aritmético: un flujo con intervalo de
+/// 30 s son 2.880 corridas diarias, y anotarlas todas convertiría la bitácora —que existe para
+/// responder «¿qué le pasó a este catálogo?»— en un ruido de 2.880 filas diarias que nadie va
+/// a leer y que terminaría empujando a un truncado. Lo que la programada no hace es
+/// «nada happenido», y eso ya está en otro sitio: <c>ErpFlujo.UltimoIntentoUtc</c> es el latido
+/// del flujo, y avanza aunque la corrida no se anote.</para>
+/// <para>El fallo <b>sí</b> se anota siempre, y esa es la razón de fondo de la tabla: una
+/// sincronización que falló y no se registró es indistinguible de una que nunca corrió.</para>
 /// </summary>
 public class SincronizacionEjecucion
 {

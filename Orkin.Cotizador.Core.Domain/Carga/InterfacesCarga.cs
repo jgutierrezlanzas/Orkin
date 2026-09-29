@@ -111,6 +111,18 @@ public sealed record ResultadoCarga
     public DateTime EjecutadoUtc { get; init; } = DateTime.UtcNow;
 
     public int Total => Insertados + Actualizados + Omitidos + Rechazados;
+
+    /// <summary>
+    /// ¿La carga tocó el catálogo? Insertar, actualizar o rechazar cuentan; omitir no.
+    /// <para>Un rechazo cuenta como cambio aunque no escriba nada, porque una fila que el cargador
+    /// no pudo aceptar es un dato que alguien tiene que mirar, aunque el resto de la carga haya
+    /// ido bien. Omitir no cuenta: la fila estaba en el catálogo y sigue igual, y eso es
+    /// exactamente el «no pasó nada» que la bitácora no necesita registrar.</para>
+    /// <para>Existe como una sola definición porque dos lugares la usan —la política de registro de
+    /// la bitácora y la que decide si el motor sigue insistiendo con el ERP— y si cada uno contara
+    /// los campos por su cuenta acabarían discrepando justo en el caso límite.</para>
+    /// </summary>
+    public bool HayCambios => Insertados + Actualizados + Rechazados > 0;
 }
 
 /// <summary>Qué haría una fila en la base, sin tocarla.</summary>

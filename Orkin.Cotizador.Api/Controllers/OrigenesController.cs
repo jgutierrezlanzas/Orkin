@@ -331,7 +331,99 @@ public sealed class OrigenesController : ControllerBase
         return ApiResponse<IReadOnlyList<SincronizacionEjecucionResponse>>.Ok(dtos).AHttp();
     }
 
+    // ── Programación (12.11) ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Programa un flujo o lo devuelve a manual. La primera corrida sale inmediata, así que la
+    /// pantalla puede refrescar a los pocos segundos y ver que el automático funciona, en vez de
+    /// tener que esperar el ciclo entero para sospechar que no arrancó.
+    /// </summary>
+    [HttpPut("flujos/{id:guid}/programacion")]
+    public async Task<IResult> ConfigurarProgramacion(
+        Guid id,
+        [FromBody] ConfigurarProgramacionRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var entidad = await _servicio.ConfigurarProgramacionAsync(
+                id,
+                request.TipoDisparador,
+                request.IntervaloSegundos,
+                request.MaximoRegistrosPorCorrida,
+                request.MaximoFallosConsecutivos,
+                cancellationToken);
+
+            return await ResponderFlujoAsync(entidad, cancellationToken);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return ApiResponse<ErpFlujoResponse>.Error("NO_ENCONTRADO", ex.Message).AHttp();
+        }
+        catch (ArgumentException ex)
+        {
+            // El intervalo por debajo del piso, el tipo de disparador desconocido y el tope de
+            // registros inválido son todos problemas de lo que se mandó, no del servidor.
+            return ApiResponse<ErpFlujoResponse>.Error("VALIDACION", ex.Message).AHttp();
+        }
+    }
+
+    /// <summary>
+    /// Pausa un flujo. El motor deja de tocarlo y queda escrito por qué, que es lo que hace falta
+    /// para que alguien pueda entender más tarde por qué un flujo lleva un día sin moverse.
+    /// </summary>
+    [HttpPost("flujos/{id:guid}/pausar")]
+    public async Task<IResult> PausarFlujo(
+        Guid id,
+        [FromBody] PausarFlujoRequest? request = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var entidad = await _servicio.PausarFlujoAsync(id, request?.Motivo, cancellationToken);
+            return await ResponderFlujoAsync(entidad, cancellationToken);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return ApiResponse<ErpFlujoResponse>.Error("NO_ENCONTRADO", ex.Message).AHttp();
+        }
+    }
+
+    /// <summary>
+    /// Reanuda un flujo pausado, lo pausara una persona o el corte de fallos. También pone el
+    /// contador de fallos en cero: si no, el motor lo volvería a pausar en la primera vuelta sin
+    /// haber intentado una sola vez.
+    /// </summary>
+    [HttpPost("flujos/{id:guid}/reanudar")]
+    public async Task<IResult> ReanudarFlujo(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var entidad = await _servicio.ReanudarFlujoAsync(id, cancellationToken);
+            return await ResponderFlujoAsync(entidad, cancellationToken);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return ApiResponse<ErpFlujoResponse>.Error("NO_ENCONTRADO", ex.Message).AHttp();
+        }
+    }
+
     // ── Mapeo de entidades a DTOs ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Arma la respuesta de un flujo recién tocado, con el nombre de su conexión resuelto. Vive
+    /// aparte porque los tres endpoints de programación la necesitan igual y el nombre se busca
+    /// siempre con la misma consulta.
+    /// </summary>
+    private async Task<IResult> ResponderFlujoAsync(ErpFlujo flujo, CancellationToken cancellationToken)
+    {
+        var nombreConexion = await _contexto.ErpConexion
+            .Where(c => c.Id == flujo.ErpConexionId)
+            .Select(c => c.Nombre)
+            .FirstOrDefaultAsync(cancellationToken) ?? "";
+
+        return ApiResponse<ErpFlujoResponse>.Ok(AResponse(flujo, nombreConexion)).AHttp();
+    }
 
     private static ErpConexionResponse AResponse(ErpConexion c, int totalFlujos) => new(
         c.Id,
@@ -367,7 +459,23 @@ public sealed class OrigenesController : ControllerBase
         f.UltimosActualizados,
         f.UltimosOmitidos,
         f.UltimosRechazados,
-        f.UltimoError);
+        f.UltimoError,
+        f.TipoDisparador switch
+        {
+            IntegracionCatalogos.TipoDisparadorManual => "MANUAL",
+            IntegracionCatalogos.TipoDisparadorProgramado => "PROGRAMADO",
+            IntegracionCatalogos.TipoDisparadorEvento => "EVENTO",
+            _ => "MANUAL"
+        },
+        f.IntervaloSegundos,
+        f.DesfaseSegundos,
+        f.MaximoRegistrosPorCorrida,
+        f.MaximoFallosConsecutivos,
+        f.ProximaEjecucionUtc,
+        f.UltimoIntentoUtc,
+        f.EsPausado,
+        f.MotivoPausa,
+        f.FallosConsecutivos);
 
     private static SincronizacionEjecucionResponse AResponse(SincronizacionEjecucion e) => new(
         e.Id,

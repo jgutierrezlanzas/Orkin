@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orkin.Cotizador.Core.Application.Catalogos;
 using Orkin.Cotizador.Core.Application.Cotizaciones;
 using Orkin.Cotizador.Core.Application.Sistema;
@@ -52,6 +53,21 @@ public static class ServiceCollectionExtensions
 
         // Integración con el ERP del cliente (Fase 12): conexiones, flujos y sus corridas.
         services.AddScoped<Integracion.IntegracionService>();
+
+        // El reloj, por inyección, para que una prueba pueda mover el tiempo en vez de esperar.
+        // Es la diferencia entre probar una regla de programación en un milisegundo y no poder
+        // probarla. TryAdd porque es un servicio del host y el host puede haber puesto el suyo.
+        services.TryAddSingleton(TimeProvider.System);
+
+        // El motor de sincronización programada. Se registra aunque no haya ningún flujo
+        // programado: gira cada 5 segundos, pregunta a la base qué venció, y la respuesta normal
+        // es «nada». Encender un flujo después no pide reiniciar nada, que es lo que un cliente
+        // espera de una opción que dice «automático».
+        //
+        // Vive en esta capa y no en infraestructura porque necesita a IntegracionService, que es
+        // de aplicación, y las capas solo se ven en un sentido. El ReclamadorFlujos sí es
+        // infraestructura —habla SQL crudo— y por eso lo registra AddInfrastructure.
+        services.AddHostedService<Integracion.SincronizacionBackgroundService>();
 
         return services;
     }

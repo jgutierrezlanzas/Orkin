@@ -2886,9 +2886,21 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)")
                         .HasColumnName("Descripcion");
 
+                    b.Property<short>("DesfaseSegundos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((short)0)
+                        .HasColumnName("DesfaseSegundos");
+
                     b.Property<Guid>("ErpConexionId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("ErpConexionId");
+
+                    b.Property<bool>("EsPausado")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("EsPausado");
 
                     b.Property<byte>("Estado")
                         .HasColumnType("tinyint")
@@ -2914,9 +2926,24 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("MapeoJson");
 
+                    b.Property<short>("MaximoFallosConsecutivos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasDefaultValue((short)5)
+                        .HasColumnName("MaximoFallosConsecutivos");
+
+                    b.Property<int?>("MaximoRegistrosPorCorrida")
+                        .HasColumnType("int")
+                        .HasColumnName("MaximoRegistrosPorCorrida");
+
                     b.Property<byte>("ModoExtraccion")
                         .HasColumnType("tinyint")
                         .HasColumnName("ModoExtraccion");
+
+                    b.Property<string>("MotivoPausa")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("MotivoPausa");
 
                     b.Property<string>("Nombre")
                         .IsRequired()
@@ -2929,6 +2956,10 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)")
                         .HasColumnName("Origen");
+
+                    b.Property<DateTime?>("ProximaEjecucionUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("ProximaEjecucionUtc");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -2953,6 +2984,10 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.Property<byte?>("UltimoEstado")
                         .HasColumnType("tinyint")
                         .HasColumnName("UltimoEstado");
+
+                    b.Property<DateTime?>("UltimoIntentoUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UltimoIntentoUtc");
 
                     b.Property<int>("UltimosActualizados")
                         .ValueGeneratedOnAdd()
@@ -2990,11 +3025,22 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ProximaEjecucionUtc")
+                        .HasDatabaseName("IX_ErpFlujo_Programados")
+                        .HasFilter("[EsPausado] = 0 AND [IntervaloSegundos] IS NOT NULL AND [Estado] <> 1");
+
                     b.HasIndex("ErpConexionId", "Nombre")
                         .IsUnique()
                         .HasDatabaseName("UX_ErpFlujo_ConexionNombre");
 
-                    b.ToTable("ErpFlujo", "int");
+                    b.ToTable("ErpFlujo", "int", t =>
+                        {
+                            t.HasCheckConstraint("CK_ErpFlujo_Desfase", "[DesfaseSegundos] BETWEEN 0 AND 30");
+
+                            t.HasCheckConstraint("CK_ErpFlujo_Fallos", "[MaximoFallosConsecutivos] > 0");
+
+                            t.HasCheckConstraint("CK_ErpFlujo_IntervaloMinimo", "[IntervaloSegundos] IS NULL OR [IntervaloSegundos] >= 10");
+                        });
                 });
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.NotificacionEnviada", b =>

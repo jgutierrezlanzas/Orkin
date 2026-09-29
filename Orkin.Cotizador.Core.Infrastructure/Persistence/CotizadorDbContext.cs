@@ -1052,7 +1052,19 @@ public class CotizadorDbContext : DbContext
         // ── int.ErpFlujo ─────────────────────────────────────────────────────────
         var flujo = modelBuilder.Entity<ErpFlujo>();
         ConfigurarBase(flujo);
-        flujo.ToTable("ErpFlujo", Esquemas.Integracion);
+        // Los tres CHECK viven en la base y no en el código a propósito. La validación de la API
+        // es una cortesía para quien usa la pantalla; la de la base es la que se cumple. Un
+        // intervalo de 2 segundos no es «un valor raro»: son 43.200 consultas diarias contra el
+        // ERP de un cliente, y tiene que ser imposible escribirlo por cualquier vía.
+        flujo.ToTable("ErpFlujo", Esquemas.Integracion, t =>
+        {
+            t.HasCheckConstraint("CK_ErpFlujo_IntervaloMinimo",
+                "[IntervaloSegundos] IS NULL OR [IntervaloSegundos] >= 10");
+            t.HasCheckConstraint("CK_ErpFlujo_Desfase",
+                "[DesfaseSegundos] BETWEEN 0 AND 30");
+            t.HasCheckConstraint("CK_ErpFlujo_Fallos",
+                "[MaximoFallosConsecutivos] > 0");
+        });
         flujo.Property(f => f.ErpConexionId).HasColumnName("ErpConexionId").IsRequired();
         flujo.Property(f => f.Nombre).HasColumnName("Nombre").HasMaxLength(150).IsRequired();
         flujo.Property(f => f.Descripcion).HasColumnName("Descripcion").HasMaxLength(500);
@@ -1061,6 +1073,14 @@ public class CotizadorDbContext : DbContext
         flujo.Property(f => f.MapeoJson).HasColumnName("MapeoJson").HasColumnType("nvarchar(max)");
         flujo.Property(f => f.TipoDisparador).HasColumnName("TipoDisparador").IsRequired();
         flujo.Property(f => f.IntervaloSegundos).HasColumnName("IntervaloSegundos");
+        flujo.Property(f => f.DesfaseSegundos).HasColumnName("DesfaseSegundos").HasDefaultValue((short)0);
+        flujo.Property(f => f.MaximoRegistrosPorCorrida).HasColumnName("MaximoRegistrosPorCorrida");
+        flujo.Property(f => f.MaximoFallosConsecutivos).HasColumnName("MaximoFallosConsecutivos")
+            .HasDefaultValue(IntegracionCatalogos.MaximoFallosConsecutivosPorDefecto);
+        flujo.Property(f => f.ProximaEjecucionUtc).HasColumnName("ProximaEjecucionUtc").HasColumnType("datetime2(3)");
+        flujo.Property(f => f.UltimoIntentoUtc).HasColumnName("UltimoIntentoUtc").HasColumnType("datetime2(3)");
+        flujo.Property(f => f.EsPausado).HasColumnName("EsPausado").HasDefaultValue(false);
+        flujo.Property(f => f.MotivoPausa).HasColumnName("MotivoPausa").HasMaxLength(500);
         flujo.Property(f => f.ModoExtraccion).HasColumnName("ModoExtraccion").IsRequired();
         flujo.Property(f => f.Estado).HasColumnName("Estado").IsRequired();
         flujo.Property(f => f.UltimaEjecucionUtc).HasColumnName("UltimaEjecucionUtc").HasColumnType("datetime2(3)");
@@ -1073,6 +1093,17 @@ public class CotizadorDbContext : DbContext
         flujo.Property(f => f.FallosConsecutivos).HasColumnName("FallosConsecutivos").HasDefaultValue((short)0);
         flujo.HasIndex(f => new { f.ErpConexionId, f.Nombre }).IsUnique()
             .HasDatabaseName("UX_ErpFlujo_ConexionNombre");
+        // Índice filtrado de los flujos que el motor tiene que mirar. La pregunta del planificador
+        // es siempre la misma —¿qué se venció desde la última vuelta?— y sin este índice sería un
+        // recorrido de tabla. Hoy no costaría nada porque la tabla tiene dos o tres filas; costaría
+        // el día que haya clientes de verdad. El filtro deja fuera los flujos manuales, los
+        // pausados y los que están en BORRADOR, que nunca se consultan, para que el índice no
+        // crezca con filas muertas. El estado va como `<> 1` y no como `= 3` por la misma razón
+        // que en EsEjecutable: CON_ERROR también se reclama, y si el filtro lo dejara afuera, un
+        // flujo con el ERP caído saldría del índice y el motor dejaría de reintentarlo.
+        flujo.HasIndex(f => f.ProximaEjecucionUtc)
+            .HasFilter("[EsPausado] = 0 AND [IntervaloSegundos] IS NOT NULL AND [Estado] <> 1")
+            .HasDatabaseName("IX_ErpFlujo_Programados");
         flujo.HasOne(f => f.Conexion).WithMany().HasForeignKey(f => f.ErpConexionId)
             .OnDelete(DeleteBehavior.Cascade);
 
