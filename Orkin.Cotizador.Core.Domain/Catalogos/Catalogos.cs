@@ -67,6 +67,22 @@ public class UnidadMedida : CatalogoBase
     public bool PermiteDecimales { get; set; } = true;
 }
 
+/// <summary>
+/// Técnico de campo. Se asigna a las cotizaciones y viene del ERP del cliente, como los demás
+/// catálogos — quien hace el trabajo es personal del cliente, no de la plataforma.
+/// </summary>
+public class Tecnico : CatalogoBase
+{
+    /// <summary>Para llamarlo cuando se le asigna un trabajo.</summary>
+    public string? Telefono { get; set; }
+
+    /// <summary>Para enviarle la orden de trabajo.</summary>
+    public string? Correo { get; set; }
+
+    /// <summary>Ej. "Técnico de campo", "Supervisor técnico". Informativo.</summary>
+    public string? Cargo { get; set; }
+}
+
 /// <summary>Familia de un producto: insecticida, rodenticida, repelente, bulk, servicio…</summary>
 public class CategoriaProducto : CatalogoBase
 {

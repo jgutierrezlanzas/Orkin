@@ -54,6 +54,8 @@ public class CotizadorDbContext : DbContext
     // ── dbo · Catálogos de dominio (solo lectura, ADR-018) ──────────────────────
     public DbSet<MetodoCosteoCatalogo> MetodoCosteoCatalogo => Set<MetodoCosteoCatalogo>();
     public DbSet<TipoClienteCatalogo> TipoClienteCatalogo => Set<TipoClienteCatalogo>();
+
+    public DbSet<Tecnico> Tecnico => Set<Tecnico>();
     public DbSet<EstadoCotizacionCatalogo> EstadoCotizacionCatalogo => Set<EstadoCotizacionCatalogo>();
     public DbSet<SemestreCatalogo> SemestreCatalogo => Set<SemestreCatalogo>();
     public DbSet<ModalidadCatalogo> ModalidadCatalogo => Set<ModalidadCatalogo>();

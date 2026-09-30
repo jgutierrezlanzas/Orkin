@@ -1014,6 +1014,74 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.ToTable("SemestreCatalogo", "dbo");
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Catalogos.Tecnico", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Cargo")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CodigoExterno")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Correo")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ErpConexionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("EsSembrado")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("HashContenido")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("int");
+
+                    b.Property<byte>("OrigenDatoId")
+                        .HasColumnType("tinyint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("Telefono")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UltimaSyncUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Tecnico");
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Catalogos.TipoClienteCatalogo", b =>
                 {
                     b.Property<byte>("Id")

@@ -59,6 +59,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorCategoriasProducto>();
         services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorTiposServicio>();
         services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorTiposCambio>();
+        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorActivosAmortizables>();
+        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorTecnicos>();
 
         // Integración con el ERP del cliente (Fase 12): conexiones, flujos y sus corridas.
         services.AddScoped<Integracion.IntegracionService>();
