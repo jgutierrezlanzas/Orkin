@@ -70,8 +70,8 @@ services:
       - ADMIN_PASSWORD=OrkinDev_2026
 
       # ── CORS: la web local en debug consume la API desde estos orígenes ──────
-      - Cors__Origenes__0=http://localhost:59793
-      - Cors__Origenes__1=https://localhost:59790
+      - Cors__Origenes__0=http://localhost:59093
+      - Cors__Origenes__1=https://localhost:59090
     ports:
       # Host 5031 → contenedor 8080 (el puerto por defecto de .NET en Docker).
       # La web local llama a http://localhost:5031 como si la API estuviera local.

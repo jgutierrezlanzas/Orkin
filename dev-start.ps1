@@ -12,7 +12,7 @@
 
     Al terminar:
       - API:  http://localhost:5031 (Swagger: /swagger)
-      - Web:  http://localhost:59793
+      - Web:  http://localhost:59093
       - BD:   localhost:1433 (Orkin)
 
 .USAGE
@@ -66,18 +66,18 @@ if (-not $SoloWeb) {
 }
 
 # 3. Arrancar la Web localmente (debug)
-Write-Host 'Iniciando Web (http://localhost:59793)...' -ForegroundColor Cyan
+Write-Host 'Iniciando Web (http://localhost:59093)...' -ForegroundColor Cyan
 
 $webProject = Join-Path $repoRoot 'Orkin.Cotizador.UI\Orkin.Cotizador.UI.Web\Orkin.Cotizador.UI.Web.csproj'
 $env:ASPNETCORE_ENVIRONMENT = 'Development'
-$env:ASPNETCORE_URLS = 'http://localhost:59793'
+$env:ASPNETCORE_URLS = 'http://localhost:59093'
 
 & dotnet run --project $webProject
 
 Write-Host ''
 Write-Host 'Ambiente de desarrollo listo:' -ForegroundColor Green
 Write-Host '  API:     http://localhost:5031/swagger' -ForegroundColor White
-Write-Host '  Web:     http://localhost:59793/login' -ForegroundColor White
+Write-Host '  Web:     http://localhost:59093/login' -ForegroundColor White
 Write-Host '  Admin:   admin@orkin.local / OrkinDev_2026' -ForegroundColor White
 Write-Host ''
 Write-Host 'Para detener:' -ForegroundColor Yellow
