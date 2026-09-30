@@ -824,12 +824,12 @@ graph LR
 | 4.2 | `CRUD Clientes` (residencial / empresarial) + ficha e historial | Pestaña de clientes del prototipo | ✅ (ficha/historial: ⬜) |
 | 4.3 | `Pages/Cotizaciones` — filtros + tabla con **N°, Cliente, Servicio, Fecha, Estado, Precios** | Listado funcional | ✅ |
 | 4.4 | `Pages/CotizacionNueva` — formulario con header y datos generales | Formulario funcional | ✅ (overlay: ⬜) |
-| 4.5 | Bloque **Insumos consumibles** + búsqueda de producto | Tabla con agregar/quitar | ✅ (diálogo búsqueda: ⬜) |
+| 4.5 | Bloque **Insumos consumibles** + búsqueda de producto | Tabla con agregar/quitar | ✅ (interín: select por fila. Según Plantilla D: botón "buscar y agregar" que abre un **modal de búsqueda con filtros** para elegir producto; el botón de agregar va al pie, donde cae la fila nueva) |
 | 4.6 | Bloque **Activos amortizables** (Activo, Precio, Cant., Vida útil, Valor mensual) | | ⬜ |
 | 4.7 | Bloque **Margen y tipo de cambio** con TC y recálculo | En el formulario | ✅ |
 | 4.8 | Barra inferior con total en vivo `C$ X ≈ $ Y` + `Enviar a aprobación` | | 🟡 (botón Calcular, no en vivo) |
 | 4.9 | `ResumenDialog` — desglose de insumos + amortizables + margen + total | | ⬜ |
-| 4.10 | Modal **Anular** con confirmación | | ⬜ |
+| 4.10 | Modal **Anular** con confirmación | | ⬜ Junto con **editar** y **nueva versión** para cotizaciones no aprobadas: el ciclo de vida de una cotización todavía no se opera desde la UI |
 | 4.11 | **Versionado**: editar una cotización aprobada crea `Version+1` | | ⬜ |
 | 4.12 | **Cálculo en vivo** de totales al cambiar cantidades/margen | UX fluida | 🟡 (botón, no por tecla) |
 | 4.13 | **Flujo empresarial por semestre** en el formulario (dos bloques) | Según D-03 | 🔴 |
@@ -970,12 +970,12 @@ graph LR
 | 12.5 | `SqlServerErpConector` (el primero; los demás copian el patrón) | | ✅ Probado contra la base demo `OrkinClienteDemo` |
 | 12.6 | Motor de transformación: `TransformacionPipeline` con el catálogo de ~20 operaciones | Código puro + tests | ✅ Simplificado a propósito: la **vista del cliente es la transformación** (une tablas y traduce nombres) y el mapeo JSON es una proyección estricta para lo que la vista no pueda. Un pipeline de 20 operaciones sería reprogramar en C# lo que el DBA del cliente ya sabe hacer en SQL |
 | 12.7 | Motor de validación + `int.ErpRechazo` + bandeja de rechazos en la UI | Nada falla en silencio | ✅ Cada fila rechazada lleva número, código y motivo; visibles en simulación e historial |
-| 12.8 | Cargador: *upsert* por clave, comparación por `HashContenido`, historial en `PrecioProducto`, y **alta/baja** con aviso de "producto en uso" | | ✅ `CargadorProductos` y `CargadorClientes`, con adopción de huérfanos y 52 pruebas. Historial de precios y baja con aviso: ⬜ |
+| 12.8 | Cargador: *upsert* por clave, comparación por `HashContenido`, historial en `PrecioProducto`, y **alta/baja** con aviso de "producto en uso" | | ✅ `CargadorProductos` y `CargadorClientes`, con adopción de huérfanos y 52 pruebas. **Faltan los demás catálogos — todos deben venir del origen del cliente:** tipos de cambio (el más urgente: el ERP demo trae 1 309 días y la tabla de la plataforma está vacía), unidades de medida, categorías de producto, tipos de servicio, activos amortizables. Historial de precios y baja con aviso: ⬜ |
 | 12.9 | `ErpOrquestador`: extrae → transforma → valida → carga → registra | | ⬜ |
 | 12.10 | **`int.ErpSimulacion`**: el botón "Simular" con grilla de resultados | El paso que evita arruinar un catálogo | ✅ La misma carga con el último paso cortado; grilla fila por fila en modal, con filtros y paginación |
 | 12.11 | `ErpSincronizacionBackgroundService`: scheduler + disparo por evento + reclamo atómico | "En vivo" | ✅ Intervalo configurable por flujo (piso 10 s en la base), pausa automática tras fallos seguidos, corrida no-op sin bitácora, primera corrida inmediata al activar |
 | 12.12 | `WebhookController` (público, por token, con HMAC) → `int.EventoRecibido` | Inmediatez real | ⬜ `TipoDisparador` EVENTO ya reservado en el catálogo |
-| 12.13 | `int.ErpDependencia`: orden de ejecución entre flujos (TC, unidades y categorías antes que productos) | | ⬜ Hoy se resuelve configurando los intervalos a mano |
+| 12.13 | `int.ErpDependencia`: orden de ejecución entre flujos (TC, unidades y categorías antes que productos) | | ⬜ Hoy se resuelve configurando los intervalos a mano. Con los flujos programados ganando terreno, hace falta de verdad: los maestros tienen que correr **antes** que lo que depende de ellos, o una corrida de productos a las 8:00 rechaza filas enteras porque las unidades llegaron a las 8:05 |
 | 12.14 | Pantalla de monitoreo: corridas, contadores, rechazos, alertas, detalle de cambios | Operabilidad | ✅ Orígenes de datos: conexiones, flujos, programación con cuenta regresiva, historial paginado, ejecutar/simular/pausar |
 | 12.15 | Alertas por correo: conexión fallida, 5 fallos seguidos, muchos rechazos, producto desactivado en uso | | ⬜ La pausa automática con `MotivoPausa` hace visible el corte de 5 fallos en pantalla |
 | 12.16 | Conectores adicionales (PostgreSQL, REST, Odoo, MySQL, archivo) | Uno por ERP real | ⬜ |

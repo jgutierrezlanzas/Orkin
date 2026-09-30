@@ -1,44 +1,45 @@
-@* Select de catálogo que no puede mostrar un identificador crudo.
+@* Combo de catálogo que busca mientras se escribe y no puede mostrar un identificador crudo.
 
    Regla de la casa: si el dato se llama por su id (un Guid, un byte), a la pantalla llega su
    nombre o su descripción, nunca el identificador. Un combo que enseña "321b0838-7066-..." no
    dice nada de qué se está eligiendo y se ve espantoso.
 
-   Cómo se garantiza: MudSelect resuelve el texto cerrado buscando entre los MudSelectItem
-   renderizados, y cuando no encuentra el valor cae a un hueco vacío (peor: editar un producto
-   cuya categoría fue desactivada mostraba un combo en blanco, sin saber cuál tenía). Este
-   componente agrega, cuando hace falta, un ítem sintético con el nombre que ya viene resuelto
-   en el registro (TextoValorActual) — o un guión si ni eso se sabe —, de modo que el valor
-   actual SIEMPRE tiene un ítem que lo traduzca. No hay rama que renderice un identificador.
+   Regla de uso: los catálogos crecen. Un desplegable de 111 productos obliga a leerlos todos;
+   con mil, es un pozo de scroll. Por esto el componente es un MudAutocomplete y no un
+   MudSelect: escribir "aceite" y ver los tres aceites es la diferencia entre elegir y buscar.
+
+   Cómo se garantiza que nunca sale un identificador: el texto cerrado sale de
+   <see cref="TextoDelValor"/> — que resuelve el valor contra la lista y, si el valor ya no está
+   (la categoría se desactivó y el filtro de activos la sacó), contra
+   <see cref="TextoValorActual"/> del registro que se edita, o un guión como última instancia.
+   Los resultados de búsqueda también salen de la lista: no hay rama que renderice un id.
 *@
 @using System.Linq.Expressions
+@using System.Globalization
+@using System.Text
 @typeparam TItem
 @typeparam TValue
 
-<MudSelect T="TValue"
-           Value="Value"
-           ValueChanged="OnCambio"
-           ValueExpression="ValueExpression"
-           Label="Label"
-           Variant="Variant"
-           Margin="Margin"
-           Dense="Dense"
-           Clearable="Clearable"
-           Disabled="Disabled"
-           Class="Class"
-           Style="Style">
-    @foreach (var item in Items)
-    {
-        <MudSelectItem T="TValue" Value="@ValorDe(item)">@TextoDe(item)</MudSelectItem>
-    }
-    @if (_valorFaltaEnLaLista)
-    {
-        <MudSelectItem T="TValue" Value="@Value">@(TextoValorActual ?? "—")</MudSelectItem>
-    }
-</MudSelect>
+<MudAutocomplete T="TValue"
+                 Value="Value"
+                 ValueChanged="OnCambio"
+                 ValueExpression="ValueExpression"
+                 SearchFunc="BuscarAsync"
+                 ToStringFunc="TextoDelValor"
+                 Label="@Label"
+                 Variant="Variant"
+                 Margin="Margin"
+                 Dense="Dense"
+                 Clearable="Clearable"
+                 Disabled="Disabled"
+                 Class="@Class"
+                 Style="@Style"
+                 Immediate="true"
+                 DebounceInterval="150"
+                 MaxItems="@TopeResultados" />
 
 @code {
-    /// <summary>Los elementos elegibles, en el orden en que se muestran.</summary>
+    /// <summary>Los elementos elegibles. La búsqueda filtra sobre esta lista en memoria.</summary>
     [Parameter, EditorRequired]
     public IReadOnlyList<TItem> Items { get; set; } = [];
 
@@ -95,10 +96,82 @@
     [Parameter]
     public string? Style { get; set; }
 
+    /// <summary>
+    /// Cuántos resultados mostrar como máximo. La búsqueda existe justamente para no leer todo;
+    /// sin tope, un catálogo de diez mil productos abriría el desplegable con diez mil filas.
+    /// </summary>
+    [Parameter]
+    public int TopeResultados { get; set; } = 100;
+
     private bool _esVacio => EqualityComparer<TValue>.Default.Equals(Value, default);
 
-    private bool _valorFaltaEnLaLista =>
-        !_esVacio && !Items.Any(i => EqualityComparer<TValue>.Default.Equals(ValorDe(i), Value!));
+    /// <summary>El texto que muestra el combo cerrado. Nunca un identificador.</summary>
+    private string? TextoDelValor(TValue? valor)
+    {
+        if (valor is null || EqualityComparer<TValue>.Default.Equals(valor, default))
+        {
+            return string.Empty;
+        }
+
+        var item = Items.FirstOrDefault(i => EqualityComparer<TValue>.Default.Equals(ValorDe(i), valor));
+
+        if (item is not null)
+        {
+            return TextoDe(item);
+        }
+
+        // El valor ya no está en la lista: la ficha se desactivó o la lista se recargó. El
+        // nombre lo trae el registro que se edita; sin eso, un guión — nunca el id.
+        return TextoValorActual ?? "—";
+    }
+
+    /// <summary>
+    /// La búsqueda: coincide por texto, sin importar mayúsculas ni tildes — escribir "pineo"
+    /// encuentra "Piñeo", y "aceite 2t" encuentra "Aceite 2T". Sin texto, devuelve el catálogo
+    /// completo (recortado al tope) para que abrir el combo siga sirviendo para mirar.
+    /// </summary>
+    private Task<IEnumerable<TValue>> BuscarAsync(string texto, CancellationToken cancellation)
+    {
+        IEnumerable<TItem> candidatos = Items;
+
+        if (!string.IsNullOrWhiteSpace(texto))
+        {
+            var buscado = Normalizar(texto);
+            candidatos = Items.Where(i => Normalizar(TextoDe(i)).Contains(buscado, StringComparison.Ordinal));
+        }
+
+        var valores = candidatos.Take(TopeResultados).Select(ValorDe).ToList();
+
+        // El valor actual solo se agrega cuando se navega sin filtro. Al escribir, agregarlo
+        // aunque no coincida ensucia la búsqueda (escribir "hotel" y ver la conexión actual,
+        // que no es ningún hotel, hace pensar que el filtro no funciona). Si el valor cayó fuera
+        // de la lista activa —ficha desactivada—, sin texto sigue estando y se puede re-elegir.
+        if (string.IsNullOrWhiteSpace(texto)
+            && !_esVacio
+            && valores.All(v => !EqualityComparer<TValue>.Default.Equals(v, Value)))
+        {
+            valores.Add(Value!);
+        }
+
+        return Task.FromResult<IEnumerable<TValue>>(valores);
+    }
+
+    /// <summary>Quita mayúsculas y tildes: la búsqueda no debe exigir que quien busca teclee perfecto.</summary>
+    private static string Normalizar(string texto)
+    {
+        var sinTildes = texto.Normalize(NormalizationForm.FormD);
+
+        var builder = new StringBuilder(sinTildes.Length);
+        foreach (var c in sinTildes)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(c);
+            }
+        }
+
+        return builder.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
+    }
 
     private Task OnCambio(TValue valor) => ValueChanged.InvokeAsync(valor);
 }
