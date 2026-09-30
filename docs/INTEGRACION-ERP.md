@@ -372,6 +372,18 @@ real es de 5 minutos, no de 5 minutos en el peor caso con 30 segundos de sondeo*
 | Respetar la ventana del ERP | `DiasSemana` + `HoraInicioUtc` / `HoraFinUtc` + `SoloFueraDeVentana`. El ERP de un cliente puede no permitir conexiones a las 2 a. m. |
 | Respetar el ritmo del ERP | `LoteRegistros` y `TiempoEsperaSegundos` por conexión, configurables por el DBA del cliente |
 
+> **Cómo quedó implementado (2026-09-30).** Del cuadro de arriba, hoy existen y están verificados:
+> intervalo mínimo 10 s (`CHECK` en la base), intervalos sugeridos en la UI (10 s · 30 s · 1 min ·
+> 5 min · 15 min · 1 h · día), `DesfaseSegundos` 0–30 tirado una sola vez al crear el flujo,
+> `MaximoRegistrosPorCorrida`, reclamo atómico (`UPDLOCK, READPAST` — `ROWLOCK` se cambió porque
+> `READPAST` es lo que hace que dos instancias se repartan los flujos en vez de chocar) y pausa
+> automática tras `MaximoFallosConsecutivos` fallos, con el motivo escrito en la fila
+> (`MotivoPausa`) y visible en la tabla. La corrida programada que no cambia nada **no** deja
+> fila en la bitácora: el latido va en `UltimoIntentoUtc`, y el historial queda para lo que sí
+> pasó. **Aún no existen:** la ventana horaria del ERP, `LoteRegistros` y `int.ErpAlerta`
+> (la pausa se ve hoy por `MotivoPausa` en pantalla). El webhook (4.4/4.5) sigue pendiente:
+> el `TipoDisparador` `EVENTO` ya está reservado en el catálogo.
+
 ---
 
 ## 5. Alta y baja de productos — el caso que más se usa
@@ -541,12 +553,14 @@ Nunca se puede activar un flujo sin haber pasado por **Simular**.
 
 ---
 
-## 9. Lo que ya está construido (2026-09-29)
+## 9. Lo que ya está construido (2026-09-30)
 
-La primera versión es **funcional de punta a punta** y está probada contra una base de datos
-ficticia que simula el ERP de un cliente. Alcanza el recorrido completo —conectar, leer una vista,
-transformar, cargar, omitir lo que no cambió y dejar bitácora— con un solo catálogo (`PRODUCTOS`)
-y un solo motor (SQL Server).
+La versión es **funcional de punta a punta** y está probada contra una base de datos
+ficticia que simula el ERP de un cliente. El recorrido completo —conectar, leer una vista,
+transformar, cargar, omitir lo que no cambió y dejar bitácora— funciona **con dos catálogos**
+(`PRODUCTOS` y `CLIENTES`) y un motor (SQL Server), y los flujos **corren solos**: cada uno
+con su intervalo configurable, pausa automática si el ERP falla seguido y bitácora que solo
+anota lo que pasó.
 
 ### 9.1 Qué quedó fuera de esta versión, y por qué
 
@@ -555,10 +569,10 @@ y un solo motor (SQL Server).
 | `ErpOrigen` / `ErpMapeoCampo` como tablas (12.2) | El origen y el mapeo viven **en la misma fila** de `int.ErpFlujo` (`Origen` + `MapeoJson`). Con un origen por flujo no hay nada que normalizar en tablas separadas, y partir el mapeo en filas obliga a unite al leerlo. Si aparece el segundo origen por flujo, se extrae. |
 | `IErpConector` / `SqlServerErpConector` (12.4–12.5) | Hoy hay un `ILectorOrigen` (`LectorSqlServer`) que lee y devuelve filas. La abstracción de conector se necesita cuando el segundo ERP sea de otra tecnología; con uno solo sería una interfaz con un solo implementador. |
 | ~~Simulación previa obligatoria (12.10)~~ | **Hecha** (§9.5). Era la pieza que más urgía. |
-| Programación automática (12.11–12.12) | Falta. Hoy la sincronización se dispara a mano desde la pantalla. El motor de carga ya sabe ser idempotente (hash), así que correr cada 5 minutos no es peligroso. |
-| Los otros catálogos (12.x) | Hay cargador de `PRODUCTOS` únicamente. Los demás siguen el mismo camino: un `CargadorX` más un `MapeoPorDefecto`. |
+| ~~Programación automática (12.11)~~ | **Hecha.** Cada flujo tiene su intervalo configurable (piso 10 s, en la base), primera corrida inmediata al activar, pausa automática tras N fallos seguidos con el motivo escrito, y corrida no-op sin bitácora (el latido va en `UltimoIntentoUtc`). Falta el webhook (12.12). |
+| ~~Los otros catálogos (12.x)~~ | **`PRODUCTOS` y `CLIENTES` cargan del ERP.** El de clientes pide `TipoClienteCodigo` obligatorio porque decide el método de costeo. Los demás (activos, unidades, tipos de cambio, tipos de servicio) siguen el mismo camino: un `CargadorX` por catálogo. |
 | Alta/baja de productos (12.8, §5) | El cargador actual hace *upsert*, no baja. Una baja automática sin aviso borra insumos de cotizaciones abiertas. |
-| Alertas por correo (12.15) | Falta. Hoy el que se entera de un fallo es quien mira la bitácora. |
+| Alertas por correo (12.15) | Falta. La pausa automática con `MotivoPausa` es visible en pantalla; el correo es lo que falta. |
 
 ### 9.2 Lo que sí quedó, y cómo está resuelto
 
@@ -638,17 +652,22 @@ Con Docker levantado y la base del cliente ficticio creada:
 
 ```powershell
 # 1. Esquema del ERP ficticio (ARTICULO + UNIDAD + GRUPO + la vista contrato)
-Get-Content scripts\demo-cliente\01-esquema.sql -Raw |
-  docker exec -i orkin-db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "OrkinDev_2026" -C -b
+#    OJO con el como: la tuberia de PowerShell (Get-Content ... | docker exec -i sqlcmd)
+#    corrompe los acentos del UTF-8 (convirtio un "Pacífico" en "Pac??fico" en la base).
+#    La redireccion de cmd pasa los bytes tal cual y -f 65001 le dice al sqlcmd que lea UTF-8.
+cmd /c "docker exec -i orkin-db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P OrkinDev_2026 -C -d OrkinClienteDemo -f 65001 < scripts\demo-cliente\01-esquema.sql"
 
-# 2. Datos desde el Excel de ORKIN (111 artículos, 1309 días de TC, 11 servicios)
+# 2. Clientes del ERP ficticio (16 fichas inventadas: el cotizador Excel no tiene hoja de clientes)
+cmd /c "docker exec -i orkin-db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P OrkinDev_2026 -C -d OrkinClienteDemo -f 65001 < scripts\demo-cliente\02-clientes.sql"
+
+# 3. Datos desde el Excel de ORKIN (111 artículos, 1309 días de TC, 11 servicios)
 dotnet run --project tools\Orkin.DemoCliente.CargarDatos -- "Cotizador Original - Agosto 31 2026.xlsm"
 
-# 3. API arriba (aplica migraciones y siembra al arrancar)
+# 4. API arriba (aplica migraciones y siembra al arrancar)
 docker compose up -d --build
 ```
 
-Y en `http://localhost:59793/catalogos/origenes`, con `admin@orkin.local`:
+Y en `http://localhost:59093/catalogos/origenes`, con `admin@orkin.local`:
 
 1. **Conexión** → servidor `db`, puerto `1433`, base `OrkinClienteDemo`, usuario `sa`.
 2. **Probar** → debe decir "Conexión correcta" y el tiempo que tardó.
@@ -656,6 +675,9 @@ Y en `http://localhost:59793/catalogos/origenes`, con `admin@orkin.local`:
 4. **Ejecutar** → `111` nuevos.
 5. **Ejecutar otra vez** → `111` sin cambio.
 6. **Historial** → las dos corridas, con duración y contadores.
+7. **Flujo de clientes** → catálogo `CLIENTES`, origen `dbo.vw_ClientesOrkin`, mapeo vacío →
+   `16` nuevas; la vista ya trae `TipoClienteCodigo` (`EMPRESARIAL`/`RESIDENCIAL`), que es
+   obligatorio porque decide el método de costeo de las cotizaciones de ese cliente.
 
 > El paso 2 tiene que ir contra `OrkinClienteDemo` y no contra la base de la plataforma: si se
 > corre con la cadena de la plataforma, el cargador se está leyendo a sí mismo.

@@ -810,9 +810,9 @@ recalculan al leer, se leen tal como quedaron al guardar (RN-03 a RN-08).
 | `Version` | `smallint` | No | `1` | `1, 2, 3…` |
 | `VersionAnteriorId` | `uniqueidentifier` | Sí | — | FK → `Cotizacion` (`NULL` en la v1) |
 | `EsVersionActual` | `bit` | No | `1` | Una sola `1` por `Numero` (índice filtrado) |
-| `ClienteId` | `uniqueidentifier` | No | — | FK → `Cliente` |
+| `ClienteId` | `uniqueidentifier` | Sí | `NULL` | FK → `Cliente`. **`NULL` = cotización para un cliente nuevo**: alguien pidió precios y todavía no tiene ficha en el catálogo. El nombre va en `ClienteNombre`. Si el cliente entra después al catálogo (cargado del ERP), las cotizaciones viejas **no** se re-asignan: son snapshot y re-atarlas sería escribir que se cotizó "para la ficha" cuando se cotizó "para el nombre" |
 | `TipoServicioId` | `uniqueidentifier` | No | — | FK → `TipoServicio` |
-| `TipoCliente` | `tinyint` | No | — | FK → `TipoClienteCatalogo`. Copia del cliente al momento de cotizar |
+| `TipoCliente` | `tinyint` | No | — | FK → `TipoClienteCatalogo`. Copia del cliente al momento de cotizar; para un cliente nuevo, el tipo que eligió quien cotizó (decide el método de costeo) |
 | `Fecha` | `date` | No | — | Fecha de la cotización |
 | `FechaVigencia` | `date` | Sí | `NULL` | Hasta cuándo es válida la oferta |
 | `VigenciaDias` | `smallint` | Sí | `NULL` | Regla de negocio; `NULL` = sin vencimiento |
@@ -837,7 +837,7 @@ recalculan al leer, se leen tal como quedaron al guardar (RN-03 a RN-08).
 | `HashCalculo` | `binary(32)` | Sí | `NULL` | Huella de las entradas del motor. Detecta si alguien la editó a mano |
 | `ParametrosCalculo` | `nvarchar(max)` | Sí | `NULL` | JSON con el estado completo del motor → permite **reproducir** el cálculo y depurar |
 | **Datos del cliente y de la oferta (snapshot)** | | | | |
-| `ClienteNombre` | `nvarchar(200)` | No | — | Copia al momento de cotizar |
+| `ClienteNombre` | `nvarchar(200)` | No | — | El nombre tal como se cotizó. Para un cliente del catálogo, copia de `Cliente.Nombre`; para un cliente nuevo, el que tecleó quien cotizó. Es el único nombre confiable de una cotización vieja: el cliente pudo cambiar de nombre o nunca llegar al catálogo |
 | `ClienteDocumento` | `nvarchar(30)` | Sí | `NULL` | |
 | `ContactoNombre` | `nvarchar(150)` | Sí | `NULL` | |
 | `ContactoTelefono` | `nvarchar(30)` | Sí | `NULL` | |
@@ -1374,6 +1374,27 @@ CHECK (SuperficieDeWatermark >= 0)
 > el patrón "reclamo atómico" (`UPDLOCK, ROWLOCK`), para que dos instancias nunca ejecuten el
 > mismo flujo al mismo tiempo. Con 30 s por flujo y 6 flujos son 17 280 ejecuciones diarias; el
 > índice `IX_ErpFlujo_Vigilancia` mantiene esa consulta en un seek.**
+
+> **Cómo quedó implementado (2026-09-30).** La tabla real es un subconjunto práctico de este
+> diseño: `Id, ErpConexionId, Nombre, Descripcion, Estado, TipoDisparador, IntervaloSegundos,
+> DesfaseSegundos, ModoExtraccion, Catalogo, Origen, MapeoJson, MaximoRegistrosPorCorrida,
+> UltimaEjecucionUtc, UltimoIntentoUtc, UltimoEstado, UltimoError, Ultimos* (contadores),
+> FallosConsecutivos, MaximoFallosConsecutivos, ProximaEjecucionUtc, EsPausado, MotivoPausa`,
+> `IsActive` y base. Lo que no existe todavía: `EntidadLogica`, `EsCritico`, la ventana
+> horaria (`DiasSemana`/`HoraInicioUtc`), la marca de agua incremental y el cursor —hoy cada
+> corrida lee la vista completa y decide por `HashContenido`—. Tres cosas nuevas que el diseño
+> no preveía y el motor necesita:
+>
+> | Columna | Por qué existe |
+> |---|---|
+> | `ProximaEjecucionUtc` | **El token del reclamo.** El motor no calcula la próxima corrida: la lee de acá y la avanza al reclamar. Es lo que hace que dos instancias no se adjudiquen el mismo flujo: el `UPDATE ... SET ProximaEjecucionUtc = @ventana WHERE Id = @id AND ProximaEjecucionUtc <= @ahora` solo le gana a la primera. Índice filtrado `IX_ErpFlujo_Programados` sobre `ProximaEjecucionUtc WHERE EsPausado = 0 AND IntervaloSegundos IS NOT NULL AND Estado <> 1` |
+> | `UltimoIntentoUtc` | El latido. La corrida programada que no cambia nada no deja fila en la bitácora (a 10 s son 8 640 al día), pero sí actualiza acá: la tabla de flujos sigue diciendo "esto está vivo" sin llenar el historial de ruido |
+> | `EsPausado` + `MotivoPausa` | La pausa automática tras `MaximoFallosConsecutivos` (default 5). Es estado propio y no un `Estado = CON_ERROR`: uno es "dejemos de pegarle al ERP hasta que alguien lo mire" y el otro "la última corrida falló, se recupera sola". Pausar a mano borra `ProximaEjecucionUtc` y escribe el motivo; reanudar limpia fallos y ventana inmediata |
+>
+> El reclamo usa `UPDLOCK, READPAST` (no `ROWLOCK`): `READPAST` es lo que reparte flujos entre
+> instancias en vez de hacer que la segunda espere a la primera. `DesfaseSegundos` se tira una
+> sola vez al crear el flujo (0–30, `CHECK`) y no se recalcula: sumarlo en cada corrida sería una
+> deriva de minutos por día.
 
 ---
 

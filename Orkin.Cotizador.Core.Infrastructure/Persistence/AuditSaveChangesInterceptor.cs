@@ -498,11 +498,11 @@ public sealed class AuditSaveChangesInterceptor : SaveChangesInterceptor
     /// El <see cref="DbCommand"/> sobre la misma conexión del contexto, para que herede su
     /// transacción.
     /// <para><b>Por qué no <c>ExecuteSqlRaw</c>:</b> se empezó con él y tiene dos Entradas que
-    /// hacen que no sirva ac��. La primera es el tipo de los parámetros: con valores sueltos, EF
+    /// hacen que no sirva acá. La primera es el tipo de los parámetros: con valores sueltos, EF
     /// los tipa con <c>GetMapping(valor.GetType())</c>, y para un nulo no hay tipo que mirar. Se
     /// puede probar con <c>?? DBNull.Value</c>, pero <c>DBNull</c> no es un tipo que el proveedor
     /// sepa mapear y el error que sale no menciona ni la columna ni la fila. La segunda es
-    ///clusive: al pasar parámetros ya construidos, EF los renombra pasando el SQL por
+    /// <b>exclusive</b>: al pasar parámetros ya construidos, EF los renombra pasando el SQL por
     /// <c>string.Format</c>, y <c>string.Format</c> no entiende los marcadores <c>{p0}</c> de EF
     /// —da <c>FormatException: Expected an ASCII digit</c>—. Con <see cref="DbCommand"/> no hay
     /// marcadores, no hay inferencia de tipos y no hay sorpresas: los tipos se declaran.</para>

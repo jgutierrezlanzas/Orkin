@@ -486,10 +486,18 @@ Requisitos: Docker Desktop, .NET 10 SDK, PowerShell 7.
 |---|---|---|
 | SQL Server 2022 | Docker (`docker-compose.yml`) | `localhost:1433` |
 | API (.NET 10) | Docker (`docker-compose.yml`) | `localhost:5031` |
-| Web (Blazor WASM) | Local con `dotnet run` (debug) | `localhost:59793` |
+| Web (Blazor WASM) | Local con `dotnet run` (debug) | `localhost:59093` (HTTPS `59090`) |
 
 La API y la base en Docker simplifican el arranque: un solo `docker compose up` deja
 la infraestructura lista. La web corre local para poder depurarla con hot-reload.
+
+> **Si Kestrel se niega a arrancar** con "address in use" y `netstat` no muestra a nadie
+> en el puerto: no es nadie, es WinNAT. Windows se queda rangos de puertos dinámicos que
+> se mueven con cada reinicio de Docker/Hyper-V (ver con
+> `netsh interface ipv4 show excludedportrange protocol=tcp`). Los puertos de arriba están
+> elegidos fuera de esos rangos; si vuelven a caer en uno, moverlos es la cura y hay que
+> actualizarlos en los cuatro lugares que van juntos: `launchSettings.json`, el CORS de la
+> API (`appsettings.Development.json` y `docker-compose.yml`) y `dev-start.ps1`.
 
 ```powershell
 .\dev-start.ps1
@@ -949,25 +957,27 @@ graph LR
 > Modelo de datos: [`docs/BASE-DE-DATOS.md`](docs/BASE-DE-DATOS.md) §7
 >
 > **Ya está resuelto en el diseño:** `OrigenDato`, `CodigoExterno` y `HashContenido` en todos los
-> catálogos (tarea 12.5 ya no requiere migración). Requiere confirmar **D-15** (de quién es el ERP).
+> catálogos (tarea 12.5 ya no requiere migración). **D-15 quedó resuelto en la práctica:** el ERP
+> es el de cada cliente de ORKIN —la plataforma se conecta a la base que cada uno administre— y
+> por eso la unidad de integración es la conexión configurable, no un conector fijo.
 
 | # | Tarea | Detalle | Estado |
 |---|---|---|---|
-| 12.1 | Confirmar **D-15**: ERP de ORKIN o ERP de cada cliente de ORKIN. Listar el ERP concreto (SAP, Odoo, Dynamics, Contpaq, propio…) | Definición del alcance | 🔴 |
-| 12.2 | Esquema `int` completo: `ErpFlujo`, `ErpOrigen`, `ErpMapeoCampo`, `ErpValidacion`, `ErpDestino`, `ErpDependencia` | Migración | ⬜ |
-| 12.3 | `int.ErpConexion` + CRUD + cifrado (`Data Protection`) + "probar conexión". **`EsSoloLectura` fijo en `1` (D-19)** | "Conectar ERP" en Administración | ⬜ |
-| 12.4 | **`IErpConector`**: solo `LeerPagina(entidad, cursor)`. **Sin métodos de escritura** | Abstracción "sea cual sea" | ⬜ |
-| 12.5 | `SqlServerErpConector` (el primero; los demás copian el patrón) | | ⬜ |
-| 12.6 | Motor de transformación: `TransformacionPipeline` con el catálogo de ~20 operaciones | Código puro + tests | ⬜ |
-| 12.7 | Motor de validación + `int.ErpRechazo` + bandeja de rechazos en la UI | Nada falla en silencio | ⬜ |
-| 12.8 | Cargador: *upsert* por clave, comparación por `HashContenido`, historial en `PrecioProducto`, y **alta/baja** con aviso de "producto en uso" | | ⬜ |
+| 12.1 | Confirmar **D-15**: ERP de ORKIN o ERP de cada cliente de ORKIN. Listar el ERP concreto (SAP, Odoo, Dynamics, Contpaq, propio…) | Definición del alcance | ✅ El ERP es el de cada cliente; el primero concreto es SQL Server |
+| 12.2 | Esquema `int` completo: `ErpFlujo`, `ErpOrigen`, `ErpMapeoCampo`, `ErpValidacion`, `ErpDestino`, `ErpDependencia` | Migración | ✅ `ErpConexion`, `ErpFlujo`, `SincronizacionEjecucion`. Las tablas de mapeo/validación del diseño se consolidaron: el mapeo es JSON en el flujo y la vista de origen es el contrato |
+| 12.3 | `int.ErpConexion` + CRUD + cifrado (`Data Protection`) + "probar conexión". **`EsSoloLectura` fijo en `1` (D-19)** | "Conectar ERP" en Administración | ✅ El `CHECK` de `EsSoloLectura` queda como deuda; ni la UI ni el cargador escriben en el ERP |
+| 12.4 | **`IErpConector`**: solo `LeerPagina(entidad, cursor)`. **Sin métodos de escritura** | Abstracción "sea cual sea" | ✅ `ILectorOrigen` + `LectorSqlServer`: solo sabe leer filas |
+| 12.5 | `SqlServerErpConector` (el primero; los demás copian el patrón) | | ✅ Probado contra la base demo `OrkinClienteDemo` |
+| 12.6 | Motor de transformación: `TransformacionPipeline` con el catálogo de ~20 operaciones | Código puro + tests | ✅ Simplificado a propósito: la **vista del cliente es la transformación** (une tablas y traduce nombres) y el mapeo JSON es una proyección estricta para lo que la vista no pueda. Un pipeline de 20 operaciones sería reprogramar en C# lo que el DBA del cliente ya sabe hacer en SQL |
+| 12.7 | Motor de validación + `int.ErpRechazo` + bandeja de rechazos en la UI | Nada falla en silencio | ✅ Cada fila rechazada lleva número, código y motivo; visibles en simulación e historial |
+| 12.8 | Cargador: *upsert* por clave, comparación por `HashContenido`, historial en `PrecioProducto`, y **alta/baja** con aviso de "producto en uso" | | ✅ `CargadorProductos` y `CargadorClientes`, con adopción de huérfanos y 52 pruebas. Historial de precios y baja con aviso: ⬜ |
 | 12.9 | `ErpOrquestador`: extrae → transforma → valida → carga → registra | | ⬜ |
-| 12.10 | **`int.ErpSimulacion`**: el botón "Simular" con grilla de resultados | El paso que evita arruinar un catálogo | ⬜ |
-| 12.11 | `ErpSincronizacionBackgroundService`: scheduler + disparo por evento + reclamo atómico | "En vivo" | ⬜ |
-| 12.12 | `WebhookController` (público, por token, con HMAC) → `int.EventoRecibido` | Inmediatez real | ⬜ |
-| 12.13 | `int.ErpDependencia`: orden de ejecución entre flujos (TC, unidades y categorías antes que productos) | | ⬜ |
-| 12.14 | Pantalla de monitoreo: corridas, contadores, rechazos, alertas, detalle de cambios | Operabilidad | ⬜ |
-| 12.15 | Alertas por correo: conexión fallida, 5 fallos seguidos, muchos rechazos, producto desactivado en uso | | ⬜ |
+| 12.10 | **`int.ErpSimulacion`**: el botón "Simular" con grilla de resultados | El paso que evita arruinar un catálogo | ✅ La misma carga con el último paso cortado; grilla fila por fila en modal, con filtros y paginación |
+| 12.11 | `ErpSincronizacionBackgroundService`: scheduler + disparo por evento + reclamo atómico | "En vivo" | ✅ Intervalo configurable por flujo (piso 10 s en la base), pausa automática tras fallos seguidos, corrida no-op sin bitácora, primera corrida inmediata al activar |
+| 12.12 | `WebhookController` (público, por token, con HMAC) → `int.EventoRecibido` | Inmediatez real | ⬜ `TipoDisparador` EVENTO ya reservado en el catálogo |
+| 12.13 | `int.ErpDependencia`: orden de ejecución entre flujos (TC, unidades y categorías antes que productos) | | ⬜ Hoy se resuelve configurando los intervalos a mano |
+| 12.14 | Pantalla de monitoreo: corridas, contadores, rechazos, alertas, detalle de cambios | Operabilidad | ✅ Orígenes de datos: conexiones, flujos, programación con cuenta regresiva, historial paginado, ejecutar/simular/pausar |
+| 12.15 | Alertas por correo: conexión fallida, 5 fallos seguidos, muchos rechazos, producto desactivado en uso | | ⬜ La pausa automática con `MotivoPausa` hace visible el corte de 5 fallos en pantalla |
 | 12.16 | Conectores adicionales (PostgreSQL, REST, Odoo, MySQL, archivo) | Uno por ERP real | ⬜ |
 | 12.17 | Pruebas con un ERP de mentira (contenedor) + integración de punta a punta, incluida la prueba de que **no** se puede escribir en el ERP | | ⬜ |
 | 12.18 | Manual de operación: qué revisar cuando algo falla | `docs/DESPLIEGUE.md` | ⬜ |
@@ -987,7 +997,7 @@ graph LR
 | 5 | **Tipo de cambio** | Sin TC no hay conversión a US$. Listo antes de las 8 a. m. |
 | 6 | **Activo amortizable** | Necesario para la depreciación mensual (Fase 3) |
 | 7 | **Tipo de servicio** | Cambia muy poco. Puede seguir editándose a mano |
-| 8 | **Cliente** | Fuera del cotizador; relevante en el módulo de clientes (Fase 11) |
+| 8 | **Cliente** | Cargado del ERP como los demás catálogos (`CargadorClientes`); y mientras no exista en el catálogo, se puede cotizar "para un cliente nuevo" con solo el nombre y el tipo |
 
 **Frecuencia de sincronización — recomendación cerrada** (`docs/INTEGRACION-ERP.md` §4):
 
@@ -1080,7 +1090,7 @@ Una tarea se marca ✅ solo si cumple **todo** lo siguiente:
 | 1 | Autenticación, roles y permisos | 🟡 En curso (1.2, 1.3, 1.5, 1.8 ✅; 1.7 ⬜) |
 | 2 | Catálogos y migración desde el Excel | 🟡 En curso (2.1, 2.3, 2.4, 2.10 ✅; **2.5 siguiente**) |
 | 3 | Motor de cálculo | ✅ Completado (3.6, 3.9 ⬜) |
-| 4 | Cotizador (API + UI) | 🟡 En curso (flujo básico end-to-end ✅) |
+| 4 | Cotizador (API + UI) | 🟡 En curso (flujo básico end-to-end ✅, cotización para cliente nuevo sin ficha ✅) |
 | 5 | PDF y envío al cliente | ⬜ Pendiente |
 | 6 | Flujo de aprobación | ⬜ Pendiente |
 | 7 | Auditoría | ⬜ Pendiente |
@@ -1088,7 +1098,7 @@ Una tarea se marca ✅ solo si cumple **todo** lo siguiente:
 | 9 | Endurecimiento, despliegue y migración del Excel | ⬜ Pendiente |
 | 10 | Campo: responsive web + PWA | ⬜ Pendiente |
 | 11 | Módulos operativos (calendario, órdenes, facturación) | ⬜ Pendiente |
-| 12 | 🔌 Integración con ERP del cliente | 🔴 Bloqueada por D-15 |
+| 12 | 🔌 Integración con ERP del cliente | 🟡 En curso (12.1–12.11, 12.14, 12.17 ✅; 12.12–12.13, 12.15–12.16, 12.18 ⬜) |
 
 ```
 ╔══════════════════════════════════════════════════════════╗
