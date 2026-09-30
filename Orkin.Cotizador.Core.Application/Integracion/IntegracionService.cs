@@ -295,6 +295,17 @@ public sealed class IntegracionService
             throw new InvalidOperationException($"Esa conexión ya tiene un flujo llamado '{nombre}'.");
         }
 
+        // El catálogo se valida AL CREAR el flujo y no al ejecutarlo: un flujo para un catálogo
+        // sin cargador se guardaba sin quejarse y explotaba en la primera corrida — la peor forma
+        // de fallar, porque para entonces quien lo creó ya se fue a otra cosa. La lista sale del
+        // DI, así que lo que la UI ofrece y lo que el motor puede correr son lo mismo.
+        if (!_proceso.CatalogosDisponibles.Contains(catalogo.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"El catálogo '{catalogo}' no tiene cargador registrado. " +
+                $"Los disponibles son: {string.Join(", ", _proceso.CatalogosDisponibles)}.");
+        }
+
         ValidarMapeo(mapeoJson);
 
         var entidad = new ErpFlujo

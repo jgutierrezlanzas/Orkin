@@ -570,7 +570,7 @@ anota lo que pasó.
 | `IErpConector` / `SqlServerErpConector` (12.4–12.5) | Hoy hay un `ILectorOrigen` (`LectorSqlServer`) que lee y devuelve filas. La abstracción de conector se necesita cuando el segundo ERP sea de otra tecnología; con uno solo sería una interfaz con un solo implementador. |
 | ~~Simulación previa obligatoria (12.10)~~ | **Hecha** (§9.5). Era la pieza que más urgía. |
 | ~~Programación automática (12.11)~~ | **Hecha.** Cada flujo tiene su intervalo configurable (piso 10 s, en la base), primera corrida inmediata al activar, pausa automática tras N fallos seguidos con el motivo escrito, y corrida no-op sin bitácora (el latido va en `UltimoIntentoUtc`). Falta el webhook (12.12). |
-| ~~Los otros catálogos (12.x)~~ | **`PRODUCTOS` y `CLIENTES` cargan del ERP.** El de clientes pide `TipoClienteCodigo` obligatorio porque decide el método de costeo. Los demás (activos, unidades, tipos de cambio, tipos de servicio) siguen el mismo camino: un `CargadorX` por catálogo. |
+| ~~Los otros catálogos (12.x)~~ | **Los seis cargan del ERP**: productos, clientes, unidades, categorías, tipos de servicio y tipos de cambio (2 131 días en la demo). Quedan los activos amortizables, que necesitan datos de origen en el ERP demo. |
 | Alta/baja de productos (12.8, §5) | El cargador actual hace *upsert*, no baja. Una baja automática sin aviso borra insumos de cotizaciones abiertas. |
 | Alertas por correo (12.15) | Falta. La pausa automática con `MotivoPausa` es visible en pantalla; el correo es lo que falta. |
 

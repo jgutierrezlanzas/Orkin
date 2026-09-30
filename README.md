@@ -964,13 +964,13 @@ graph LR
 | # | Tarea | Detalle | Estado |
 |---|---|---|---|
 | 12.1 | Confirmar **D-15**: ERP de ORKIN o ERP de cada cliente de ORKIN. Listar el ERP concreto (SAP, Odoo, Dynamics, Contpaq, propio…) | Definición del alcance | ✅ El ERP es el de cada cliente; el primero concreto es SQL Server |
-| 12.2 | Esquema `int` completo: `ErpFlujo`, `ErpOrigen`, `ErpMapeoCampo`, `ErpValidacion`, `ErpDestino`, `ErpDependencia` | Migración | ✅ `ErpConexion`, `ErpFlujo`, `SincronizacionEjecucion`. Las tablas de mapeo/validación del diseño se consolidaron: el mapeo es JSON en el flujo y la vista de origen es el contrato |
+| 12.2 | Esquema `int` completo: `ErpFlujo`, `ErpOrigen`, `ErpMapeoCampo`, `ErpValidacion`, `ErpDestino`, `ErpDependencia` | Migración | ✅ `ErpConexion`, `ErpFlujo`, `SincronizacionEjecucion`. Las tablas de mapeo/validación del diseño se consolidaron: el mapeo es JSON en el flujo y la vista de origen es el contrato. La lista de catálogos con cargador sale del DI (`GET api/origenes/catalogos`): agregar un cargador lo hace aparecer en la UI solo, y crear un flujo para un catálogo sin cargador se rechaza al crear, no al ejecutar |
 | 12.3 | `int.ErpConexion` + CRUD + cifrado (`Data Protection`) + "probar conexión". **`EsSoloLectura` fijo en `1` (D-19)** | "Conectar ERP" en Administración | ✅ El `CHECK` de `EsSoloLectura` queda como deuda; ni la UI ni el cargador escriben en el ERP |
 | 12.4 | **`IErpConector`**: solo `LeerPagina(entidad, cursor)`. **Sin métodos de escritura** | Abstracción "sea cual sea" | ✅ `ILectorOrigen` + `LectorSqlServer`: solo sabe leer filas |
 | 12.5 | `SqlServerErpConector` (el primero; los demás copian el patrón) | | ✅ Probado contra la base demo `OrkinClienteDemo` |
 | 12.6 | Motor de transformación: `TransformacionPipeline` con el catálogo de ~20 operaciones | Código puro + tests | ✅ Simplificado a propósito: la **vista del cliente es la transformación** (une tablas y traduce nombres) y el mapeo JSON es una proyección estricta para lo que la vista no pueda. Un pipeline de 20 operaciones sería reprogramar en C# lo que el DBA del cliente ya sabe hacer en SQL |
 | 12.7 | Motor de validación + `int.ErpRechazo` + bandeja de rechazos en la UI | Nada falla en silencio | ✅ Cada fila rechazada lleva número, código y motivo; visibles en simulación e historial |
-| 12.8 | Cargador: *upsert* por clave, comparación por `HashContenido`, historial en `PrecioProducto`, y **alta/baja** con aviso de "producto en uso" | | ✅ `CargadorProductos` y `CargadorClientes`, con adopción de huérfanos y 52 pruebas. **Faltan los demás catálogos — todos deben venir del origen del cliente:** tipos de cambio (el más urgente: el ERP demo trae 1 309 días y la tabla de la plataforma está vacía), unidades de medida, categorías de producto, tipos de servicio, activos amortizables. Historial de precios y baja con aviso: ⬜ |
+| 12.8 | Cargador: *upsert* por clave, comparación por `HashContenido`, historial en `PrecioProducto`, y **alta/baja** con aviso de "producto en uso" | | ✅ **Los seis catálogos cargan del ERP**: PRODUCTOS y CLIENTES con sus cargadores propios, y UNIDADES_MEDIDA, CATEGORIAS_PRODUCTO, TIPOS_SERVICIO y TIPOS_CAMBIO sobre un núcleo común (`CargadorCatalogoMaestro`) con adopción de lo sembrado. Activos amortizables: ⬜. Historial de precios y baja con aviso: ⬜ |
 | 12.9 | `ErpOrquestador`: extrae → transforma → valida → carga → registra | | ⬜ |
 | 12.10 | **`int.ErpSimulacion`**: el botón "Simular" con grilla de resultados | El paso que evita arruinar un catálogo | ✅ La misma carga con el último paso cortado; grilla fila por fila en modal, con filtros y paginación |
 | 12.11 | `ErpSincronizacionBackgroundService`: scheduler + disparo por evento + reclamo atómico | "En vivo" | ✅ Intervalo configurable por flujo (piso 10 s en la base), pausa automática tras fallos seguidos, corrida no-op sin bitácora, primera corrida inmediata al activar |
@@ -1098,7 +1098,7 @@ Una tarea se marca ✅ solo si cumple **todo** lo siguiente:
 | 9 | Endurecimiento, despliegue y migración del Excel | ⬜ Pendiente |
 | 10 | Campo: responsive web + PWA | ⬜ Pendiente |
 | 11 | Módulos operativos (calendario, órdenes, facturación) | ⬜ Pendiente |
-| 12 | 🔌 Integración con ERP del cliente | 🟡 En curso (12.1–12.11, 12.14, 12.17 ✅; 12.12–12.13, 12.15–12.16, 12.18 ⬜) |
+| 12 | 🔌 Integración con ERP del cliente | 🟡 En curso (12.1–12.11, 12.14, 12.17 ✅ — **los seis catálogos cargan del ERP**; 12.12–12.13, 12.15–12.16, 12.18 ⬜) |
 
 ```
 ╔══════════════════════════════════════════════════════════╗

@@ -23,6 +23,16 @@ public sealed class IntegracionService
 
     // ── Conexiones ───────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Los catálogos con cargador registrado. Se piden a la API en vez de traer una lista fija:
+    /// agregar un cargador lo hace aparecer acá solo, sin tocar la pantalla.
+    /// </summary>
+    public async Task<string[]> ObtenerCatalogosDisponiblesAsync()
+    {
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<string[]>>("api/origenes/catalogos");
+        return respuesta?.Datos ?? ["PRODUCTOS"];
+    }
+
     public async Task<List<ErpConexionModel>> ListarConexionesAsync()
     {
         var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<ErpConexionModel>>>("api/origenes/conexiones");

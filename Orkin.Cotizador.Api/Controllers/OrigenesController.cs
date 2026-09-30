@@ -7,6 +7,7 @@ using Orkin.Cotizador.Core.Application.Integracion;
 using Orkin.Cotizador.Core.Domain.Carga;
 using Orkin.Cotizador.Core.Domain.Comun;
 using Orkin.Cotizador.Core.Domain.Entidades;
+using Orkin.Cotizador.Core.Infrastructure.Carga;
 using Orkin.Cotizador.Core.Infrastructure.Persistence;
 
 namespace Orkin.Cotizador.Api.Controllers;
@@ -29,11 +30,13 @@ public sealed class OrigenesController : ControllerBase
 {
     private readonly IntegracionService _servicio;
     private readonly CotizadorDbContext _contexto;
+    private readonly ProcesoCargaService _proceso;
 
-    public OrigenesController(IntegracionService servicio, CotizadorDbContext contexto)
+    public OrigenesController(IntegracionService servicio, CotizadorDbContext contexto, ProcesoCargaService proceso)
     {
         _servicio = servicio;
         _contexto = contexto;
+        _proceso = proceso;
     }
 
     // ── Conexiones ────────────────────────────────────────────────────────────
@@ -158,6 +161,15 @@ public sealed class OrigenesController : ControllerBase
     }
 
     // ── Flujos ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Los catálogos que hoy tienen cargador registrado. Sale del DI, no de una constante: la
+    /// pantalla de flujos ofrece exactamente lo que el motor puede correr, y agregar un cargador
+    /// lo hace aparecer solo.
+    /// </summary>
+    [HttpGet("catalogos")]
+    public IResult CatalogosDisponibles()
+        => ApiResponse<IReadOnlyList<string>>.Ok(_proceso.CatalogosDisponibles.ToList()).AHttp();
 
     [HttpGet("flujos")]
     public async Task<IResult> ListarFlujos(CancellationToken cancellationToken)

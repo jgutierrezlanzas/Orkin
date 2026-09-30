@@ -321,12 +321,12 @@
 
 @code {
     /// <summary>
-    /// Catálogos a los que hoy hay cargador. Se listan en vez de dejarlos en un campo de texto
-    /// libre porque el nombre va guardado tal cual en <c>int.ErpFlujo</c> y se compara contra
-    /// la tabla de cargadores: escribir "productos" en minúsculas produce un flujo que se guarda
-    /// sin quejarse y falla al ejecutarse, que es la peor forma de fallar.
+    /// Catálogos a los que hoy hay cargador. Se piden a la API —que los saca del DI— en vez de
+    /// traer una lista fija: agregar un cargador lo hace aparecer acá solo, y lo que la pantalla
+    /// ofrece es siempre lo que el motor puede correr. El nombre va guardado tal cual en
+    /// <c>int.ErpFlujo</c> y se valida contra los cargadores al crear el flujo.
     /// </summary>
-    private static readonly string[] CatalogosDisponibles = ["PRODUCTOS", "CLIENTES"];
+    private string[] _catalogosDisponibles = ["PRODUCTOS"];
 
     private List<ErpConexionModel> _conexiones = [];
     private List<ErpFlujoModel> _flujos = [];
@@ -356,6 +356,7 @@
     {
         _conexiones = await IntegracionService.ListarConexionesAsync();
         _flujos = await IntegracionService.ListarFlujosAsync();
+        _catalogosDisponibles = await IntegracionService.ObtenerCatalogosDisponiblesAsync();
     }
 
     // ── Conexiones ────────────────────────────────────────────────────────────
@@ -446,7 +447,7 @@
         {
             { d => d.Modelo, modelo },
             { d => d.Conexiones, _conexiones },
-            { d => d.Catalogos, CatalogosDisponibles }
+            { d => d.Catalogos, _catalogosDisponibles }
         };
         var opciones = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
         var dialogo = await DialogService.ShowAsync<FlujoDialogo>(

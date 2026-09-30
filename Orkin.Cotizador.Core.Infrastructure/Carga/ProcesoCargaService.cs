@@ -22,6 +22,16 @@ public sealed class ProcesoCargaService
     }
 
     /// <summary>
+    /// Los catálogos que hoy tienen cargador registrado. Es la lista que la UI ofrece al crear un
+    /// flujo y contra la que se valida: <b>sale del DI, no de una constante</b> — la lista fija
+    /// que había antes se desincronizaba del registro en cuanto alguien agregaba un cargador y
+    /// se olvidaba de la pantalla, y un flujo creado para un catálogo sin cargador solo fallaba
+    /// al ejecutarse, que es la peor forma de fallar.
+    /// </summary>
+    public IReadOnlyCollection<string> CatalogosDisponibles
+        => _cargadores.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToList();
+
+    /// <summary>
     /// Ejecuta la carga: lee del origen y carga en el catálogo configurado.
     /// </summary>
     public async Task<ResultadoCarga> EjecutarAsync(
