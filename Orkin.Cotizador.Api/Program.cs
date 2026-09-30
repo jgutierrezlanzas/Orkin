@@ -139,6 +139,11 @@ public static class Program
         construccion.Configuration.Sources.Clear();
         construccion.Configuration.AddConfiguration(config);
 
+        // Licencia de QuestPDF (el generador de PDF de las cotizaciones). Community: gratis
+        // para empresas con menos de 1M USD de ingresos anuales, que es el caso de ORKIN.
+        // Sin esta línea, el primer PDF explota con 500 y el mensaje del bienvenida en inglés.
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
         Registrar(construccion);
 
         var app = construccion.Build();
@@ -299,6 +304,7 @@ public static class Program
         construccion.Services.AddMemoryCache();
         construccion.Services.AddSingleton<RevocacionTokens>();
         construccion.Services.AddScoped<EmisorJwt>();
+        construccion.Services.AddScoped<Pdf.GeneradorPdfCotizacion>();
         construccion.Services.AddHttpContextAccessor();
 
         // La infraestructura registra su propio IContextoUsuario para los procesos que no tienen

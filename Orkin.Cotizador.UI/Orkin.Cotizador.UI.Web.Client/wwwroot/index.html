@@ -25,5 +25,22 @@
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script>
+        // Descarga un PDF que llega como base64 desde el componente WASM. En WebAssembly no hay
+        // forma de «servir» el archivo desde el servidor: los bytes vienen por HttpClient y el
+        // navegador es quien lo guarda. window._blazorFiles... no existe; esto es lo que hay.
+        window.descargarPdf = function (base64, nombre) {
+            const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = nombre;
+            document.body.appendChild(a);
+            a.click();
+            URL.revokeObjectURL(url);
+            a.remove();
+        };
+    </script>
 </body>
 </html>

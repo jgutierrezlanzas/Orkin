@@ -119,8 +119,7 @@ public sealed class CotizacionService
 
     /// <summary>
     /// Actualiza una cotización existente (solo en BORRADOR o RECHAZADA). La API recalcula
-    /// todo: los insumos se reemplazan completos y el resultado sale del motor, no de lo
-    /// que la pantalla traiga.
+    /// todo: los insumos se reemplazan completos y el resultado sale del motor.
     /// </summary>
     public async Task<ApiResponse<CotizacionListItem>?> ActualizarAsync(
         Guid id,
@@ -146,5 +145,16 @@ public sealed class CotizacionService
 
         var response = await _http.PutAsJsonAsync($"api/cotizaciones/{id}", request);
         return await response.Content.ReadFromJsonAsync<ApiResponse<CotizacionListItem>>();
+    }
+
+    /// <summary>Descarga el PDF de una cotización como bytes, para guardarlo o enviarlo.</summary>
+    public async Task<byte[]?> DescargarPdfAsync(Guid id)
+    {
+        var response = await _http.GetAsync($"api/cotizaciones/{id}/pdf");
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+        return await response.Content.ReadAsByteArrayAsync();
     }
 }

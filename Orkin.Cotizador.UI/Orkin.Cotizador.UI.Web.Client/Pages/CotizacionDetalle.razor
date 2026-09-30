@@ -3,6 +3,8 @@
 @layout MainLayout
 @using Microsoft.AspNetCore.Components.Authorization
 @inject HttpClient Http
+@inject CotizacionService CotizacionService
+@inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -91,6 +93,20 @@
         </MudPaper>
 
         <div class="d-flex gap-2 mt-4">
+            @if (PuedeDescargarPdf)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                           Disabled="_descargando" OnClick="DescargarPdf">
+                    Descargar PDF
+                </MudButton>
+            }
+            @if (PuedeEditar)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit"
+                           Href="@($"/cotizaciones/editar/{Id}")">
+                    Editar
+                </MudButton>
+            }
             @if (PuedeAnular)
             {
                 <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Block"
@@ -98,9 +114,9 @@
                     Anular
                 </MudButton>
             }
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack"
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack"
                        OnClick="@(() => Navigation.NavigateTo("/cotizaciones"))">
-                Volver al listado
+                Volver
             </MudButton>
         </div>
     }
@@ -113,7 +129,10 @@
     private CotizacionListItem? _cotizacion;
     private bool _cargando;
     private bool _anulando;
+    private bool _descargando;
     private bool _puedeAnular;
+    private bool _puedeEditar;
+    private bool _puedeDescargarPdf;
 
     protected override async Task OnInitializedAsync()
     {
@@ -128,6 +147,8 @@
             // aprobada hay que hacer una nueva versión, no borrar la vigente).
             var estado = await AuthStateProvider.GetAuthenticationStateAsync();
             _puedeAnular = estado.User.HasClaim("orkin:permiso", "COTIZACIONES.ANULAR");
+            _puedeEditar = estado.User.HasClaim("orkin:permiso", "COTIZACIONES.EDITAR");
+            _puedeDescargarPdf = estado.User.HasClaim("orkin:permiso", "COTIZACIONES.DESCARGAR_PDF");
         }
         finally
         {
@@ -136,8 +157,34 @@
     }
 
     private bool PuedeAnular => _puedeAnular && _cotizacion?.EstadoCodigo != "ANULADA" && _cotizacion?.EstadoCodigo != "APROBADA";
-    private bool PuedeEditar => _cotizacion?.EstadoCodigo is "BORRADOR" or "RECHAZADA";
-    private bool EsEditable => _cotizacion?.EstadoCodigo is "BORRADOR" or "RECHAZADA";
+    private bool PuedeEditar => _puedeEditar && _cotizacion?.EstadoCodigo is "BORRADOR" or "RECHAZADA";
+    private bool PuedeDescargarPdf => _puedeDescargarPdf && _cotizacion is not null;
+
+    /// <summary>
+    /// Descarga el PDF: lo pide a la API y lo baja al navegador con el número de cotización
+    /// como nombre de archivo. En WASM no hay forma de «servir» el archivo desde el servidor:
+    /// los bytes vienen por HttpClient y se disparan como descarga con un blob.
+    /// </summary>
+    private async Task DescargarPdf()
+    {
+        _descargando = true;
+        try
+        {
+            var pdf = await CotizacionService.DescargarPdfAsync(Id);
+            if (pdf is null || pdf.Length == 0)
+            {
+                Snackbar.Add("No se pudo generar el PDF.", Severity.Error);
+                return;
+            }
+
+            // WASM: crear un blob y disparar la descarga desde el navegador
+            await JS.InvokeVoidAsync("descargarPdf", Convert.ToBase64String(pdf), $"{_cotizacion?.Numero}.pdf");
+        }
+        finally
+        {
+            _descargando = false;
+        }
+    }
 
     /// <summary>
     /// Anular abre un diálogo que pide el motivo. Anular sin motivo es la puerta abierta a

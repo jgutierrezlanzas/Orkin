@@ -22,17 +22,20 @@ public sealed class CotizacionesController : ControllerBase
     private readonly ConsecutivoService _consecutivo;
     private readonly TipoCambioService _tipoCambio;
     private readonly CotizadorDbContext _contexto;
+    private readonly Pdf.GeneradorPdfCotizacion _generadorPdf;
 
     public CotizacionesController(
         CotizacionService servicio,
         ConsecutivoService consecutivo,
         TipoCambioService tipoCambio,
-        CotizadorDbContext contexto)
+        CotizadorDbContext contexto,
+        Pdf.GeneradorPdfCotizacion generadorPdf)
     {
         _servicio = servicio;
         _consecutivo = consecutivo;
         _tipoCambio = tipoCambio;
         _contexto = contexto;
+        _generadorPdf = generadorPdf;
     }
 
     [HttpGet]
@@ -239,6 +242,39 @@ public sealed class CotizacionesController : ControllerBase
             insumos);
 
         return ApiResponse<CotizacionDetalleResponse>.Ok(response).AHttp();
+    }
+
+    /// <summary>
+    /// Descarga el PDF de la cotización — el documento que viaja al cliente.
+    /// <para>El PDF es un <b>snapshot</b>: muestra los números que estaban guardados al momento
+    /// de generarlo. No recalcula nada, porque un documento que puede cambiar debajo de quien
+    /// lo está leyendo no es un documento.</para>
+    /// </summary>
+    [HttpGet("{id:guid}/pdf")]
+    [Authorize("COTIZACIONES.DESCARGAR_PDF")]
+    public async Task<IResult> DescargarPdf(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var cotizacion = await _contexto.Cotizacion
+                .AsNoTracking()
+                .Where(c => c.Id == id)
+                .Select(c => c.Numero)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (cotizacion is null)
+            {
+                return ApiResponse<object>.Error("NO_ENCONTRADO", "La cotización no existe.").AHttp();
+            }
+
+            var pdf = await _generadorPdf.GenerarAsync(id, cancellationToken);
+
+            return Results.File(pdf, "application/pdf", $"{cotizacion}.pdf");
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return ApiResponse<object>.Error("NO_ENCONTRADO", ex.Message).AHttp();
+        }
     }
 
     [HttpPost]
