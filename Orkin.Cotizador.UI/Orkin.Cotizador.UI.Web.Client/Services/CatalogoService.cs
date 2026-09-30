@@ -229,6 +229,18 @@ public sealed class CatalogoService
         return await response.Content.ReadFromJsonAsync<ApiResponse<ClienteModel>>();
     }
 
+    /// <summary>
+    /// El tipo de cambio vigente para una fecha — el último valor cuya fecha sea ≤ la fecha
+    /// consultada. Lo muestra la pantalla de cotizar, para que quien cotiza sepa a cuánto
+    /// está el dólar sin esperar a que el cálculo lo traiga de vuelta.
+    /// </summary>
+    public async Task<TipoCambioModel?> ObtenerTipoCambioVigenteAsync(DateOnly fecha)
+    {
+        var response = await _http.GetFromJsonAsync<ApiResponse<TipoCambioModel>>(
+            $"api/catalogos/tipos-cambio/vigente?fecha={fecha:yyyy-MM-dd}");
+        return response?.Datos;
+    }
+
     public async Task<List<TipoCambioModel>> ListarTiposCambioAsync()
     {
         var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<TipoCambioModel>>>("api/catalogos/tipos-cambio");

@@ -90,6 +90,34 @@
                         Margen sobre el costo total.
                     </MudText>
                 </MudItem>
+
+                @* ── El bloque de tipo de cambio: se muestra solo, no se elige ────────── *@
+                <MudItem xs="12" md="4">
+                    <MudTextField Value="@TextoTipoCambio" Label="Tipo de cambio (automático)"
+                                  ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  HelperText="El último valor conocido a la fecha de la cotización." />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <SelectorLegible TItem="ModalidadOpcionModel" TValue="string"
+                                     Items="_opciones.Modalidades" ValorDe="m => m.Codigo" TextoDe="m => m.Nombre"
+                                     @bind-Value="_modalidadCodigo"
+                                     Label="Modalidad" Clearable="true" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <SelectorLegible TItem="TecnicoOpcionModel" TValue="Guid?"
+                                     Items="_opciones.Tecnicos" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
+                                     @bind-Value="_tecnicoAsignadoId"
+                                     Label="Técnico asignado" Clearable="true" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudDatePicker @bind-Date="_fechaEstimada" Label="Fecha estimada de ejecución"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" DateFormat="dd/MM/yyyy" />
+                </MudItem>
+                <MudItem xs="12" md="12">
+                    <MudTextField @bind-Value="_direccionServicio" Label="Dirección del servicio"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  HelperText="Dónde se va a realizar el trabajo." />
+                </MudItem>
             </MudGrid>
         </MudPaper>
 
@@ -142,6 +170,58 @@
 
             <div class="d-flex justify-end mt-2">
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarInsumo">Agregar insumo</MudButton>
+            </div>
+        </MudPaper>
+
+        @* ── Activos amortizables ──────────────────────────────────────────────────
+           A diferencia del insumo, se descuenta por MESES dentro de la cotización:
+           una trampa de C$400 con 12 meses de vida son C$33/mes, no C$400 de golpe.
+           El motor ya los soporta; la tabla es lo que faltaba. *@
+        <MudPaper Elevation="2" Class="pa-4 mb-6">
+            <MudText Typo="Typo.h6" Class="mb-4">Activos amortizables</MudText>
+
+            @if (_amortizables.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    Sin activos amortizables. Si el servicio usa trampas o lámparas, agrégalas:
+                    el costo se prorratea por meses, no se cobra entero.
+                </MudText>
+            }
+            else
+            {
+                <MudTable Items="_amortizables" Hover="false" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Activo</MudTh>
+                        <MudTh>Precio</MudTh>
+                        <MudTh>Vida útil</MudTh>
+                        <MudTh>Cantidad</MudTh>
+                        <MudTh>Valor mensual</MudTh>
+                        <MudTh />
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd Style="min-width: 220px">
+                            <SelectorLegible TItem="ActivoAmortizableOpcionModel" TValue="Guid"
+                                             Items="@ActivosDisponibles(context)"
+                                             ValorDe="a => a.Id"
+                                             TextoDe='a => $"{a.Nombre} — {a.CostoActual:N2} C$/{a.UnidadAbreviatura}"'
+                                             @bind-Value="context.ActivoId"
+                                             Dense="true" Clearable="true" />
+                        </MudTd>
+                        <MudTd>@ObtenerCostoActivo(context.ActivoId).ToString("N2")</MudTd>
+                        <MudTd>@ObtenerVidaUtil(context.ActivoId) meses</MudTd>
+                        <MudTd>
+                            <MudNumericField T="decimal" @bind-Value="context.Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Min="0.01m" Step="1m" Style="width: 100px" />
+                        </MudTd>
+                        <MudTd>@ValorMensual(context).ToString("N2")</MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => QuitarAmortizable(context))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+
+            <div class="d-flex justify-end mt-2">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarAmortizable">Agregar activo</MudButton>
             </div>
         </MudPaper>
 
@@ -266,6 +346,41 @@
     private string _clienteNombreNuevo = string.Empty;
     private byte _tipoClienteNuevoId;
 
+    // Los campos que el Prototipo D pedía y que faltaban:
+    private string? _modalidadCodigo;
+    private Guid? _tecnicoAsignadoId;
+    private DateTime? _fechaEstimada;
+    private string? _direccionServicio;
+    private TipoCambioModel? _tipoCambioVigente;
+    private List<LineaAmortizableRequest> _amortizables = [];
+
+    /// <summary>El tipo de cambio vigente en texto, para el campo de solo lectura.</summary>
+    private string TextoTipoCambio =>
+        _tipoCambioVigente is null
+            ? ""
+            : $"{_tipoCambioVigente.Valor:N4} — {_tipoCambioVigente.Fecha:dd/MM/yyyy}";
+
+    /// <summary>Recarga el TC cuando cambia la fecha de la cotización.</summary>
+    private async Task CargarTipoCambioAsync()
+    {
+        try
+        {
+            _tipoCambioVigente = await CatalogoService.ObtenerTipoCambioVigenteAsync(Fecha);
+        }
+        catch
+        {
+            _tipoCambioVigente = null;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // El TC se carga cada vez que la pantalla se repinta con una fecha distinta, no solo
+        // al arrancar: quien cambia la fecha para ver cómo quedaba el dólar el lunes merece
+        // verlo sin esperar al cálculo.
+        await CargarTipoCambioAsync();
+    }
+
     protected override async Task OnInitializedAsync()
     {
         _cargando = true;
@@ -324,6 +439,51 @@
     private void QuitarInsumo(LineaInsumoRequest insumo)
     {
         _insumos.Remove(insumo);
+    }
+
+    // ── Activos amortizables ─────────────────────────────────────────────────────
+
+    private void AgregarAmortizable()
+    {
+        if (_opciones.ActivosAmortizables.Count == 0) return;
+        _amortizables.Add(new LineaAmortizableRequest { Cantidad = 1 });
+    }
+
+    private void QuitarAmortizable(LineaAmortizableRequest amortizable)
+    {
+        _amortizables.Remove(amortizable);
+    }
+
+    /// <summary>Los activos que esta fila puede elegir: todos menos los que ya eligieron las demás.</summary>
+    private IReadOnlyList<ActivoAmortizableOpcionModel> ActivosDisponibles(LineaAmortizableRequest fila)
+    {
+        var usados = _amortizables
+            .Where(a => !ReferenceEquals(a, fila) && a.ActivoId != Guid.Empty)
+            .Select(a => a.ActivoId)
+            .ToHashSet();
+
+        return _opciones.ActivosAmortizables.Where(a => !usados.Contains(a.Id)).ToList();
+    }
+
+    private decimal ObtenerCostoActivo(Guid activoId)
+    {
+        var activo = _opciones.ActivosAmortizables.FirstOrDefault(a => a.Id == activoId);
+        return activo?.CostoActual ?? 0;
+    }
+
+    private int ObtenerVidaUtil(Guid activoId)
+    {
+        var activo = _opciones.ActivosAmortizables.FirstOrDefault(a => a.Id == activoId);
+        return activo?.MesesVidaUtil ?? 0;
+    }
+
+    /// <summary>El valor mensual de una fila de activo: costo / vida útil × cantidad.</summary>
+    private decimal ValorMensual(LineaAmortizableRequest fila)
+    {
+        var costo = ObtenerCostoActivo(fila.ActivoId);
+        var vida = ObtenerVidaUtil(fila.ActivoId);
+        if (vida <= 0) return 0;
+        return costo / vida * fila.Cantidad;
     }
 
     private decimal ObtenerCosto(Guid productoId)
@@ -422,7 +582,8 @@
                 _clienteEsNuevo ? _tipoClienteNuevoId : null,
                 Fecha,
                 MargenFraccion,
-                _insumos);
+                _insumos,
+                _amortizables);
 
             if (respuesta?.Exito == true && respuesta.Datos is not null)
             {
@@ -480,9 +641,10 @@
                 _clienteEsNuevo ? _tipoClienteNuevoId : null,
                 _tipoServicioId,
                 Fecha,
-                null,
+                _modalidadCodigo,
                 MargenFraccion,
-                _insumos);
+                _insumos,
+                _amortizables);
 
             if (respuesta?.Exito == true && respuesta.Datos is not null)
             {

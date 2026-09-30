@@ -21,7 +21,8 @@ public sealed class CotizacionService
         byte? tipoClienteId,
         DateOnly fecha,
         decimal margen,
-        List<LineaInsumoRequest> insumos)
+        List<LineaInsumoRequest> insumos,
+        List<LineaAmortizableRequest>? amortizables = null)
     {
         var request = new
         {
@@ -35,7 +36,11 @@ public sealed class CotizacionService
                 i.Cantidad,
                 i.SemestreId
             }).ToList(),
-            Amortizables = new List<object>()
+            Amortizables = (amortizables ?? []).Select(a => new
+            {
+                a.ActivoId,
+                a.Cantidad
+            }).ToList()
         };
 
         var response = await _http.PostAsJsonAsync("api/cotizaciones/calcular", request);
@@ -83,7 +88,8 @@ public sealed class CotizacionService
         DateOnly fecha,
         string? modalidadCodigo,
         decimal margen,
-        List<LineaInsumoRequest> insumos)
+        List<LineaInsumoRequest> insumos,
+        List<LineaAmortizableRequest>? amortizables = null)
     {
         var request = new
         {
@@ -100,7 +106,11 @@ public sealed class CotizacionService
                 i.Cantidad,
                 i.SemestreId
             }).ToList(),
-            Amortizables = new List<object>()
+            Amortizables = (amortizables ?? []).Select(a => new
+            {
+                a.ActivoId,
+                a.Cantidad
+            }).ToList()
         };
 
         var response = await _http.PostAsJsonAsync("api/cotizaciones", request);

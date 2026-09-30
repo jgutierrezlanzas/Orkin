@@ -123,10 +123,11 @@
     {
         try
         {
-            var campo = _passwordInput?.ElementReference;
-            if (campo.Id is not null)
+            // MudTextField tiene FocusAsync() directo; ElementReference no existe en esta
+            // versión de MudBlazor y el intento de leerlo de ahí es lo que compila mal.
+            if (_passwordInput is not null)
             {
-                await campo.FocusAsync();
+                await _passwordInput.FocusAsync();
             }
         }
         catch

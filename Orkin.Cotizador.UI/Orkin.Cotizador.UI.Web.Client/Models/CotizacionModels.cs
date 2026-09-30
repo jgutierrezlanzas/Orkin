@@ -94,7 +94,44 @@ public sealed class CotizacionOpciones
     public List<ClienteOpcion> Clientes { get; set; } = [];
     public List<TipoServicioOpcion> TiposServicio { get; set; } = [];
     public List<TipoClienteOpcionModel> TiposCliente { get; set; } = [];
-    public List<ModalidadOpcion> Modalidades { get; set; } = [];
+    public List<ModalidadOpcionModel> Modalidades { get; set; } = [];
+    public List<ActivoAmortizableOpcionModel> ActivosAmortizables { get; set; } = [];
+    public List<TecnicoOpcionModel> Tecnicos { get; set; } = [];
+}
+
+/// <summary>Una modalidad de cotización: servicio único, recurrente por semestre…</summary>
+public sealed class ModalidadOpcionModel
+{
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Un activo amortizable elegible para la cotización: trampa, lámpara UV, cebadero.
+/// A diferencia del insumo, se descuenta por meses dentro de la cotización.
+/// </summary>
+public sealed class ActivoAmortizableOpcionModel
+{
+    public Guid Id { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public decimal CostoActual { get; set; }
+    public int MesesVidaUtil { get; set; }
+    public string UnidadAbreviatura { get; set; } = string.Empty;
+}
+
+/// <summary>Técnico al que se le asigna el trabajo. Por ahora salen de los usuarios activos.</summary>
+public sealed class TecnicoOpcionModel
+{
+    public Guid Id { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+}
+
+/// <summary>Línea de activo amortizable en la cotización.</summary>
+public sealed class LineaAmortizableRequest
+{
+    public Guid ActivoId { get; set; }
+    public decimal Cantidad { get; set; } = 1;
 }
 
 public sealed class ClienteOpcion
