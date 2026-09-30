@@ -823,7 +823,7 @@ graph LR
 | 4.1 | Entidades de cotización + `CotizacionService` (crear, editar, versionar, anular) | `Cotizacion`, `DetalleInsumo`, `DetalleAmortizable` | ✅ (crear/editar; versionar/anular: ⬜) |
 | 4.2 | `CRUD Clientes` (residencial / empresarial) + ficha e historial | Pestaña de clientes del prototipo | ✅ (ficha/historial: ⬜) |
 | 4.3 | `Pages/Cotizaciones` — filtros + tabla con **N°, Cliente, Servicio, Fecha, Estado, Precios** | Listado funcional | ✅ |
-| 4.4 | `Pages/CotizacionNueva` — formulario con header y datos generales | Formulario funcional | ✅ (overlay: ⬜) |
+| 4.4 | `Pages/CotizacionNueva` — formulario con header y datos generales | Formulario funcional | ✅ Cliente nuevo sin ficha, tipo de cliente siempre visible (de la ficha o elegido), margen en % (la fracción queda interna), fecha por defecto hoy y visible al cargar, alineado en columnas iguales |
 | 4.5 | Bloque **Insumos consumibles** + búsqueda de producto | Tabla con agregar/quitar | ✅ (interín: select por fila. Según Plantilla D: botón "buscar y agregar" que abre un **modal de búsqueda con filtros** para elegir producto; el botón de agregar va al pie, donde cae la fila nueva) |
 | 4.6 | Bloque **Activos amortizables** (Activo, Precio, Cant., Vida útil, Valor mensual) | | ⬜ |
 | 4.7 | Bloque **Margen y tipo de cambio** con TC y recálculo | En el formulario | ✅ |
@@ -1090,7 +1090,7 @@ Una tarea se marca ✅ solo si cumple **todo** lo siguiente:
 | 1 | Autenticación, roles y permisos | 🟡 En curso (1.2, 1.3, 1.5, 1.8 ✅; 1.7 ⬜) |
 | 2 | Catálogos y migración desde el Excel | 🟡 En curso (2.1, 2.3, 2.4, 2.10 ✅; **2.5 siguiente**) |
 | 3 | Motor de cálculo | ✅ Completado (3.6, 3.9 ⬜) |
-| 4 | Cotizador (API + UI) | 🟡 En curso (flujo básico end-to-end ✅, cotización para cliente nuevo sin ficha ✅) |
+| 4 | Cotizador (API + UI) | 🟡 En curso (flujo básico end-to-end ✅, cotización para cliente nuevo sin ficha ✅, margen en %/fecha por defecto/combos con búsqueda y X ✅; versionar/anular ⬜) |
 | 5 | PDF y envío al cliente | ⬜ Pendiente |
 | 6 | Flujo de aprobación | ⬜ Pendiente |
 | 7 | Auditoría | ⬜ Pendiente |
