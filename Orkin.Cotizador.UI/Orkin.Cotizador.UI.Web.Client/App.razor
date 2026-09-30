@@ -1,27 +1,47 @@
-<CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(App).Assembly">
-        <Found Context="routeData">
-            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
-                <NotAuthorized>
-                    @if (context.User.Identity?.IsAuthenticated != true)
-                    {
-                        <RedirectToLogin />
-                    }
-                    else
-                    {
+@* La red de las redes. El FalloTransporteHandler ya convierte los fallos de red en mensajes
+   visibles; esto es para lo que ese no puede atrapar: una excepción durante el RENDER de una
+   pantalla. El ErrorBoundary la contiene en la página (se pierde la página, no la aplicación)
+   y muestra el motivo en vez de la pantalla genérica de Blazor. No atrapa lo que pase dentro
+   de un manejador de eventos —eso es trabajo del handler de transporte y de los servicios. *@
+<ErrorBoundary>
+    <ChildContent>
+        <CascadingAuthenticationState>
+            <Router AppAssembly="@typeof(App).Assembly">
+                <Found Context="routeData">
+                    <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                        <NotAuthorized>
+                            @if (context.User.Identity?.IsAuthenticated != true)
+                            {
+                                <RedirectToLogin />
+                            }
+                            else
+                            {
+                                <MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
+                                    <MudAlert Severity="Severity.Warning">No tiene permiso para ver esta página.</MudAlert>
+                                </MudContainer>
+                            }
+                        </NotAuthorized>
+                    </AuthorizeRouteView>
+                </Found>
+                <NotFound>
+                    <LayoutView Layout="@typeof(MainLayout)">
                         <MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
-                            <MudAlert Severity="Severity.Warning">No tiene permiso para ver esta página.</MudAlert>
+                            <MudAlert Severity="Severity.Info">Página no encontrada.</MudAlert>
                         </MudContainer>
-                    }
-                </NotAuthorized>
-            </AuthorizeRouteView>
-        </Found>
-        <NotFound>
-            <LayoutView Layout="@typeof(MainLayout)">
-                <MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
-                    <MudAlert Severity="Severity.Info">Página no encontrada.</MudAlert>
-                </MudContainer>
-            </LayoutView>
-        </NotFound>
-    </Router>
-</CascadingAuthenticationState>
+                    </LayoutView>
+                </NotFound>
+            </Router>
+        </CascadingAuthenticationState>
+    </ChildContent>
+    <ErrorContent Context="excepcion">
+        <MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
+            <MudAlert Severity="Severity.Error" Icon="@Icons.Material.Filled.Error">
+                <b>Esta pantalla se rompió al dibujarse.</b> Lo demás de la aplicación sigue
+                funcionando; vuelva al menú y entre de nuevo al módulo.
+                <MudText Typo="Typo.caption" Class="mt-2" Style="opacity: 0.8; font-family: monospace; white-space: pre-wrap;">
+                    @excepcion.Message
+                </MudText>
+            </MudAlert>
+        </MudContainer>
+    </ErrorContent>
+</ErrorBoundary>
