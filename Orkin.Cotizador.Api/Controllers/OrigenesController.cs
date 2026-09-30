@@ -171,6 +171,29 @@ public sealed class OrigenesController : ControllerBase
     public IResult CatalogosDisponibles()
         => ApiResponse<IReadOnlyList<string>>.Ok(_proceso.CatalogosDisponibles.ToList()).AHttp();
 
+    /// <summary>
+    /// Los campos que un catálogo espera del origen — para la tabla de homologación.
+    /// <para>Es lo que reemplaza el JSON crudo: quien configura un flujo ve QUÉ datos se
+    /// necesitan, de QUÉ tipo, y cuáles puede dejar vacíos. Su vista del ERP solo tiene que
+    /// traer columnas con esos nombres, o mapearlas si ya existen con otros.</para>
+    /// </summary>
+    [HttpGet("catalogos/{catalogo}/campos")]
+    public IResult CamposEsperados(string catalogo)
+    {
+        var cargador = _proceso.ResolverCargador(catalogo);
+
+        if (cargador is null)
+        {
+            return ApiResponse<object>.Error("CATALOGO_NO_SOPORTADO",
+                $"El catálogo '{catalogo}' no tiene cargador. Los disponibles son: {string.Join(", ", _proceso.CatalogosDisponibles)}.").AHttp();
+        }
+
+        return ApiResponse<IReadOnlyList<CampoEsperadoResponse>>.Ok(
+            cargador.CamposEsperados
+                .Select(c => new CampoEsperadoResponse(c.Nombre, c.Tipo, c.EsObligatorio, c.Descripcion))
+                .ToList()).AHttp();
+    }
+
     [HttpGet("flujos")]
     public async Task<IResult> ListarFlujos(CancellationToken cancellationToken)
     {

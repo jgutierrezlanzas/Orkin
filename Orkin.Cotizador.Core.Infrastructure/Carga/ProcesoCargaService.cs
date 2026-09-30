@@ -32,6 +32,13 @@ public sealed class ProcesoCargaService
         => _cargadores.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToList();
 
     /// <summary>
+    /// Resuelve el cargador de un catálogo, para consultar sus metadatos (campos esperados).
+    /// Devuelve null si el catálogo no tiene cargador.
+    /// </summary>
+    public ICargadorCatalogo? ResolverCargador(string catalogo)
+        => _cargadores.TryGetValue(catalogo, out var cargador) ? cargador : null;
+
+    /// <summary>
     /// Ejecuta la carga: lee del origen y carga en el catálogo configurado.
     /// </summary>
     public async Task<ResultadoCarga> EjecutarAsync(

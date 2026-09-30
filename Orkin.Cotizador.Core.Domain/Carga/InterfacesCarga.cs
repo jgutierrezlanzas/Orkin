@@ -22,6 +22,16 @@ public interface ILectorOrigen
 }
 
 /// <summary>
+/// Un campo que un cargador espera del origen, con lo que la pantalla de homologación necesita
+/// para mostrar la tabla de mapeo.
+/// </summary>
+public sealed record CampoEsperado(
+    string Nombre,
+    string Tipo,
+    bool EsObligatorio,
+    string Descripcion);
+
+/// <summary>
 /// Sabe cómo cargar UN catálogo: normaliza una fila cruda, busca la fila existente, decide
 /// si es insert / update / omit, y escribe en la base. Cada catálogo implementa esta
 /// interfaz; el orquestador no sabe cuál es cuál.
@@ -30,6 +40,18 @@ public interface ICargadorCatalogo
 {
     /// <summary>"PRODUCTOS", "CLIENTES", "UNIDADES_MEDIDA", "TIPOS_SERVICIO", "TIPOS_CAMBIO".</summary>
     string Catalogo { get; }
+
+    /// <summary>
+    /// Los campos que este cargador espera del origen, con su tipo y si son obligatorios.
+    /// <para>Es lo que la pantalla de homologación muestra en vez de un JSON crudo: quien
+    /// configura un flujo en un cliente ve QUÉ datos se necesitan, de QUÉ tipo, y cuáles
+    /// puede dejar vacíos — y su vista del ERP solo tiene que traer columnas con esos
+    /// nombres (o mapearlos si ya existen con otros nombres).</para>
+    /// <para>Si un campo esperado no viene en el mapeo ni en la vista, se busca por el mismo
+    /// nombre: una vista que ya trae <c>Codigo</c>, <c>Nombre</c>, <c>CostoActual</c> funciona
+    /// sin mapeo, que es el caso normal.</para>
+    /// </summary>
+    IReadOnlyList<CampoEsperado> CamposEsperados { get; }
 
     /// <summary>
     /// Carga las filas leídas del origen aplicando el mapeo de columnas. Hace el upsert

@@ -22,6 +22,12 @@ public sealed class CargadorUnidadesMedida : CargadorCatalogoMaestro<UnidadMedid
 
     protected override DbSet<UnidadMedida> Set() => Contexto.UnidadMedida;
 
+    protected override IReadOnlyList<CampoEsperado> CamposExtras() =>
+    [
+        new("Abreviatura", "texto", false, "Lo que se imprime en el PDF y en la grilla. Si la vista no lo trae, se usa el código."),
+        new("PermiteDecimales", "booleano", false, "SI/NO. Si la vista no lo trae, se permite."),
+    ];
+
     protected override UnidadMedida CrearEntidad() => new();
 
     protected override Task AplicarExtrasAsync(

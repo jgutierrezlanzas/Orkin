@@ -30,6 +30,22 @@ public abstract class CargadorCatalogoMaestro<T> : ICargadorCatalogo
 
     public abstract string Catalogo { get; }
 
+    /// <summary>
+    /// Los campos comunes de todos los maestros. Los hijos pueden agregar los suyos con
+    /// <see cref="CamposExtras"/>: el núcleo ya sabe que todo maestro necesita Codigo y Nombre,
+    /// y eso no se redeclara en cada hermano.
+    /// </summary>
+    public IReadOnlyList<CampoEsperado> CamposEsperados =>
+    [
+        new("Codigo", "texto", true, "El código del registro en el ERP del cliente"),
+        new("Nombre", "texto", true, "El nombre tal como se muestra en la plataforma"),
+        new("Orden", "entero", false, "Orden de presentación en la pantalla. Si la vista no lo trae, se usa la posición en el archivo."),
+        .. CamposExtras()
+    ];
+
+    /// <summary>Los campos propios del catálogo concreto, para <see cref="CamposEsperados"/>.</summary>
+    protected abstract IReadOnlyList<CampoEsperado> CamposExtras();
+
     public async Task<ResultadoCarga> CargarAsync(
         IReadOnlyList<Dictionary<string, object?>> filas,
         ConfiguracionCarga configuracion,

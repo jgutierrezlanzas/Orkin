@@ -24,6 +24,18 @@ public sealed class CargadorProductos : ICargadorCatalogo
 
     public string Catalogo => "PRODUCTOS";
 
+    public IReadOnlyList<CampoEsperado> CamposEsperados =>
+    [
+        new("Codigo", "texto", true, "El código del producto en el ERP del cliente"),
+        new("Nombre", "texto", true, "El nombre del producto"),
+        new("CostoActual", "número", true, "Lo que ORKIN paga por el producto. Acepta decimales."),
+        new("UnidadMedidaCodigo", "texto", true, "El código de la unidad en la plataforma (ML, UND, L...). Debe existir en el catálogo de unidades."),
+        new("CategoriaCodigo", "texto", false, "El código de la categoría. Opcional; si la vista no lo trae, el producto queda sin categoría."),
+        new("PrecioVentaActual", "número", false, "Precio de lista. Informativo; el motor de cálculo usa el costo."),
+        new("Descripcion", "texto", false, "Descripción del producto."),
+        new("VidaUtilMeses", "entero", false, "Vida útil en meses, si aplica."),
+    ];
+
     // Cachés de nombres para el diff de la simulación. Viven en el cargador y no en el bucle
     // porque su vida útil es la de la carga: al terminar, se van con el servicio, que es
     // scoped, y no se filtran entre cargas de conexiones distintas.

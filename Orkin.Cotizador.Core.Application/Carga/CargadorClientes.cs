@@ -28,6 +28,25 @@ public sealed class CargadorClientes : ICargadorCatalogo
 
     public string Catalogo => "CLIENTES";
 
+    public IReadOnlyList<CampoEsperado> CamposEsperados =>
+    [
+        new("Codigo", "texto", true, "El código del cliente en el ERP del cliente"),
+        new("Nombre", "texto", true, "El nombre del cliente"),
+        new("TipoClienteCodigo", "texto", true, "EMPRESARIAL o RESIDENCIAL. Decide el método de costeo de sus cotizaciones."),
+        new("RazonSocial", "texto", false, "Solo en clientes empresariales."),
+        new("CedulaORuc", "texto", false, "Cédula o RUC del cliente."),
+        new("IdentificacionFiscal", "texto", false, "RT/NIT si el ERP lo trae."),
+        new("Direccion", "texto", false, "Dirección del cliente."),
+        new("Ciudad", "texto", false, "Ciudad."),
+        new("Departamento", "texto", false, "Departamento."),
+        new("Telefono", "texto", false, "Teléfono de contacto."),
+        new("Correo", "texto", false, "Correo para enviar la cotización."),
+        new("ContactoNombre", "texto", false, "Nombre de la persona de contacto."),
+        new("ContactoCargo", "texto", false, "Cargo de la persona de contacto."),
+        new("SitioWeb", "texto", false, "Sitio web."),
+        new("Notas", "texto", false, "Notas internas."),
+    ];
+
     // Caché de nombres de tipo de cliente para el diff de la simulación. Vive en el cargador y
     // no en el bucle por la misma razón que en CargadorProductos: su vida útil es la de la
     // carga, y el cargador es scoped.

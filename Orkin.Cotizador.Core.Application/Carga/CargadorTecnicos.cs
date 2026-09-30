@@ -21,6 +21,13 @@ public sealed class CargadorTecnicos : CargadorCatalogoMaestro<Tecnico>
 
     protected override DbSet<Tecnico> Set() => Contexto.Tecnico;
 
+    protected override IReadOnlyList<CampoEsperado> CamposExtras() =>
+    [
+        new("Telefono", "texto", false, "Para llamarlo cuando se le asigna un trabajo."),
+        new("Correo", "texto", false, "Para enviarle la orden de trabajo."),
+        new("Cargo", "texto", false, "Ej. «Técnico de campo», «Supervisor técnico»."),
+    ];
+
     protected override Tecnico CrearEntidad() => new();
 
     protected override Task AplicarExtrasAsync(

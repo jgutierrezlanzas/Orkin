@@ -24,6 +24,14 @@ public sealed class CargadorTiposServicio : CargadorCatalogoMaestro<TipoServicio
 
     protected override DbSet<TipoServicio> Set() => Contexto.TipoServicio;
 
+    protected override IReadOnlyList<CampoEsperado> CamposExtras() =>
+    [
+        new("Descripcion", "texto", false, "Texto que va al PDF."),
+        new("UnidadMedidaCodigo", "texto", false, "Unidad de cobro del servicio (ej. UND, M2, HORA). Si la vista no lo trae, se elige a mano."),
+        new("EsResidencialPorDefecto", "booleano", false, "SI/NO. Sugerencia al abrir el formulario de cotización."),
+        new("EsEmpresarialPorDefecto", "booleano", false, "SI/NO. Sugerencia al abrir el formulario de cotización."),
+    ];
+
     protected override TipoServicio CrearEntidad() => new();
 
     protected override async Task AplicarExtrasAsync(

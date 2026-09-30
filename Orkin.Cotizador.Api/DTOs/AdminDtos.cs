@@ -82,6 +82,13 @@ public sealed record CrearRolRequest(string Nombre, string? Descripcion);
 /// <summary>Solicitud para editar un rol (nombre y descripción; los permisos van aparte).</summary>
 public sealed record ActualizarRolRequest(string? Nombre, string? Descripcion);
 
+    /// <summary>Los campos que un catálogo espera del origen, para la tabla de homologación.</summary>
+    public sealed record CampoEsperadoResponse(
+    string Nombre,
+    string Tipo,
+    bool EsObligatorio,
+    string Descripcion);
+
 // ── Parámetros generales ─────────────────────────────────────────────────────
 
 public sealed record ParametroResponse(

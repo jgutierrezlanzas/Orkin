@@ -26,6 +26,12 @@ public sealed class CargadorTiposCambio : ICargadorCatalogo
 
     public string Catalogo => "TIPOS_CAMBIO";
 
+    public IReadOnlyList<CampoEsperado> CamposEsperados =>
+    [
+        new("Fecha", "fecha", true, "La fecha del tipo de cambio en formato YYYY-MM-DD."),
+        new("Valor", "número", true, "Córdobas por 1 dólar. Debe ser mayor que cero."),
+    ];
+
     public async Task<ResultadoCarga> CargarAsync(
         IReadOnlyList<Dictionary<string, object?>> filas,
         ConfiguracionCarga configuracion,

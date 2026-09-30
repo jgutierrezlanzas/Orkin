@@ -25,6 +25,19 @@ public sealed class CargadorActivosAmortizables : ICargadorCatalogo
 
     public string Catalogo => "ACTIVOS_AMORTIZABLES";
 
+    public IReadOnlyList<CampoEsperado> CamposEsperados =>
+    [
+        new("Codigo", "texto", true, "El código del activo en el ERP del cliente"),
+        new("Nombre", "texto", true, "El nombre del activo (trampa, lámpara, cebadero...)"),
+        new("CostoActual", "número", true, "El costo del activo. Acepta decimales."),
+        new("MesesVidaUtil", "entero", true, "Vida útil en meses. Debe ser mayor que cero — es lo que permite calcular el valor mensual."),
+        new("UnidadMedidaCodigo", "texto", true, "El código de la unidad en la plataforma (UND, PAR...)."),
+        new("CategoriaCodigo", "texto", false, "El código de la categoría del activo."),
+        new("ValorResidual", "número", false, "Valor residual al final de la vida útil. Normalmente 0."),
+        new("Cantidad", "número", false, "Cuántos de este activo hay. Normalmente 1."),
+        new("Descripcion", "texto", false, "Descripción del activo."),
+    ];
+
     public async Task<ResultadoCarga> CargarAsync(
         IReadOnlyList<Dictionary<string, object?>> filas,
         ConfiguracionCarga configuracion,

@@ -19,6 +19,11 @@ public sealed class CargadorCategoriasProducto : CargadorCatalogoMaestro<Categor
 
     protected override DbSet<CategoriaProducto> Set() => Contexto.CategoriaProducto;
 
+    protected override IReadOnlyList<CampoEsperado> CamposExtras() =>
+    [
+        new("Descripcion", "texto", false, "Descripción de la categoría. Opcional."),
+    ];
+
     protected override CategoriaProducto CrearEntidad() => new();
 
     protected override Task AplicarExtrasAsync(
