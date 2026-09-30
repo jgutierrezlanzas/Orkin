@@ -19,20 +19,16 @@
             <MudText Typo="Typo.h6" Class="mb-4">Datos generales</MudText>
             <MudGrid>
                 <MudItem xs="12" md="4">
-                    <MudSelect T="Guid" @bind-Value="_clienteId" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense">
-                        @foreach (var cliente in _opciones.Clientes)
-                        {
-                            <MudSelectItem T="Guid" Value="cliente.Id">@(cliente.Nombre) (@cliente.Codigo)</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <SelectorLegible TItem="ClienteOpcion" TValue="Guid"
+                                     Items="_opciones.Clientes" ValorDe="c => c.Id" TextoDe='c => $"{c.Nombre} ({c.Codigo})"'
+                                     @bind-Value="_clienteId"
+                                     Label="Cliente" />
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudSelect T="Guid" @bind-Value="_tipoServicioId" Label="Tipo de servicio" Variant="Variant.Outlined" Margin="Margin.Dense">
-                        @foreach (var tipo in _opciones.TiposServicio)
-                        {
-                            <MudSelectItem T="Guid" Value="tipo.Id">@tipo.Nombre</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <SelectorLegible TItem="TipoServicioOpcion" TValue="Guid"
+                                     Items="_opciones.TiposServicio" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
+                                     @bind-Value="_tipoServicioId"
+                                     Label="Tipo de servicio" />
                 </MudItem>
                 <MudItem xs="12" md="2">
                     <MudDatePicker @bind-Value="_fecha" Label="Fecha" Variant="Variant.Outlined" Margin="Margin.Dense" />
@@ -66,12 +62,12 @@
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd Style="min-width: 250px">
-                            <MudSelect T="Guid" @bind-Value="context.ProductoId" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
-                                @foreach (var producto in _productos)
-                                {
-                                    <MudSelectItem T="Guid" Value="producto.Id">@(producto.Nombre) — @(producto.CostoActual.ToString("N2")) C$/@producto.UnidadMedidaAbreviatura</MudSelectItem>
-                                }
-                            </MudSelect>
+                            <SelectorLegible TItem="ProductoModel" TValue="Guid"
+                                             Items="_productos"
+                                             ValorDe="p => p.Id"
+                                             TextoDe='p => $"{p.Nombre} — {p.CostoActual:N2} C$/{p.UnidadMedidaAbreviatura}"'
+                                             @bind-Value="context.ProductoId"
+                                             Dense="true" />
                         </MudTd>
                         <MudTd>
                             <MudNumericField T="decimal" @bind-Value="context.Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Min="0.01m" Step="1m" Style="width: 120px" />

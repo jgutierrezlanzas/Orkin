@@ -171,7 +171,7 @@
                 else
                 {
                     <MudTable Items="@CambiosFiltrados" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0"
-                              Outlined="true" Style="max-height: 420px; overflow: auto;">
+                              Outlined="true">
                         <HeaderContent>
                             <MudTh>Fila</MudTh>
                             <MudTh>Código</MudTh>
@@ -220,6 +220,9 @@
                                 }
                             </MudTd>
                         </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager RowsPerPageString="Filas por página" />
+                        </PagerContent>
                     </MudTable>
                 }
             }
@@ -353,6 +356,9 @@
                         Todavía no hay ninguna conexión. Empiece por la base del ERP de un cliente.
                     </MudText>
                 </NoRecordsContent>
+                <PagerContent>
+                    <MudTablePager RowsPerPageString="Filas por página" />
+                </PagerContent>
             </MudTable>
 
             @* Una conexión no se borra desde la web, y es a propósito: los productos que ya se
@@ -375,12 +381,11 @@
                                       Variant="Variant.Outlined" Margin="Margin.Dense" />
                     </MudItem>
                     <MudItem xs="12" md="3">
-                        <MudSelect T="Guid" @bind-Value="_flujo.ErpConexionId" Label="Conexión" Variant="Variant.Outlined" Margin="Margin.Dense">
-                            @foreach (var c in _conexiones)
-                            {
-                                <MudSelectItem T="Guid" Value="@c.Id">@c.Nombre</MudSelectItem>
-                            }
-                        </MudSelect>
+                        <SelectorLegible TItem="ErpConexionModel" TValue="Guid"
+                                         Items="_conexiones" ValorDe="c => c.Id" TextoDe="c => c.Nombre"
+                                         @bind-Value="_flujo.ErpConexionId"
+                                         Label="Conexión"
+                                         TextoValorActual="— conexión eliminada —" />
                     </MudItem>
                     <MudItem xs="12" md="2">
                         <MudSelect T="string" @bind-Value="_flujo.Catalogo" Label="Catálogo" Variant="Variant.Outlined" Margin="Margin.Dense">
@@ -563,6 +568,9 @@
                         vista del ERP.
                     </MudText>
                 </NoRecordsContent>
+                <PagerContent>
+                    <MudTablePager RowsPerPageString="Filas por página" />
+                </PagerContent>
             </MudTable>
         </MudExpansionPanel>
 
@@ -612,6 +620,9 @@
                             }
                         </MudTd>
                     </RowTemplate>
+                    <PagerContent>
+                        <MudTablePager RowsPerPageString="Filas por página" />
+                    </PagerContent>
                 </MudTable>
             }
         </MudExpansionPanel>

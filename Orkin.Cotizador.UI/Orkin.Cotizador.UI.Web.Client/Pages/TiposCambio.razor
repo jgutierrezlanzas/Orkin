@@ -20,12 +20,11 @@
                     <MudNumericField T="decimal" @bind-Value="_modelo.Valor" Label="Valor (C$/US$)" Variant="Variant.Outlined" Margin="Margin.Dense" Step="0.0001m" Min="0.0001m" />
                 </MudItem>
                 <MudItem xs="12" md="3">
-                    <MudSelect T="byte" @bind-Value="_modelo.FuenteId" Label="Fuente" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
-                        @foreach (var fuente in _fuentes)
-                        {
-                            <MudSelectItem T="byte" Value="fuente.Id">@fuente.Nombre</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <SelectorLegible TItem="FuenteTipoCambioOption" TValue="byte"
+                                     Items="_fuentes" ValorDe="f => f.Id" TextoDe="f => f.Nombre"
+                                     @bind-Value="_modelo.FuenteId"
+                                     Label="Fuente" Clearable="true"
+                                     TextoValorActual="@_nombreFuenteActual" />
                 </MudItem>
                 @if (_editando)
                 {
@@ -78,6 +77,9 @@
                 </MudTd>
             }
         </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Filas por página" />
+        </PagerContent>
     </MudTable>
 </MudContainer>
 
@@ -89,6 +91,7 @@
     private bool _guardando;
     private bool _editando;
     private bool _puedeEditar;
+    private string? _nombreFuenteActual;
 
     protected override async Task OnInitializedAsync()
     {
@@ -125,6 +128,7 @@
             FuenteId = tc.FuenteId,
             EsActivo = tc.EsActivo
         };
+        _nombreFuenteActual = tc.FuenteNombre;
         _editando = true;
     }
 
@@ -135,6 +139,7 @@
         {
             _modelo.FuenteId = _fuentes[0].Id;
         }
+        _nombreFuenteActual = null;
         _modelo.Fecha = DateOnly.FromDateTime(DateTime.Today);
         _editando = false;
     }

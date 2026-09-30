@@ -26,12 +26,11 @@
                     <MudNumericField @bind-Value="_modelo.Orden" Label="Orden" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudSelect T="Guid?" @bind-Value="_modelo.UnidadMedidaId" Label="Unidad de medida" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
-                        @foreach (var unidad in _unidades)
-                        {
-                            <MudSelectItem T="Guid?" Value="unidad.Id">@unidad.Nombre (@unidad.Abreviatura)</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <SelectorLegible TItem="UnidadMedidaModel" TValue="Guid?"
+                                     Items="_unidades" ValorDe="u => u.Id" TextoDe='u => $"{u.Nombre} ({u.Abreviatura})"'
+                                     @bind-Value="_modelo.UnidadMedidaId"
+                                     Label="Unidad de medida" Clearable="true"
+                                     TextoValorActual="@_nombreUnidadActual" />
                 </MudItem>
                 <MudItem xs="12" md="2">
                     <MudSwitch @bind-Value="_modelo.EsResidencialPorDefecto" Label="Residencial" Color="Color.Primary" />
@@ -100,6 +99,9 @@
                 </MudTd>
             }
         </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Filas por página" />
+        </PagerContent>
     </MudTable>
 </MudContainer>
 
@@ -107,6 +109,7 @@
     private List<TipoServicioModel> _tipos = [];
     private List<UnidadMedidaModel> _unidades = [];
     private TipoServicioModel _modelo = new();
+    private string? _nombreUnidadActual;
     private bool _cargando;
     private bool _guardando;
     private bool _editando;
@@ -142,12 +145,14 @@
             Orden = tipo.Orden,
             EsActivo = tipo.EsActivo
         };
+        _nombreUnidadActual = tipo.UnidadMedidaNombre;
         _editando = true;
     }
 
     private void Cancelar()
     {
         _modelo = new TipoServicioModel();
+        _nombreUnidadActual = null;
         _editando = false;
     }
 
@@ -171,6 +176,7 @@
             {
                 Snackbar.Add("Guardado correctamente.", Severity.Success);
                 _modelo = new TipoServicioModel();
+                _nombreUnidadActual = null;
                 _editando = false;
                 _tipos = await CatalogoService.ListarTiposServicioAsync();
             }

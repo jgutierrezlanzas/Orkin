@@ -1,0 +1,104 @@
+@* Select de catálogo que no puede mostrar un identificador crudo.
+
+   Regla de la casa: si el dato se llama por su id (un Guid, un byte), a la pantalla llega su
+   nombre o su descripción, nunca el identificador. Un combo que enseña "321b0838-7066-..." no
+   dice nada de qué se está eligiendo y se ve espantoso.
+
+   Cómo se garantiza: MudSelect resuelve el texto cerrado buscando entre los MudSelectItem
+   renderizados, y cuando no encuentra el valor cae a un hueco vacío (peor: editar un producto
+   cuya categoría fue desactivada mostraba un combo en blanco, sin saber cuál tenía). Este
+   componente agrega, cuando hace falta, un ítem sintético con el nombre que ya viene resuelto
+   en el registro (TextoValorActual) — o un guión si ni eso se sabe —, de modo que el valor
+   actual SIEMPRE tiene un ítem que lo traduzca. No hay rama que renderice un identificador.
+*@
+@using System.Linq.Expressions
+@typeparam TItem
+@typeparam TValue
+
+<MudSelect T="TValue"
+           Value="Value"
+           ValueChanged="OnCambio"
+           ValueExpression="ValueExpression"
+           Label="Label"
+           Variant="Variant"
+           Margin="Margin"
+           Dense="Dense"
+           Clearable="Clearable"
+           Disabled="Disabled"
+           Class="Class"
+           Style="Style">
+    @foreach (var item in Items)
+    {
+        <MudSelectItem T="TValue" Value="@ValorDe(item)">@TextoDe(item)</MudSelectItem>
+    }
+    @if (_valorFaltaEnLaLista)
+    {
+        <MudSelectItem T="TValue" Value="@Value">@(TextoValorActual ?? "—")</MudSelectItem>
+    }
+</MudSelect>
+
+@code {
+    /// <summary>Los elementos elegibles, en el orden en que se muestran.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<TItem> Items { get; set; } = [];
+
+    /// <summary>El identificador de cada elemento: lo que se guarda, nunca lo que se ve.</summary>
+    [Parameter, EditorRequired]
+    public Func<TItem, TValue> ValorDe { get; set; } = static _ => default!;
+
+    /// <summary>El texto de cada elemento: lo que se ve, nunca el identificador.</summary>
+    [Parameter, EditorRequired]
+    public Func<TItem, string> TextoDe { get; set; } = static _ => string.Empty;
+
+    /// <summary>El valor seleccionado.</summary>
+    [Parameter]
+    public TValue? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<TValue> ValueChanged { get; set; }
+
+    /// <summary>Lo usa EditForm para la validación; se recibe por @bind-Value.</summary>
+    [Parameter]
+    public Expression<Func<TValue>>? ValueExpression { get; set; }
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public Variant Variant { get; set; } = Variant.Outlined;
+
+    [Parameter]
+    public Margin Margin { get; set; } = Margin.Dense;
+
+    [Parameter]
+    public bool Dense { get; set; }
+
+    /// <summary>Solo tiene sentido cuando TValue es nullable (Guid?, int?...).</summary>
+    [Parameter]
+    public bool Clearable { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>
+    /// Nombre legible del valor actual cuando ya no está en la lista — el clásico: la categoría
+    /// del producto fue desactivada y el filtro de activos la sacó del combo. Se toma del
+    /// registro que se está editando, que ya trae el nombre resuelto, para no perder la
+    /// información de cuál era.
+    /// </summary>
+    [Parameter]
+    public string? TextoValorActual { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public string? Style { get; set; }
+
+    private bool _esVacio => EqualityComparer<TValue>.Default.Equals(Value, default);
+
+    private bool _valorFaltaEnLaLista =>
+        !_esVacio && !Items.Any(i => EqualityComparer<TValue>.Default.Equals(ValorDe(i), Value!));
+
+    private Task OnCambio(TValue valor) => ValueChanged.InvokeAsync(valor);
+}

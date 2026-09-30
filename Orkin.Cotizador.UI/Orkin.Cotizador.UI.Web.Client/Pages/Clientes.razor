@@ -23,12 +23,11 @@
                     <MudTextField @bind-Value="_modelo.RazonSocial" Label="Razón social" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
                 <MudItem xs="12" md="3">
-                    <MudSelect T="byte" @bind-Value="_modelo.TipoClienteId" Label="Tipo de cliente" Variant="Variant.Outlined" Margin="Margin.Dense">
-                        @foreach (var tipo in _tiposCliente)
-                        {
-                            <MudSelectItem T="byte" Value="tipo.Id">@tipo.Nombre</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <SelectorLegible TItem="TipoClienteOption" TValue="byte"
+                                     Items="_tiposCliente" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
+                                     @bind-Value="_modelo.TipoClienteId"
+                                     Label="Tipo de cliente"
+                                     TextoValorActual="@_nombreTipoClienteActual" />
                 </MudItem>
                 <MudItem xs="12" md="3">
                     <MudTextField @bind-Value="_modelo.CedulaORuc" Label="Cédula/RUC" Variant="Variant.Outlined" Margin="Margin.Dense" />
@@ -120,6 +119,9 @@
                 </MudTd>
             }
         </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Filas por página" />
+        </PagerContent>
     </MudTable>
 </MudContainer>
 
@@ -131,6 +133,7 @@
     private bool _guardando;
     private bool _editando;
     private bool _puedeEditar;
+    private string? _nombreTipoClienteActual;
 
     protected override async Task OnInitializedAsync()
     {
@@ -175,6 +178,7 @@
             Notas = cliente.Notas,
             EsActivo = cliente.EsActivo
         };
+        _nombreTipoClienteActual = cliente.TipoClienteNombre;
         _editando = true;
     }
 
@@ -185,6 +189,7 @@
         {
             _modelo.TipoClienteId = _tiposCliente[0].Id;
         }
+        _nombreTipoClienteActual = null;
         _editando = false;
     }
 
