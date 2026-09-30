@@ -1,0 +1,99 @@
+@page "/auditoria"
+@attribute [Authorize("AUDITORIA.VER")]
+@layout MainLayout
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AdminService AdminService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">Bitácora</MudText>
+    </div>
+
+    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4" Variant="Variant.Outlined">
+        Solo lectura: qué cambió, quién lo cambió y cuándo. La tabla es append-only — no se
+        actualiza ni se borra, ni desde aquí.
+    </MudAlert>
+
+    <div class="d-flex gap-4 mb-4">
+        <MudItem Class="flex-grow-1">
+            <SelectorLegible TItem="string" TValue="string"
+                             Items="_entidades" ValorDe="e => e" TextoDe="e => e"
+                             @bind-Value="_filtroEntidad"
+                             Label="Filtrar por entidad" Clearable="true" Margin="Margin.Dense" />
+        </MudItem>
+    </div>
+
+    <MudTable Items="_pagina.Items" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Fecha</MudTh>
+            <MudTh>Entidad</MudTh>
+            <MudTh>Acción</MudTh>
+            <MudTh>Usuario</MudTh>
+            <MudTh>Campos</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Fecha">@context.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</MudTd>
+            <MudTd DataLabel="Entidad">@context.Entidad</MudTd>
+            <MudTd DataLabel="Acción">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@(context.Accion == "UPDATE" ? Color.Info : context.Accion == "INSERT" ? Color.Success : Color.Warning)">@context.Accion</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Usuario">@(context.Usuario ?? "—")</MudTd>
+            <MudTd DataLabel="Campos">
+                <MudTooltip Text="@(context.ValorNuevoJson ?? "")">
+                    <code>@(context.CamposModificados ?? "-")</code>
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4 mud-text-secondary">No hay registros que coincidan con el filtro.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+
+    @if (_pagina.Total > _pagina.Tamanio)
+    {
+        <div class="d-flex justify-center mt-4 gap-2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Disabled="@(_pagina.Pagina <= 1 || _cargando)"
+                       OnClick="@(async () => await Cargar(_pagina.Pagina - 1))">Anterior</MudButton>
+            <MudText Typo="Typo.body2" Class="align-self-center">
+                Página @(_pagina.Pagina) de @Math.Max(1, (int)Math.Ceiling(_pagina.Total / (double)_pagina.Tamanio))) — @(_pagina.Total) registros
+            </MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       Disabled="@(_pagina.Pagina >= Math.Ceiling(_pagina.Total / (double)_pagina.Tamanio) || _cargando)"
+                       OnClick="@(async () => await Cargar(_pagina.Pagina + 1))">Siguiente</MudButton>
+        </div>
+    }
+</MudContainer>
+
+@code {
+    private PaginaAuditoria _pagina = new() { Pagina = 1, Tamanio = 20 };
+    private List<string> _entidades = [];
+    private string? _filtroEntidad;
+    private bool _cargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Cargar(1);
+    }
+
+    /// <summary>Recarga con el filtro actual. La lista de entidades sale de lo que ya hay en la
+    /// bitácora, no de un catálogo: la bitácora registra entidades de negocio, no de sistema.</summary>
+    private async Task Cargar(int pagina)
+    {
+        _cargando = true;
+        try
+        {
+            _pagina = await AdminService.ListarAuditoriaAsync(pagina, _pagina.Tamanio, _filtroEntidad);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    /// <summary>Al cambiar el filtro, vuelve a la primera página.</summary>
+    private async Task CambioFiltro()
+    {
+        await Cargar(1);
+    }
+}

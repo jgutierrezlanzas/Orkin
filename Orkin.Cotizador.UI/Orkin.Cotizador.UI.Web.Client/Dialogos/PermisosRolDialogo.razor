@@ -1,0 +1,63 @@
+@* Editor de permisos de un rol: casilleros agrupados por módulo. Ver ProductoDialogo para el patrón.
+
+   Se muestra el catálogo COMPLETO, no solo lo que el rol tiene: quien edita necesita ver qué
+   puede quitar, no adivinar qué falta.
+*@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4 mud-text-secondary">
+            Marque lo que este rol puede hacer. La lista reemplaza la anterior completa.
+        </MudText>
+
+        @foreach (var grupo in _agrupados)
+        {
+            <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mt-3 mb-1">@grupo.Key</MudText>
+            <MudDivider Class="mb-2" />
+            @foreach (var permiso in grupo)
+            {
+                <MudCheckBox T="string" Value="@permiso.Codigo" ValueChanged="@(_ => Conmutar(permiso.Codigo))"
+                             Label="@permiso.Nombre" Class="mb-0" Checked="@(Seleccionados.Contains(permiso.Codigo))"
+                             HelperText="@(string.IsNullOrEmpty(permiso.Descripcion) ? null : permiso.Descripcion)" />
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar">
+            <MudText>Guardar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public RolModel Rol { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public List<PermisoModel> Permisos { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public HashSet<string> Seleccionados { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Permisos agrupados por módulo, en el orden del catálogo (no alfabético).</summary>
+    private IEnumerable<IGrouping<string, PermisoModel>> _agrupados
+        => Permisos.GroupBy(p => p.Modulo);
+
+    private void Conmutar(string codigo)
+    {
+        if (!Seleccionados.Remove(codigo))
+        {
+            Seleccionados.Add(codigo);
+        }
+    }
+
+    private void Guardar()
+    {
+        Dialogo.Close(DialogResult.Ok<IReadOnlyList<string>>([.. Seleccionados]));
+    }
+
+    private void Cancelar() => Dialogo.Cancel();
+}

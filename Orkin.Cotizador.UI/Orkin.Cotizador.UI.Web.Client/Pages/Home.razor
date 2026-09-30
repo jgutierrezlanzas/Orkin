@@ -1,7 +1,92 @@
 @page "/"
-@attribute [Authorize]
+@attribute [Authorize("DASHBOARD.VISUALIZAR")]
+@layout MainLayout
+@using Microsoft.AspNetCore.Components.Authorization
+@inject CotizacionService CotizacionService
+@inject CatalogoService CatalogoService
+@using Orkin.Cotizador.UI.Web.Client.Services
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
-    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Dashboard</MudText>
-    <MudText>Bienvenido al Cotizador Web de ORKIN.</MudText>
+    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-6">Dashboard</MudText>
+
+    @if (_cargando)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else
+    {
+        <MudGrid Class="mb-6">
+            <MudItem xs="6" md="3">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Cotizaciones</MudText>
+                    <MudText Typo="Typo.h4" Color="Color.Primary">@_datos.Cotizaciones</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Clientes</MudText>
+                    <MudText Typo="Typo.h4" Color="Color.Primary">@_datos.Clientes</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Productos activos</MudText>
+                    <MudText Typo="Typo.h4" Color="Color.Primary">@_datos.Productos</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Últimas cotizaciones</MudText>
+                    <MudTable Items="_datos.Ultimas" Dense="true" Elevation="0" Hover="false">
+                        <HeaderContent>
+                            <MudTh>Número</MudTh>
+                            <MudTh>Cliente</MudTh>
+                            <MudTh>Estado</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.Numero</MudTd>
+                            <MudTd>@context.ClienteNombre</MudTd>
+                            <MudTd>@context.EstadoNombre</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
 </MudContainer>
+
+@code {
+    private DatosDashboard _datos = new();
+    private bool _cargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            var cotizaciones = await CotizacionService.ListarAsync(1, 5);
+            var clientes = await CatalogoService.ListarClientesAsync();
+            var productos = await CatalogoService.ListarProductosAsync();
+
+            _datos = new DatosDashboard
+            {
+                Cotizaciones = cotizaciones.Total,
+                Ultimas = cotizaciones.Items,
+                Clientes = clientes.Count,
+                Productos = productos.Count
+            };
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private sealed class DatosDashboard
+    {
+        public int Cotizaciones { get; set; }
+        public List<CotizacionListItem> Ultimas { get; set; } = [];
+        public int Clientes { get; set; }
+        public int Productos { get; set; }
+    }
+}

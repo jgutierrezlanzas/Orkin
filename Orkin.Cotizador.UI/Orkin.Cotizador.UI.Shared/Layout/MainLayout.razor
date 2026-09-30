@@ -31,7 +31,6 @@
                 {
                     <MudNavLink Href="/cotizaciones" Icon="@Icons.Material.Filled.RequestQuote">Cotizaciones</MudNavLink>
                 }
-
                 @if (TienePermiso("CLIENTES.VER"))
                 {
                     <MudNavLink Href="/clientes" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
@@ -62,12 +61,32 @@
                     </MudNavGroup>
                 }
 
-                @if (EsAdmin)
+                @* El grupo de administración se abre con cualquiera de sus permisos, como el de
+                   catálogos: un auditor con AUDITORIA.VER y nada de ADMIN.* tiene que poder
+                   llegar a su página, y no tendría por dónde si el grupo dependiera de ADMIN. *@
+                @if (EsAdmin || TienePermiso("AUDITORIA.VER"))
                 {
-                    <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.Settings">Administración</MudNavLink>
+                    <MudNavGroup Title="Administración" Icon="@Icons.Material.Filled.Settings" Expanded="true">
+                        @if (TienePermiso("ADMIN.USUARIOS"))
+                        {
+                            <MudNavLink Href="/administracion/usuarios" Icon="@Icons.Material.Filled.ManageAccounts">Usuarios</MudNavLink>
+                        }
+                        @if (TienePermiso("ADMIN.ROLES"))
+                        {
+                            <MudNavLink Href="/administracion/roles" Icon="@Icons.Material.Filled.Workspaces">Roles y permisos</MudNavLink>
+                        }
+                        @if (TienePermiso("ADMIN.PARAMETROS"))
+                        {
+                            <MudNavLink Href="/administracion/parametros" Icon="@Icons.Material.Filled.Tune">Parámetros</MudNavLink>
+                        }
+                        @if (TienePermiso("AUDITORIA.VER"))
+                        {
+                            <MudNavLink Href="/auditoria" Icon="@Icons.Material.Filled.HistoryEdu">Bitácora</MudNavLink>
+                        }
+                        <MudDivider Class="my-1" />
+                        <MudNavLink Href="/cambiar-contrasena" Icon="@Icons.Material.Filled.Lock">Cambiar contraseña</MudNavLink>
+                    </MudNavGroup>
                 }
-
-                <MudNavLink Href="/cambiar-contrasena" Icon="@Icons.Material.Filled.Lock">Cambiar contraseña</MudNavLink>
             </MudNavMenu>
         </MudDrawer>
     }

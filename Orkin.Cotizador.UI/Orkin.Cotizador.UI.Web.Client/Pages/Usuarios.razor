@@ -1,0 +1,165 @@
+@page "/administracion/usuarios"
+@attribute [Authorize("ADMIN.USUARIOS")]
+@layout MainLayout
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AdminService AdminService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">Usuarios</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="Nuevo">Nuevo usuario</MudButton>
+    </div>
+
+    <MudTable Items="_usuarios" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Cuenta</MudTh>
+            <MudTh>Nombre</MudTh>
+            <MudTh>Rol</MudTh>
+            <MudTh>Correo</MudTh>
+            <MudTh>Último acceso</MudTh>
+            <MudTh>Estado</MudTh>
+            <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Código">@context.NombreCuenta</MudTd>
+            <MudTd DataLabel="Nombre">@context.NombreCompleto</MudTd>
+            <MudTd DataLabel="Rol">@string.Join(", ", context.Roles)</MudTd>
+            <MudTd DataLabel="Correo">@(context.Correo ?? "-")</MudTd>
+            <MudTd DataLabel="Último acceso">@(context.UltimoAccesoUtc is { } u ? u.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "nunca")</MudTd>
+            <MudTd DataLabel="Estado">
+                <MudChip T="string" Size="Size.Small" Color="@(context.EsActivo ? Color.Success : Color.Default)" Variant="Variant.Text">
+                    @(context.EsActivo ? "Activo" : "Inactivo")
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                <MudTooltip Text="Editar">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Editar(context))" />
+                </MudTooltip>
+                <MudTooltip Text="Restablecer la contraseña">
+                    <MudIconButton Icon="@Icons.Material.Filled.Key" Color="Color.Warning" Size="Size.Small" OnClick="@(() => RestablecerClave(context))" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Class="pa-4 mud-text-secondary">Todavía no hay ningún usuario aparte del de la semilla.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Filas por página" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<UsuarioModel> _usuarios = [];
+    private List<RolModel> _roles = [];
+    private bool _cargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            _roles = await AdminService.ListarRolesAsync();
+            _usuarios = await AdminService.ListarUsuariosAsync();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private Task Nuevo() => AbrirDialogo(new UsuarioModel());
+
+    private Task Editar(UsuarioModel usuario) => AbrirDialogo(new UsuarioModel
+    {
+        Id = usuario.Id,
+        NombreCuenta = usuario.NombreCuenta,
+        NombreCompleto = usuario.NombreCompleto,
+        Correo = usuario.Correo,
+        Documento = usuario.Documento,
+        Cargo = usuario.Cargo,
+        EsActivo = usuario.EsActivo,
+        EsUsuarioSistema = usuario.EsUsuarioSistema,
+        DebeCambiarContrasena = usuario.DebeCambiarContrasena,
+        UltimoAccesoUtc = usuario.UltimoAccesoUtc,
+        Roles = [.. usuario.Roles]
+    });
+
+    private async Task AbrirDialogo(UsuarioModel modelo)
+    {
+        var parametros = new DialogParameters<UsuarioDialogo>
+        {
+            { d => d.Modelo, modelo },
+            { d => d.Roles, _roles }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<UsuarioDialogo>(
+            modelo.Id == Guid.Empty ? "Nuevo usuario" : $"Editar — {modelo.NombreCompleto}", parametros, opciones);
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not ResultadoUsuario edicion)
+        {
+            return;
+        }
+
+        if (modelo.Id == Guid.Empty)
+        {
+            var respuesta = await AdminService.CrearUsuarioAsync(edicion.Modelo, edicion.ContrasenaInicial ?? string.Empty);
+            if (respuesta?.Exito == true)
+            {
+                Snackbar.Add("Usuario creado. Con la clave inicial entrará y el sistema le pedirá la suya.", Severity.Success);
+                _usuarios = await AdminService.ListarUsuariosAsync();
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo crear el usuario.", Severity.Error);
+            }
+        }
+        else
+        {
+            var respuesta = await AdminService.ActualizarUsuarioAsync(edicion.Modelo);
+            if (respuesta?.Exito == true)
+            {
+                Snackbar.Add("Usuario guardado.", Severity.Success);
+                _usuarios = await AdminService.ListarUsuariosAsync();
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar el usuario.", Severity.Error);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Restablecer la clave: pide la nueva en un diálogo pequeño y la cambia. La política de
+    /// claves la valida la API; el snackbar trae la razón si no cumple.
+    /// </summary>
+    private async Task RestablecerClave(UsuarioModel usuario)
+    {
+        var parametros = new DialogParameters<CambiarContrasenaDialogo>
+        {
+            { d => d.NombreUsuario, usuario.NombreCompleto }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<CambiarContrasenaDialogo>("Restablecer contraseña", parametros, opciones);
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not string clave)
+        {
+            return;
+        }
+
+        var respuesta = await AdminService.CambiarContrasenaAsync(usuario.Id, clave, obligarCambio: true);
+        if (respuesta?.Exito == true)
+        {
+            Snackbar.Add($"{usuario.NombreCuenta}: contraseña restablecida. Tendrá que cambiarla al entrar.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo cambiar la contraseña.", Severity.Error);
+        }
+    }
+}

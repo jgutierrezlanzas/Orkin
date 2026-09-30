@@ -1,0 +1,66 @@
+@* Restablecimiento de contraseña por parte del administrador. Ver ProductoDialogo para el patrón. *@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4 mud-text-secondary">
+            La clave nueva de <b>@NombreUsuario</b>. La política de claves la valida la API al
+            guardar; si no cumple, el motivo aparece aquí mismo.
+        </MudText>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_clave" Label="Contraseña nueva" InputType="InputType.Password"
+                          Required="true" RequiredError="Ponga la contraseña nueva"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@(_verClave ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                          OnAdornmentClick="@(() => _verClave = !_verClave)"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+            <MudTextField @bind-Value="_confirmacion" Label="Repita la contraseña" InputType="InputType.Password"
+                          Required="true" RequiredError="Repita la contraseña"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+            @if (_noCoinciden)
+            {
+                <MudText Typo="Typo.caption" Class="mud-error-text">Las dos contraseñas no coinciden.</MudText>
+            }
+        </MudForm>
+        <MudCheckBox T="bool" @bind-Value="_obligarCambio" Label="Obligar a cambiarla en el próximo ingreso" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">
+            <MudText>Cambiar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El nombre del usuario cuya clave se restablece, para el texto.</summary>
+    [Parameter]
+    public string? NombreUsuario { get; set; }
+
+    private MudForm _form = null!;
+    private string _clave = string.Empty;
+    private string _confirmacion = string.Empty;
+    private bool _verClave;
+    private bool _noCoinciden;
+    private bool _obligarCambio = true;
+
+    private async Task Aceptar()
+    {
+        await _form.Validate();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        _noCoinciden = !string.Equals(_clave, _confirmacion, StringComparison.Ordinal);
+        if (_noCoinciden)
+        {
+            return;
+        }
+
+        Dialogo.Close(DialogResult.Ok(_clave));
+    }
+
+    private void Cancelar() => Dialogo.Cancel();
+}

@@ -1,0 +1,100 @@
+@page "/administracion/roles"
+@attribute [Authorize("ADMIN.ROLES")]
+@layout MainLayout
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AdminService AdminService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">Roles y permisos</MudText>
+    </div>
+
+    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4" Variant="Variant.Outlined">
+        El rol es la matriz de permisos: el usuario hereda lo que su rol tiene. Cambiar los
+        permisos de un rol afecta a todos sus usuarios en el <b>próximo ingreso</b> — el token
+        trae los permisos y dura lo que dure la sesión.
+    </MudAlert>
+
+    <MudTable Items="_roles" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Rol</MudTh>
+            <MudTh>Descripción</MudTh>
+            <MudTh>Permisos</MudTh>
+            <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Rol">
+                @context.Nombre
+                @if (context.EsSistema)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="mud-text-secondary">sistema</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Descripción">@(context.Descripcion ?? "-")</MudTd>
+            <MudTd DataLabel="Permisos">@context.Permisos.Count</MudTd>
+            <MudTd>
+                <MudTooltip Text="Editar los permisos del rol">
+                    <MudIconButton Icon="@Icons.Material.Filled.Tune" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EditarPermisos(context))" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Filas por página" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<RolModel> _roles = [];
+    private bool _cargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            _roles = await AdminService.ListarRolesAsync();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    /// <summary>
+    /// El editor de permisos es un modal con los casilleros agrupados por módulo. Guardar
+    /// reemplaza la lista completa del rol: quien guardó vio la pantalla entera.
+    /// </summary>
+    private async Task EditarPermisos(RolModel rol)
+    {
+        var permisos = await AdminService.ListarPermisosAsync();
+        var parametros = new DialogParameters<PermisosRolDialogo>
+        {
+            { d => d.Rol, rol },
+            { d => d.Permisos, permisos },
+            { d => d.Seleccionados, rol.Permisos.ToHashSet(StringComparer.OrdinalIgnoreCase) }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<PermisosRolDialogo>(
+            $"Permisos — {rol.Nombre}", parametros, opciones);
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not IReadOnlyList<string> nuevos)
+        {
+            return;
+        }
+
+        var respuesta = await AdminService.AsignarPermisosAsync(rol.Id, nuevos);
+        if (respuesta?.Exito == true)
+        {
+            Snackbar.Add($"{rol.Nombre}: {nuevos.Count} permisos. Surte efecto en el próximo ingreso de cada usuario.", Severity.Success);
+            _roles = await AdminService.ListarRolesAsync();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudieron guardar los permisos.", Severity.Error);
+        }
+    }
+}

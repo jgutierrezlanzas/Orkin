@@ -1,0 +1,78 @@
+@* Edición del valor de un parámetro. Ver ProductoDialogo para el patrón.
+
+   El tipo de dato decide el campo: un DECIMAL no se escribe en un caja de texto libre,
+   porque quien lo guarde con una coma de más tendrá que leer el mensaje de la API para
+   descubrir el problema.
+*@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-4 mud-text-secondary">@Modelo.Descripcion</MudText>
+
+        @if (EsBooleano)
+        {
+            <MudSwitch T="bool" @bind-Value="_comoBooleano" Label="@(_comoBooleano ? "Activado" : "Desactivado")" Color="Color.Primary" />
+        }
+        else if (EsNumerico)
+        {
+            <MudNumericField T="decimal" @bind-Value="_comoNumero" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        }
+        else
+        {
+            <MudTextField @bind-Value="_comoTexto" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="@(EsLargo ? 4 : 1)" />
+        }
+
+        <MudText Typo="Typo.caption" Class="mt-2 mud-text-secondary">
+            Tipo: @Modelo.TipoDato@(Modelo.EsSistema ? " · parámetro de sistema" : "")@(Modelo.EsSecreto ? " · secreto" : "")
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar">
+            <MudText>Guardar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public ParametroModel Modelo { get; set; } = null!;
+
+    private bool _comoBooleano;
+    private decimal _comoNumero;
+    private string _comoTexto = string.Empty;
+
+    private bool EsBooleano => Modelo.TipoDato.Contains("BOOLEANO", StringComparison.OrdinalIgnoreCase);
+    private bool EsNumerico => Modelo.TipoDato.Contains("DECIMAL", StringComparison.OrdinalIgnoreCase)
+        || Modelo.TipoDato.Contains("ENTERO", StringComparison.OrdinalIgnoreCase);
+    private bool EsLargo => (Modelo.Valor?.Length ?? 0) > 80;
+
+    protected override void OnInitialized()
+    {
+        _comoTexto = Modelo.Valor ?? string.Empty;
+
+        if (EsBooleano)
+        {
+            _comoBooleano = Modelo.Valor is "SI" or "1" or "TRUE";
+        }
+        else if (decimal.TryParse(Modelo.Valor, out var numero))
+        {
+            _comoNumero = numero;
+        }
+    }
+
+    private void Guardar()
+    {
+        var valor = EsBooleano
+            ? (_comoBooleano ? "SI" : "NO")
+            : EsNumerico
+                ? _comoNumero.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : _comoTexto;
+
+        Dialogo.Close(DialogResult.Ok(valor));
+    }
+
+    private void Cancelar() => Dialogo.Cancel();
+}

@@ -1,0 +1,128 @@
+@* Alta y edición de usuario en modal. Ver ProductoDialogo para el porqué del patrón.
+
+   La contraseña no se edita: se restablece aparte, con su propia acción, porque quien abre el
+   formulario de datos de un usuario no debería poder tocar la clave sin darse cuenta.
+*@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudGrid>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="Modelo.NombreCuenta" Label="Cuenta" Required="true"
+                                  RequiredError="Ponga la cuenta con la que va a entrar (sin espacios)"
+                                  Disabled="@EsEdicion" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="8">
+                    <MudTextField @bind-Value="Modelo.NombreCompleto" Label="Nombre completo" Required="true"
+                                  RequiredError="Ponga el nombre de la persona"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="Modelo.Correo" Label="Correo" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudTextField @bind-Value="Modelo.Documento" Label="Documento" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="5">
+                    <MudTextField @bind-Value="Modelo.Cargo" Label="Cargo" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                @if (!EsEdicion)
+                {
+                    <MudItem xs="12" md="4">
+                        @* La clave inicial la elige quien crea, y el usuario la cambia al primer
+                           ingreso: DebeCambiarContrasena viaja siempre en true al crear. *@
+                        <MudTextField @bind-Value="_contrasena" Label="Contraseña inicial" InputType="InputType.Password"
+                                      Required="true" RequiredError="Falta la contraseña inicial"
+                                      Adornment="Adornment.End"
+                                      AdornmentIcon="@(_verContrasena ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                                      OnAdornmentClick="@(() => _verContrasena = !_verContrasena)"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                }
+                <MudItem xs="12" md="8">
+                    <MudSelect T="string" @bind-Value="_rolSeleccionado" Label="Rol principal"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2"
+                               HelperText="El rol trae los permisos; el usuario hereda lo que su rol tiene.">
+                        @foreach (var rol in Roles)
+                        {
+                            <MudSelectItem T="string" Value="@rol.Nombre">@rol.Nombre — @(rol.Descripcion ?? "")</MudSelectItem>
+                        }
+                    </MudSelect>
+                    @if (_faltaRol)
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-error-text">Elija al menos un rol: sin rol, el usuario no puede hacer nada.</MudText>
+                    }
+                </MudItem>
+                @if (EsEdicion)
+                {
+                    <MudItem xs="12" md="12">
+                        <MudSwitch @bind-Value="Modelo.EsActivo" Label="Activo" Color="Color.Primary"
+                                   Disabled="Modelo.EsUsuarioSistema" />
+                        @if (Modelo.EsUsuarioSistema)
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                El usuario de sistema no se desactiva: es la red contra quedarse sin administrador.
+                            </MudText>
+                        }
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">
+            <MudText>Guardar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El modelo que se edita. Si <see cref="UsuarioModel.Id"/> es vacío, es un alta.</summary>
+    [Parameter, EditorRequired]
+    public UsuarioModel Modelo { get; set; } = new();
+
+    [Parameter, EditorRequired]
+    public List<RolModel> Roles { get; set; } = [];
+
+    private MudForm _form = null!;
+    private string _contrasena = string.Empty;
+    private string? _rolSeleccionado;
+    private bool _verContrasena;
+    private bool _faltaRol;
+
+    private bool EsEdicion => Modelo.Id != Guid.Empty;
+
+    protected override void OnInitialized()
+    {
+        // Al editar, el rol que se muestra es el primero de la lista del usuario.
+        _rolSeleccionado = Modelo.Roles.FirstOrDefault();
+    }
+
+    private async Task Aceptar()
+    {
+        await _form.Validate();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        _faltaRol = string.IsNullOrWhiteSpace(_rolSeleccionado);
+        if (_faltaRol)
+        {
+            return;
+        }
+
+        // Un solo rol por usuario en la UI: la matriz de permisos de este sistema vive por rol,
+        // y mezclar dos roles en un usuario es la fuente de permisos que nadie sabe explicar.
+        Modelo.Roles = [_rolSeleccionado!];
+
+        Dialogo.Close(DialogResult.Ok(new ResultadoUsuario(Modelo, EsEdicion ? null : _contrasena)));
+    }
+
+    private void Cancelar() => Dialogo.Cancel();
+}
+

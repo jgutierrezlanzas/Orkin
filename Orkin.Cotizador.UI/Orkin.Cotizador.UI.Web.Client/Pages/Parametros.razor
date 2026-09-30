@@ -1,0 +1,96 @@
+@page "/administracion/parametros"
+@attribute [Authorize("ADMIN.PARAMETROS")]
+@layout MainLayout
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AdminService AdminService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">Parámetros generales</MudText>
+    </div>
+
+    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4" Variant="Variant.Outlined">
+        Lo que se ajusta aquí afecta a la siguiente operación sin redeploy. El valor se valida
+        contra el tipo declarado del parámetro, no contra lo que la pantalla deje pasar.
+    </MudAlert>
+
+    <MudTable Items="_parametros" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Parámetro</MudTh>
+            <MudTh>Valor</MudTh>
+            <MudTh>Tipo</MudTh>
+            <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Parámetro">
+                <MudText Typo="Typo.body2">@context.Nombre</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Descripcion</MudText>
+            </MudTd>
+            <MudTd DataLabel="Valor">
+                <code>@context.Valor</code>
+            </MudTd>
+            <MudTd DataLabel="Tipo">@context.TipoDato</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Editar(context))" />
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Filas por página" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<ParametroModel> _parametros = [];
+    private bool _cargando;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            _parametros = await AdminService.ListarParametrosAsync();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task Editar(ParametroModel parametro)
+    {
+        var parametros = new DialogParameters<ParametroDialogo>
+        {
+            { d => d.Modelo, new ParametroModel
+              {
+                  Id = parametro.Id, Nombre = parametro.Nombre, Descripcion = parametro.Descripcion,
+                  Valor = parametro.Valor, TipoDato = parametro.TipoDato,
+                  Grupo = parametro.Grupo, Orden = parametro.Orden,
+                  EsSistema = parametro.EsSistema, EsSecreto = parametro.EsSecreto
+              } }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<ParametroDialogo>(
+            $"Editar — {parametro.Nombre}", parametros, opciones);
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not string valorNuevo)
+        {
+            return;
+        }
+
+        parametro.Valor = valorNuevo;
+        var respuesta = await AdminService.ActualizarParametroAsync(parametro);
+        if (respuesta?.Exito == true)
+        {
+            Snackbar.Add("Parámetro guardado.", Severity.Success);
+            _parametros = await AdminService.ListarParametrosAsync();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar el parámetro.", Severity.Error);
+        }
+    }
+}
