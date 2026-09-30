@@ -30,6 +30,28 @@ public sealed class AuthService
            ?? await _js.InvokeAsync<string?>("sessionStorage.getItem", TokenKey);
 
     /// <summary>
+    /// La credencial recordada (correo o usuario), para que al volver a entrar después de una
+    /// sesión expirada solo falte la clave. Solo se guarda cuando «Recordarme» está marcado:
+    /// quien no lo marcó pidió explícitamente que la sesión muriera con la pestaña.
+    /// </summary>
+    private const string CredencialKey = "orkin_cotizador_usuario";
+
+    public async Task<string?> LeerCredencialRecordadaAsync()
+        => await _js.InvokeAsync<string?>("localStorage.getItem", CredencialKey);
+
+    public async Task GuardarCredencialRecordadaAsync(string credencial, bool recordar)
+    {
+        if (recordar && !string.IsNullOrWhiteSpace(credencial))
+        {
+            await _js.InvokeVoidAsync("localStorage.setItem", CredencialKey, credencial.Trim());
+        }
+        else
+        {
+            await _js.InvokeVoidAsync("localStorage.removeItem", CredencialKey);
+        }
+    }
+
+    /// <summary>
     /// Guarda el token. Con <paramref name="recordar"/> va a <c>localStorage</c> y la sesión
     /// sobrevive al cierre del navegador; sin él, a <c>sessionStorage</c>, que muere con la
     /// pestaña. Es todo lo que «recordarme» promete: el token dura lo mismo en ambos casos, y

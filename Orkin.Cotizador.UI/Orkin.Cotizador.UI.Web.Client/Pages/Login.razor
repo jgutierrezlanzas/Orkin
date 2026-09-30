@@ -43,6 +43,7 @@
                escribe en un teclado ajeno, y el 80 % de los "no puedo entrar" es una
                mayúscula o un bloqueo de mayúsculas que este ojo habría mostrado. *@
             <MudTextField @bind-Value="_modelo.Contrasena"
+                          @ref="_passwordInput"
                           Label="Contraseña"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
@@ -90,6 +91,7 @@
     private bool _cargando;
     private bool _verContrasena;
     private bool _sesionExpirada;
+    private MudTextField<string>? _passwordInput;
 
     protected override void OnInitialized()
     {
@@ -97,6 +99,41 @@
         // /login?expirada=1. Aquí se lee la bandera para mostrar el aviso y que quien
         // estaba trabajando sepa por qué lo sacaron, en vez de adivinar.
         _sesionExpirada = Navigation.Uri.Contains("expirada=1", StringComparison.OrdinalIgnoreCase);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // Si quien entra marcó «Recordarme» la última vez, su correo ya está guardado: solo
+        // falta la clave. Sin esto, volver a entrar tras una sesión expirada obligaba a
+        // re-teclear el correo que ya se sabía — el fastidio exacto que «Recordarme» promete
+        // ahorrar.
+        var credencial = await AuthService.LeerCredencialRecordadaAsync();
+        if (!string.IsNullOrWhiteSpace(credencial))
+        {
+            _modelo.Credencial = credencial;
+            // El foco va en la clave, que es lo único que falta.
+            await EnfocarPasswordAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task EnfocarPasswordAsync()
+    {
+        try
+        {
+            var campo = _passwordInput?.ElementReference;
+            if (campo.Id is not null)
+            {
+                await campo.FocusAsync();
+            }
+        }
+        catch
+        {
+            // Si el foco falla (el campo aún no está pintado), no pasa nada: la credencial
+            // ya está pre-llena y quien entra puede hacer clic.
+        }
     }
 
     private async Task Ingresar()
@@ -108,6 +145,11 @@
 
             if (respuesta?.Exito == true && respuesta.Datos is not null)
             {
+                // Guardar o borrar la credencial recordada. Si «Recordarme» está marcado, la
+                // próxima vez que la sesión expire solo faltará la clave; sin él, ni el correo
+                // queda — quien no lo marcó pidió explícitamente que la sesión muriera con la pestaña.
+                await AuthService.GuardarCredencialRecordadaAsync(_modelo.Credencial, _modelo.Recordar);
+
                 await AuthState.MarkUserAsAuthenticated(respuesta.Datos.Token, _modelo.Recordar);
                 Navigation.NavigateTo("/");
             }
