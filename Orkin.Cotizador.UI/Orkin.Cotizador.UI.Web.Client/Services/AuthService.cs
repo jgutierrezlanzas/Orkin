@@ -20,14 +20,34 @@ public sealed class AuthService
         _js = js;
     }
 
+    /// <summary>
+    /// El token, del almacén donde esté. Se miran los dos porque el usuario pudo entrar con
+    /// «recordarme» (localStorage) o sin él (sessionStorage), y la app al arrancar no sabe cuál
+    /// fue —tiene que encontrar la sesión donde la haya dejado.
+    /// </summary>
     public async Task<string?> GetTokenAsync()
-        => await _js.InvokeAsync<string?>("localStorage.getItem", TokenKey);
+        => await _js.InvokeAsync<string?>("localStorage.getItem", TokenKey)
+           ?? await _js.InvokeAsync<string?>("sessionStorage.getItem", TokenKey);
 
-    public async Task SetTokenAsync(string token)
-        => await _js.InvokeAsync<string>("localStorage.setItem", TokenKey, token);
+    /// <summary>
+    /// Guarda el token. Con <paramref name="recordar"/> va a <c>localStorage</c> y la sesión
+    /// sobrevive al cierre del navegador; sin él, a <c>sessionStorage</c>, que muere con la
+    /// pestaña. Es todo lo que «recordarme» promete: el token dura lo mismo en ambos casos, y
+    /// no se alarga la vida del token porque la revocación vive en memoria de la API y un token
+    /// largo que no se puede revocar tras un reinicio es una puerta abierta.
+    /// </summary>
+    public async Task SetTokenAsync(string token, bool recordar = true)
+        => await _js.InvokeVoidAsync(
+            recordar ? "localStorage.setItem" : "sessionStorage.setItem",
+            TokenKey, token);
 
+    /// <summary>Quita el token de donde esté. Se limpian los dos almacenes para que cerrar
+    /// sesión cierre sesión, sin importar cómo se entró.</summary>
     public async Task RemoveTokenAsync()
-        => await _js.InvokeAsync<string>("localStorage.removeItem", TokenKey);
+    {
+        await _js.InvokeVoidAsync("localStorage.removeItem", TokenKey);
+        await _js.InvokeVoidAsync("sessionStorage.removeItem", TokenKey);
+    }
 
     public async Task<ApiResponse<LoginResponse>?> LoginAsync(LoginRequest request)
     {

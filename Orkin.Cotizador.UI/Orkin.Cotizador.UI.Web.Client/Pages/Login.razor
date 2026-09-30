@@ -37,7 +37,18 @@
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Filled.Lock"
                           For="@(() => _modelo.Contrasena)"
-                          Class="mb-6" />
+                          Class="mb-4" />
+
+            @* «Recordarme» decide dónde vive el token, no cuánto dura: marcado, la sesión
+               sobrevive al cierre del navegador (localStorage); sin marcar, muere con la
+               pestaña (sessionStorage). En una computadora compartida, sin marcar es lo
+               que corresponde, y el texto de ayuda lo dice. *@
+            <MudCheckBox T="bool" @bind-Value="_modelo.Recordar" Class="mb-2"
+                         Label="Recordarme en este equipo" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mb-4">
+                Marcado: la sesión sigue abierta aunque cierre el navegador. Sin marcar: la
+                sesión termina al cerrar esta pestaña.
+            </MudText>
 
             <MudButton ButtonType="ButtonType.Submit"
                        Variant="Variant.Filled"
@@ -71,7 +82,7 @@
 
             if (respuesta?.Exito == true && respuesta.Datos is not null)
             {
-                await AuthState.MarkUserAsAuthenticated(respuesta.Datos.Token);
+                await AuthState.MarkUserAsAuthenticated(respuesta.Datos.Token, _modelo.Recordar);
                 Navigation.NavigateTo("/");
             }
             else

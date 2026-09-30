@@ -9,8 +9,11 @@ namespace Orkin.Cotizador.Api.DTOs;
 /// </summary>
 /// <param name="Credencial">Correo electrónico o nombre de cuenta, sin distinguir.</param>
 /// <param name="Contrasena">La contraseña. No se registra en el log en ningún caso.</param>
-/// <param name="Recordar">Reservado para cuando exista la opción de "mantener la sesión". Hoy no hace
-/// nada, y está declarado para que la interfaz pueda mandarlo sin romperse el día que exista.</param>
+/// <param name="Recordar">«Recordarme» de la pantalla de ingreso. La interfaz lo usa para elegir
+/// dónde vive el token: localStorage (la sesión sobrevive al navegador) o sessionStorage (muere con
+/// la pestaña). El servidor lo recibe y lo ignora a propósito: la vida del token la fija
+/// <c>SeguridadOptions.HorasValidez</c> y no se alarga por esta casilla, porque la revocación vive en
+/// memoria de la API y un token largo imposible de revocar tras un reinicio es una puerta abierta.</param>
 public sealed record SolicitudIngreso(
     string Credencial,
     string Contrasena,

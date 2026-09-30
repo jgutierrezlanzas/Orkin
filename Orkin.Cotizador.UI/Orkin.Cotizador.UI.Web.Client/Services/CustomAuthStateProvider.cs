@@ -41,9 +41,9 @@ public sealed class CustomAuthStateProvider : AuthenticationStateProvider
         return new AuthenticationState(new ClaimsPrincipal(identity));
     }
 
-    public async Task MarkUserAsAuthenticated(string token)
+    public async Task MarkUserAsAuthenticated(string token, bool recordar = true)
     {
-        await _authService.SetTokenAsync(token);
+        await _authService.SetTokenAsync(token, recordar);
         var identity = new ClaimsIdentity(ParseClaimsFromJwt(token), "jwt");
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(identity))));

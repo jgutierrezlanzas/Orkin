@@ -32,6 +32,11 @@
 /Cotizador Original*.xlsm
 /Cotizador_Web_Documento_de_Arranque.docx
 
+# Los archivos ~$ son candados de Excel mientras el archivo está abierto.
+# Aparecen y desaparecen solos, y en el momento en que aparecen no se
+# pueden leer, así que no pueden romper un add por accidente.
+~$*
+
 # ── Los prototipos HTML ──────────────────────────────────────────────────────
 #  Son diseño de interfaz en estado de debate. Los que sobrevivan al diseño
 #  pasan a ser documentación; los descartados, no.
