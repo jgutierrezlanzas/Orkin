@@ -16,30 +16,31 @@
         contra el tipo declarado del parámetro, no contra lo que la pantalla deje pasar.
     </MudAlert>
 
-    <MudTable Items="_parametros" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
-        <HeaderContent>
-            <MudTh>Parámetro</MudTh>
-            <MudTh>Valor</MudTh>
-            <MudTh>Tipo</MudTh>
-            <MudTh>Acciones</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Parámetro">
-                <MudText Typo="Typo.body2">@context.Nombre</MudText>
-                <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Descripcion</MudText>
-            </MudTd>
-            <MudTd DataLabel="Valor">
-                <code>@context.Valor</code>
-            </MudTd>
-            <MudTd DataLabel="Tipo">@context.TipoDato</MudTd>
-            <MudTd>
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Editar(context))" />
-            </MudTd>
-        </RowTemplate>
-        <PagerContent>
-            <MudTablePager RowsPerPageString="Filas por página" />
-        </PagerContent>
-    </MudTable>
+    @* Los parámetros agrupados por su grupo: General, Cotización, Aprobación, PDF, Seguridad… *@
+    @foreach (var grupo in _parametros.GroupBy(p => p.Grupo ?? "General"))
+    {
+        <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mt-4 mb-2">@grupo.Key</MudText>
+        <MudDivider Class="mb-2" />
+
+        @foreach (var parametro in grupo)
+        {
+            <MudPaper Elevation="1" Class="pa-3 mb-2 d-flex align-center">
+                <div class="flex-grow-1">
+                    <MudText Typo="Typo.body2"><b>@parametro.Nombre</b></MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@parametro.Descripcion</MudText>
+                    @if (parametro.EsSecreto)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="ml-1">secreto</MudChip>
+                    }
+                </div>
+                <div class="text-end mr-4" style="min-width: 140px;">
+                    <MudText Typo="Typo.body2"><code>@EsPorcentaje(parametro, parametro.Valor)</code></MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@parametro.TipoDato</MudText>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Editar(parametro))" />
+            </MudPaper>
+        }
+    }
 </MudContainer>
 
 @code {
@@ -59,30 +60,52 @@
         }
     }
 
+    /// <summary>
+    /// Los parámetros cuyo nombre lleva «MARGEN» son porcentajes: el administrador teclea 5.5
+    /// y piensa en 5,5 %, no en 0.055. Si el nombre lo dice, se muestra con el signo.
+    /// </summary>
+    private static string EsPorcentaje(ParametroModel parametro, string? valor)
+    {
+        if (parametro.Nombre.Contains("MARGEN", StringComparison.OrdinalIgnoreCase) && valor is not null)
+        {
+            return $"{valor}%";
+        }
+        return valor ?? "—";
+    }
+
     private async Task Editar(ParametroModel parametro)
     {
+        var copia = new ParametroModel
+        {
+            Id = parametro.Id,
+            Nombre = parametro.Nombre,
+            Descripcion = parametro.Descripcion,
+            Valor = parametro.Valor,
+            TipoDato = parametro.TipoDato,
+            Grupo = parametro.Grupo,
+            Orden = parametro.Orden,
+            EsSistema = parametro.EsSistema,
+            EsSecreto = parametro.EsSecreto
+        };
+
+        var esPorcentaje = parametro.Nombre.Contains("MARGEN", StringComparison.OrdinalIgnoreCase);
+
         var parametros = new DialogParameters<ParametroDialogo>
         {
-            { d => d.Modelo, new ParametroModel
-              {
-                  Id = parametro.Id, Nombre = parametro.Nombre, Descripcion = parametro.Descripcion,
-                  Valor = parametro.Valor, TipoDato = parametro.TipoDato,
-                  Grupo = parametro.Grupo, Orden = parametro.Orden,
-                  EsSistema = parametro.EsSistema, EsSecreto = parametro.EsSecreto
-              } }
+            { d => d.Modelo, copia },
+            { d => d.EsPorcentaje, esPorcentaje }
         };
         var opciones = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
         var dialogo = await DialogService.ShowAsync<ParametroDialogo>(
-            $"Editar — {parametro.Nombre}", parametros, opciones);
+            parametro.Nombre, parametros, opciones);
 
         var resultado = await dialogo.Result;
-        if (resultado.Canceled || resultado.Data is not string valorNuevo)
+        if (resultado.Canceled || resultado.Data is not ParametroModel editado)
         {
             return;
         }
 
-        parametro.Valor = valorNuevo;
-        var respuesta = await AdminService.ActualizarParametroAsync(parametro);
+        var respuesta = await AdminService.ActualizarParametroAsync(editado);
         if (respuesta?.Exito == true)
         {
             Snackbar.Add("Parámetro guardado.", Severity.Success);

@@ -1,0 +1,42 @@
+@* Alta y edición de rol: nombre y descripción. Los permisos van aparte (PermisosRolDialogo). *@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="Modelo.Nombre" Label="Nombre del rol" Required="true"
+                          RequiredError="Ponga el nombre del rol"
+                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Disabled="@EsEdicion" />
+            <MudTextField @bind-Value="Modelo.Descripcion" Label="Descripción" Lines="3"
+                          HelperText="Quién es este rol y qué puede hacer. Se muestra en la gestión de roles."
+                          Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">
+            <MudText>Guardar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El modelo. Si <see cref="RolModel.Id"/> es vacío, es un alta.</summary>
+    [Parameter, EditorRequired]
+    public RolModel Modelo { get; set; } = new();
+
+    private MudForm _form = null!;
+
+    private bool EsEdicion => Modelo.Id != Guid.Empty;
+
+    private async Task Aceptar()
+    {
+        await _form.Validate();
+        if (!_form.IsValid) return;
+        Dialogo.Close(DialogResult.Ok(Modelo));
+    }
+
+    private void Cancelar() => Dialogo.Cancel();
+}

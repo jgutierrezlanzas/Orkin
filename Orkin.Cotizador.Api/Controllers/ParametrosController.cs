@@ -89,6 +89,15 @@ public sealed class ParametrosController : ControllerBase
         }
 
         parametro.Valor = valor;
+
+        // La descripción también es editable: quien administra el sistema necesita poder
+        // explicar qué hace cada parámetro para que el que venga después no tenga que
+        // adivinar. Es texto de gestión, no del PDF.
+        if (request.Descripcion is not null)
+        {
+            parametro.Descripcion = request.Descripcion.Trim();
+        }
+
         parametro.UpdatedAt = DateTime.UtcNow;
         await _contexto.SaveChangesAsync(cancellationToken);
 

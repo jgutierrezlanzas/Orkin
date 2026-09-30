@@ -9,6 +9,7 @@
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
     <div class="d-flex justify-space-between align-center mb-4">
         <MudText Typo="Typo.h4" Color="Color.Primary">Roles y permisos</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="NuevoRol">Nuevo rol</MudButton>
     </div>
 
     <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4" Variant="Variant.Outlined">
@@ -32,12 +33,21 @@
                     <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="mud-text-secondary">sistema</MudChip>
                 }
             </MudTd>
-            <MudTd DataLabel="Descripción">@(context.Descripcion ?? "-")</MudTd>
+            <MudTd DataLabel="Descripción">@context.Descripcion</MudTd>
             <MudTd DataLabel="Permisos">@context.Permisos.Count</MudTd>
             <MudTd>
                 <MudTooltip Text="Editar los permisos del rol">
                     <MudIconButton Icon="@Icons.Material.Filled.Tune" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EditarPermisos(context))" />
                 </MudTooltip>
+                <MudTooltip Text="Editar el nombre y la descripción">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EditarRol(context))" />
+                </MudTooltip>
+                @if (!context.EsSistema)
+                {
+                    <MudTooltip Text="Quitar el rol (los usuarios de este rol quedarán sin permisos)">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => QuitarRol(context))" />
+                    </MudTooltip>
+                }
             </MudTd>
         </RowTemplate>
         <PagerContent>
@@ -63,10 +73,13 @@
         }
     }
 
-    /// <summary>
-    /// El editor de permisos es un modal con los casilleros agrupados por módulo. Guardar
-    /// reemplaza la lista completa del rol: quien guardó vio la pantalla entera.
-    /// </summary>
+    private async Task Recargar()
+    {
+        _roles = await AdminService.ListarRolesAsync();
+    }
+
+    // ── Editar los permisos ─────────────────────────────────────────────────────
+
     private async Task EditarPermisos(RolModel rol)
     {
         var permisos = await AdminService.ListarPermisosAsync();
@@ -74,7 +87,7 @@
         {
             { d => d.Rol, rol },
             { d => d.Permisos, permisos },
-            { d => d.Seleccionados, rol.Permisos.ToHashSet(StringComparer.OrdinalIgnoreCase) }
+            { d => d.PermisosActuales, rol.Permisos.ToHashSet(StringComparer.OrdinalIgnoreCase) }
         };
         var opciones = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
         var dialogo = await DialogService.ShowAsync<PermisosRolDialogo>(
@@ -90,11 +103,78 @@
         if (respuesta?.Exito == true)
         {
             Snackbar.Add($"{rol.Nombre}: {nuevos.Count} permisos. Surte efecto en el próximo ingreso de cada usuario.", Severity.Success);
-            _roles = await AdminService.ListarRolesAsync();
+            await Recargar();
         }
         else
         {
             Snackbar.Add(respuesta?.Mensaje ?? "No se pudieron guardar los permisos.", Severity.Error);
+        }
+    }
+
+    // ── Crear / editar / quitar roles ─────────────────────────────────────────
+
+    private async Task NuevoRol() => await EditarRol(new RolModel());
+
+    private async Task EditarRol(RolModel rol)
+    {
+        var esNuevo = rol.Id == Guid.Empty;
+        var parametros = new DialogParameters<RolDialogo>
+        {
+            { d => d.Modelo, rol }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<RolDialogo>(
+            esNuevo ? "Nuevo rol" : $"Editar — {rol.Nombre}", parametros, opciones);
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not RolModel editado)
+        {
+            return;
+        }
+
+        ApiResponse<RolModel>? respuesta;
+        if (esNuevo)
+        {
+            respuesta = await AdminService.CrearRolAsync(editado);
+        }
+        else
+        {
+            respuesta = await AdminService.ActualizarRolAsync(editado);
+        }
+
+        if (respuesta?.Exito == true)
+        {
+            Snackbar.Add(esNuevo ? "Rol creado. Asígnele permisos." : "Rol guardado.", Severity.Success);
+            await Recargar();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar el rol.", Severity.Error);
+        }
+    }
+
+    private async Task QuitarRol(RolModel rol)
+    {
+        // Confirmación con un diálogo propio: ShowMessageBox no está en esta versión de MudBlazor
+        // y la confirmación de quitar un rol es demasiado importante para dejarla sin diálogo.
+        var dialogo = await DialogService.ShowAsync<ConfirmarDialogo>("Quitar rol", new DialogParameters<ConfirmarDialogo>
+        {
+            { d => d.Titulo, $"Quitar el rol «{rol.Nombre}»" },
+            { d => d.Mensaje, "Los usuarios que solo tengan este rol quedarán sin permisos hasta que se les asigne otro. ¿Quitarlo?" }
+        }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled) return;
+
+        var respuesta = await AdminService.QuitarRolAsync(rol.Id);
+        if (respuesta?.Exito == true)
+        {
+            Snackbar.Add($"{rol.Nombre} quitado.", Severity.Success);
+            await Recargar();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo quitar el rol.", Severity.Error);
         }
     }
 }

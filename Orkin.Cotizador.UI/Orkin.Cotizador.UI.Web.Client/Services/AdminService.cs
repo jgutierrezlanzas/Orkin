@@ -83,6 +83,32 @@ public sealed class AdminService
         return await response.Content.ReadFromJsonAsync<ApiResponse<RolModel>>();
     }
 
+    public async Task<ApiResponse<RolModel>?> CrearRolAsync(RolModel modelo)
+    {
+        var response = await _http.PostAsJsonAsync("api/roles", new
+        {
+            Nombre = modelo.Nombre,
+            modelo.Descripcion
+        });
+        return await response.Content.ReadFromJsonAsync<ApiResponse<RolModel>>();
+    }
+
+    public async Task<ApiResponse<RolModel>?> ActualizarRolAsync(RolModel modelo)
+    {
+        var response = await _http.PutAsJsonAsync($"api/roles/{modelo.Id}", new
+        {
+            Nombre = modelo.Nombre,
+            modelo.Descripcion
+        });
+        return await response.Content.ReadFromJsonAsync<ApiResponse<RolModel>>();
+    }
+
+    public async Task<ApiResponse<object>?> QuitarRolAsync(Guid rolId)
+    {
+        var response = await _http.DeleteAsync($"api/roles/{rolId}");
+        return await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
+    }
+
     // ── Parámetros ──────────────────────────────────────────────────────────
 
     public async Task<List<ParametroModel>> ListarParametrosAsync()
@@ -93,7 +119,11 @@ public sealed class AdminService
 
     public async Task<ApiResponse<ParametroModel>?> ActualizarParametroAsync(ParametroModel modelo)
     {
-        var response = await _http.PutAsJsonAsync($"api/parametros/{modelo.Id}", new { Valor = modelo.Valor });
+        var response = await _http.PutAsJsonAsync($"api/parametros/{modelo.Id}", new
+        {
+            Valor = modelo.Valor,
+            modelo.Descripcion
+        });
         return await response.Content.ReadFromJsonAsync<ApiResponse<ParametroModel>>();
     }
 

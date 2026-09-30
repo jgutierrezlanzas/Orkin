@@ -1,12 +1,15 @@
-@* Edición del valor de un parámetro. Ver ProductoDialogo para el patrón.
+@* Edición del valor y la descripción de un parámetro. Ver ProductoDialogo para el patrón.
 
-   El tipo de dato decide el campo: un DECIMAL no se escribe en un caja de texto libre,
-   porque quien lo guarde con una coma de más tendrá que leer el mensaje de la API para
-   descubrir el problema.
+   El tipo de dato decide el campo: un DECIMAL no se escribe en un caja de texto libre.
+   Los parámetros de margen llevan el % al lado, porque quien los administra piensa en
+   porcentajes, no en fracciones.
 *@
 <MudDialog>
     <DialogContent>
-        <MudText Typo="Typo.body2" Class="mb-4 mud-text-secondary">@Modelo.Descripcion</MudText>
+        <MudText Typo="Typo.subtitle2" Class="mb-1">@Modelo.Nombre</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary mb-4">
+            Tipo: @Modelo.TipoDato@(Modelo.EsSistema ? " · parámetro de sistema" : "")@(Modelo.EsSecreto ? " · secreto" : "")
+        </MudText>
 
         @if (EsBooleano)
         {
@@ -14,16 +17,19 @@
         }
         else if (EsNumerico)
         {
-            <MudNumericField T="decimal" @bind-Value="_comoNumero" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudNumericField T="decimal" @bind-Value="_comoNumero" Variant="Variant.Outlined" Margin="Margin.Dense"
+                             Adornment="Adornment.End" AdornmentText="@(EsPorcentaje ? "%" : "")" />
         }
         else
         {
             <MudTextField @bind-Value="_comoTexto" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="@(EsLargo ? 4 : 1)" />
         }
 
-        <MudText Typo="Typo.caption" Class="mt-2 mud-text-secondary">
-            Tipo: @Modelo.TipoDato@(Modelo.EsSistema ? " · parámetro de sistema" : "")@(Modelo.EsSecreto ? " · secreto" : "")
-        </MudText>
+        @* La descripción también se edita: quien administra necesita poder explicar qué hace
+           cada parámetro para que el que venga después no tenga que adivinar. *@
+        <MudTextField @bind-Value="_descripcion" Label="Descripción" Lines="2"
+                      HelperText="Se muestra en la pantalla de parámetros. Explique qué hace y quién lo usa."
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-4" />
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
@@ -40,11 +46,21 @@
     [Parameter, EditorRequired]
     public ParametroModel Modelo { get; set; } = null!;
 
+    /// <summary>
+    /// True cuando el parámetro es un margen (el nombre lo dice): se muestra el % al lado
+    /// del número y se guarda tal cual — el administrador teclea 5.5 y eso es lo que se
+    /// guarda, no 0.055.
+    /// </summary>
+    [Parameter]
+    public bool EsPorcentaje { get; set; }
+
     private bool _comoBooleano;
     private decimal _comoNumero;
     private string _comoTexto = string.Empty;
+    private string _descripcion = string.Empty;
 
-    private bool EsBooleano => Modelo.TipoDato.Contains("BOOLEANO", StringComparison.OrdinalIgnoreCase);
+    private bool EsBooleano => Modelo.TipoDato.Contains("LOGICO", StringComparison.OrdinalIgnoreCase)
+        || Modelo.TipoDato.Contains("BOOLEANO", StringComparison.OrdinalIgnoreCase);
     private bool EsNumerico => Modelo.TipoDato.Contains("DECIMAL", StringComparison.OrdinalIgnoreCase)
         || Modelo.TipoDato.Contains("ENTERO", StringComparison.OrdinalIgnoreCase);
     private bool EsLargo => (Modelo.Valor?.Length ?? 0) > 80;
@@ -52,10 +68,11 @@
     protected override void OnInitialized()
     {
         _comoTexto = Modelo.Valor ?? string.Empty;
+        _descripcion = Modelo.Descripcion ?? string.Empty;
 
         if (EsBooleano)
         {
-            _comoBooleano = Modelo.Valor is "SI" or "1" or "TRUE";
+            _comoBooleano = Modelo.Valor is "SI" or "true" or "TRUE" or "1";
         }
         else if (decimal.TryParse(Modelo.Valor, out var numero))
         {
@@ -71,7 +88,10 @@
                 ? _comoNumero.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 : _comoTexto;
 
-        Dialogo.Close(DialogResult.Ok(valor));
+        Modelo.Valor = valor;
+        Modelo.Descripcion = string.IsNullOrWhiteSpace(_descripcion) ? null : _descripcion.Trim();
+
+        Dialogo.Close(DialogResult.Ok(Modelo));
     }
 
     private void Cancelar() => Dialogo.Cancel();

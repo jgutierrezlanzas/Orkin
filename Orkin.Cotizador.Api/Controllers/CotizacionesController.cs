@@ -138,12 +138,34 @@ public sealed class CotizacionesController : ControllerBase
             .Select(m => new ModalidadOption(m.Codigo, m.Nombre))
             .ToListAsync(cancellationToken);
 
+        // Los activos amortizables van para la tabla de "Activos" de la cotización: cada uno
+        // trae su costo y su vida útil, porque el valor mensual se calcula con esos dos datos.
+        var activos = await _contexto.ActivoAmortizable
+            .AsNoTracking()
+            .Where(a => a.IsActive)
+            .OrderBy(a => a.Nombre)
+            .Select(a => new ActivoAmortizableOption(a.Id, a.Codigo, a.Nombre, a.CostoActual, a.MesesVidaUtil, a.UnidadMedida.Abreviatura))
+            .ToListAsync(cancellationToken);
+
+        // Los técnicos salen de los usuarios activos de la plataforma. La duda de si debería
+        // existir un "catálogo de técnicos" separado (que vendría del ERP del cliente como los
+        // demás catálogos) está anotada: por ahora, quien se asigna a un trabajo es un usuario
+        // del sistema, no una fila importada.
+        var tecnicos = await _contexto.Usuario
+            .AsNoTracking()
+            .Where(u => u.EsActivo)
+            .OrderBy(u => u.NombreCompleto)
+            .Select(u => new TecnicoOption(u.Id, u.NombreCompleto))
+            .ToListAsync(cancellationToken);
+
         var respuesta = new
         {
             Clientes = clientes,
             TiposServicio = tiposServicio,
             TiposCliente = tiposCliente,
-            Modalidades = modalidades
+            Modalidades = modalidades,
+            ActivosAmortizables = activos,
+            Tecnicos = tecnicos
         };
 
         return ApiResponse<object>.Ok(respuesta).AHttp();

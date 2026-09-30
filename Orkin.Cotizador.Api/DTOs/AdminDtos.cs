@@ -59,8 +59,28 @@ public sealed record PermisoResponse(
     string Modulo,
     string? Descripcion);
 
+/// <summary>Opción para dropdown de activos amortizables.</summary>
+public sealed record ActivoAmortizableOption(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    decimal CostoActual,
+    int MesesVidaUtil,
+    string UnidadAbreviatura);
+
+/// <summary>Opción para dropdown de técnicos. Por ahora salen de los usuarios activos.</summary>
+public sealed record TecnicoOption(
+    Guid Id,
+    string Nombre);
+
 /// <summary>Solicitud para fijar los permisos de un rol. La lista reemplaza la anterior completa.</summary>
 public sealed record AsignarPermisosRolRequest(IReadOnlyList<string> Permisos);
+
+/// <summary>Solicitud para crear un rol.</summary>
+public sealed record CrearRolRequest(string Nombre, string? Descripcion);
+
+/// <summary>Solicitud para editar un rol (nombre y descripción; los permisos van aparte).</summary>
+public sealed record ActualizarRolRequest(string? Nombre, string? Descripcion);
 
 // ── Parámetros generales ─────────────────────────────────────────────────────
 
@@ -75,7 +95,8 @@ public sealed record ParametroResponse(
     bool EsSistema,
     bool EsSecreto);
 
-public sealed record ActualizarParametroRequest(string Valor);
+/// <summary>Solicitud para actualizar un parámetro: valor y descripción.</summary>
+public sealed record ActualizarParametroRequest(string Valor, string? Descripcion);
 
 // ── Auditoría ────────────────────────────────────────────────────────────────
 
