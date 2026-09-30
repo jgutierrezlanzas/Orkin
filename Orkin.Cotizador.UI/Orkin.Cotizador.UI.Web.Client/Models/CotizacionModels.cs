@@ -29,7 +29,8 @@ public sealed class CotizacionListItem
     public Guid Id { get; set; }
     public string Numero { get; set; } = string.Empty;
     public int Anio { get; set; }
-    public Guid ClienteId { get; set; }
+    /// <summary>Null cuando la cotización es para un cliente nuevo que no tiene ficha.</summary>
+    public Guid? ClienteId { get; set; }
     public string ClienteNombre { get; set; } = string.Empty;
     public Guid TipoServicioId { get; set; }
     public string TipoServicioNombre { get; set; } = string.Empty;
@@ -68,6 +69,7 @@ public sealed class CotizacionOpciones
 {
     public List<ClienteOpcion> Clientes { get; set; } = [];
     public List<TipoServicioOpcion> TiposServicio { get; set; } = [];
+    public List<TipoClienteOpcionModel> TiposCliente { get; set; } = [];
     public List<ModalidadOpcion> Modalidades { get; set; } = [];
 }
 
@@ -77,6 +79,17 @@ public sealed class ClienteOpcion
     public string Codigo { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
     public string? TipoClienteNombre { get; set; }
+}
+
+/// <summary>
+/// Tipo de cliente para el caso "cliente nuevo": quien cotiza lo elige y ese tipo decide el
+/// método de costeo del precio.
+/// </summary>
+public sealed class TipoClienteOpcionModel
+{
+    public byte Id { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
 }
 
 public sealed class TipoServicioOpcion

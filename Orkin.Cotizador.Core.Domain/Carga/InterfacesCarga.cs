@@ -56,8 +56,12 @@ public sealed record ConfiguracionCarga
     /// <summary>
     /// Mapeo columna del origen → campo del catálogo. Ej. <c>{ "Codigo Producto" = "Codigo" }</c>.
     /// Las columnas que no estén en el mapeo se ignoran.
+    /// <para><b>null = la vista ya trae los nombres esperados</b>: la fila se toma tal cual
+    /// viene, sin proyección. Es el contrato que la UI promete con el mapeo vacío, y por eso no
+    /// puede ser una lista fija de columnas: una lista fija obligaría a que la vista de cada
+    /// catálogo distinto trajera exactamente las mismas columnas que la del primero.</para>
     /// </summary>
-    public required IReadOnlyDictionary<string, string> MapeoColumnas { get; init; }
+    public IReadOnlyDictionary<string, string>? MapeoColumnas { get; init; }
 
     /// <summary>
     /// La conexión ERP de la que salieron los datos, si el origen es un flujo de integración.

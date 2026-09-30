@@ -48,8 +48,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TipoCambioService>();
         services.AddScoped<CotizacionService>();
 
-        // Proceso de carga desde origen externo (Fase 2.5): un cargador por catálogo.
+        // Proceso de carga desde origen externo (Fase 2.5): un cargador por catálogo. El de
+        // clientes va con el de productos porque el cliente de ORKIN también vive en su ERP, y
+        // cotizarle a alguien que ya es cliente exige su ficha, no solo el nombre.
         services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorProductos>();
+        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorClientes>();
 
         // Integración con el ERP del cliente (Fase 12): conexiones, flujos y sus corridas.
         services.AddScoped<Integracion.IntegracionService>();

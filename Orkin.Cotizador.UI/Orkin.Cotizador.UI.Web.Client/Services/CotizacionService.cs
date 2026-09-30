@@ -12,8 +12,13 @@ public sealed class CotizacionService
         _http = http;
     }
 
+    /// <summary>
+    /// Calcula en memoria. El cliente puede venir del catálogo (<paramref name="clienteId"/>) o
+    /// ser nuevo: en ese caso hace falta el tipo que elige quien cotiza.
+    /// </summary>
     public async Task<ApiResponse<CotizacionCalculadaResponse>?> CalcularAsync(
-        Guid clienteId,
+        Guid? clienteId,
+        byte? tipoClienteId,
         DateOnly fecha,
         decimal margen,
         List<LineaInsumoRequest> insumos)
@@ -21,6 +26,7 @@ public sealed class CotizacionService
         var request = new
         {
             ClienteId = clienteId,
+            TipoClienteId = tipoClienteId,
             Fecha = fecha,
             Margen = margen,
             Insumos = insumos.Select(i => new
@@ -64,8 +70,15 @@ public sealed class CotizacionService
         return respuesta?.Datos ?? new CotizacionOpciones();
     }
 
+    /// <summary>
+    /// Crea la cotización. Con <paramref name="clienteId"/> va para un cliente del catálogo; sin
+    /// él, para un cliente nuevo cuyo nombre va en <paramref name="clienteNombre"/> y cuyo tipo
+    /// elige quien cotiza.
+    /// </summary>
     public async Task<ApiResponse<CotizacionListItem>?> CrearAsync(
-        Guid clienteId,
+        Guid? clienteId,
+        string? clienteNombre,
+        byte? tipoClienteId,
         Guid tipoServicioId,
         DateOnly fecha,
         string? modalidadCodigo,
@@ -75,6 +88,8 @@ public sealed class CotizacionService
         var request = new
         {
             ClienteId = clienteId,
+            ClienteNombre = clienteNombre,
+            TipoClienteId = tipoClienteId,
             TipoServicioId = tipoServicioId,
             Fecha = fecha,
             ModalidadCodigo = modalidadCodigo,

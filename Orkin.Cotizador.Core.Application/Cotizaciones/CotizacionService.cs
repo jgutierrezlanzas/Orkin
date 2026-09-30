@@ -29,25 +29,61 @@ public sealed class CotizacionService
     /// <summary>
     /// Calcula una cotización en memoria sin persistirla. Útil para el preview antes de guardar.
     /// </summary>
+    /// <summary>
+    /// Calcula una cotización en memoria. El cliente puede venir del catálogo
+    /// (<paramref name="clienteId"/>) o ser alguien nuevo que todavía no existe: en ese caso
+    /// quien cotizó eligió el tipo de cliente (<paramref name="tipoClienteId"/>) porque el
+    /// tipo es lo que decide el método de costeo, y sin método no hay precio.
+    /// </summary>
     public async Task<ResultadoCalculo> CalcularAsync(
-        Guid clienteId,
+        Guid? clienteId,
+        byte? tipoClienteId,
         DateOnly fecha,
         decimal margen,
         IReadOnlyList<(Guid ProductoId, decimal Cantidad, byte? SemestreId)> insumos,
         IReadOnlyList<(Guid ActivoId, decimal Cantidad)>? amortizables = null,
         CancellationToken cancellationToken = default)
     {
-        var cliente = await _contexto.Cliente
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == clienteId && c.IsActive, cancellationToken)
-            ?? throw new InvalidOperationException("El cliente no existe o está inactivo.");
+        byte tipo;
+
+        if (clienteId is { } id)
+        {
+            // El cliente del catálogo manda sobre el tipo que traiga la solicitud: la ficha es
+            // la verdad y permitir "cotizarle a ACME con margen residencial" es cotizar con el
+            // método de otro.
+            var cliente = await _contexto.Cliente
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == id && c.IsActive, cancellationToken)
+                ?? throw new InvalidOperationException("El cliente no existe o está inactivo.");
+
+            tipo = cliente.TipoClienteId;
+        }
+        else
+        {
+            if (tipoClienteId is not { } tipoElegido)
+            {
+                throw new InvalidOperationException(
+                    "Para un cliente nuevo hace falta el tipo de cliente: es lo que decide el método de costeo.");
+            }
+
+            var existe = await _contexto.TipoClienteCatalogo
+                .AsNoTracking()
+                .AnyAsync(t => t.Id == tipoElegido && t.EsActivo, cancellationToken);
+
+            if (!existe)
+            {
+                throw new InvalidOperationException("El tipo de cliente no existe o está inactivo.");
+            }
+
+            tipo = tipoElegido;
+        }
 
         var config = await _configuracion.ConstruirAsync(cancellationToken);
 
-        if (!config.MetodoPorSegmento.TryGetValue(cliente.TipoClienteId, out var metodoCosteoId))
+        if (!config.MetodoPorSegmento.TryGetValue(tipo, out var metodoCosteoId))
         {
             throw new InvalidOperationException(
-                $"El tipo de cliente '{cliente.TipoClienteId}' no tiene un método de costeo asignado.");
+                $"El tipo de cliente '{tipo}' no tiene un método de costeo asignado.");
         }
 
         var (tipoCambioId, tipoCambioValor, tipoCambioFecha) = await _tipoCambio.ObtenerAsync(fecha, cancellationToken);

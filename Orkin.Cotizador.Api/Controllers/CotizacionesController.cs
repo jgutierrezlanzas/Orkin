@@ -44,9 +44,11 @@ public sealed class CotizacionesController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         // Nota: Cotizacion no tiene IsActive. Se filtra por estado: no mostrar anuladas.
+        // El nombre sale del snapshot ClienteNombre y no de la ficha: una cotización vieja
+        // tiene que seguir mostrando el nombre con el que se cotizó, aunque el cliente haya
+        // cambiado de nombre, se haya desactivado o nunca llegó a existir en el catálogo.
         var query = _contexto.Cotizacion
             .AsNoTracking()
-            .Include(c => c.Cliente)
             .Include(c => c.TipoServicio)
             .Include(c => c.Estado)
             .Where(c => c.Estado != null && c.Estado.Codigo != "ANULADA");
@@ -73,7 +75,7 @@ public sealed class CotizacionesController : ControllerBase
                 c.Numero,
                 c.Anio,
                 c.ClienteId,
-                c.Cliente.Nombre,
+                c.ClienteNombre,
                 c.TipoServicioId,
                 c.TipoServicio.Nombre,
                 c.Fecha,
@@ -117,6 +119,15 @@ public sealed class CotizacionesController : ControllerBase
             .Select(t => new TipoServicioOption(t.Id, t.Codigo, t.Nombre, t.EsResidencialPorDefecto, t.EsEmpresarialPorDefecto))
             .ToListAsync(cancellationToken);
 
+        // Los tipos de cliente van para el caso "cliente nuevo": quien cotiza elige el tipo y
+        // ese tipo es el que decide el método de costeo del precio.
+        var tiposCliente = await _contexto.TipoClienteCatalogo
+            .AsNoTracking()
+            .Where(t => t.EsActivo)
+            .OrderBy(t => t.Id)
+            .Select(t => new TipoClienteOpcion(t.Id, t.Codigo, t.Nombre))
+            .ToListAsync(cancellationToken);
+
         var modalidades = await _contexto.ModalidadCatalogo
             .AsNoTracking()
             .Where(m => m.EsActivo)
@@ -128,6 +139,7 @@ public sealed class CotizacionesController : ControllerBase
         {
             Clientes = clientes,
             TiposServicio = tiposServicio,
+            TiposCliente = tiposCliente,
             Modalidades = modalidades
         };
 
@@ -145,6 +157,7 @@ public sealed class CotizacionesController : ControllerBase
 
         var resultado = await _servicio.CalcularAsync(
             request.ClienteId,
+            request.TipoClienteId,
             request.Fecha,
             request.Margen,
             request.Insumos.Select(i => (i.ProductoId, i.Cantidad, i.SemestreId)).ToList(),
@@ -176,7 +189,6 @@ public sealed class CotizacionesController : ControllerBase
     {
         var entidad = await _contexto.Cotizacion
             .AsNoTracking()
-            .Include(c => c.Cliente)
             .Include(c => c.TipoServicio)
             .Include(c => c.Estado)
             .Include(c => c.Modalidad)
@@ -194,7 +206,7 @@ public sealed class CotizacionesController : ControllerBase
             entidad.Numero,
             entidad.Anio,
             entidad.ClienteId,
-            entidad.Cliente.Nombre,
+            entidad.ClienteNombre,
             entidad.TipoServicioId,
             entidad.TipoServicio.Nombre,
             entidad.Fecha,
@@ -230,10 +242,33 @@ public sealed class CotizacionesController : ControllerBase
         // El ConsecutivoService ya gestiona su propia transacción internamente.
         var numero = await _consecutivo.SiguienteAsync("COTIZACION", request.Fecha.Year, cancellationToken: cancellationToken);
 
-            var cliente = await _contexto.Cliente
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == request.ClienteId && c.IsActive, cancellationToken)
-                ?? throw new InvalidOperationException("El cliente no existe o está inactivo.");
+            // O cotiza para un cliente del catálogo, o para alguien nuevo que todavía no tiene
+            // ficha. No hay tercera opción: una cotización sin cliente no lleva a nadie y una
+            // con las dos cosas a la vez es una contradicción que no se sabe cómo leer.
+            Orkin.Cotizador.Core.Domain.Entidades.Cliente? cliente = null;
+            byte tipoClienteId;
+
+            if (request.ClienteId is { } delCatalogo)
+            {
+                cliente = await _contexto.Cliente
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == delCatalogo && c.IsActive, cancellationToken)
+                    ?? throw new InvalidOperationException("El cliente no existe o está inactivo.");
+
+                tipoClienteId = cliente.TipoClienteId;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(request.ClienteNombre))
+                {
+                    throw new InvalidOperationException(
+                        "Para un cliente nuevo hace falta el nombre con el que se cotiza.");
+                }
+
+                tipoClienteId = request.TipoClienteId
+                    ?? throw new InvalidOperationException(
+                        "Para un cliente nuevo hace falta el tipo de cliente: es lo que decide el método de costeo.");
+            }
 
             if (!await _contexto.TipoServicio.AnyAsync(t => t.Id == request.TipoServicioId && t.IsActive, cancellationToken))
             {
@@ -269,6 +304,7 @@ public sealed class CotizacionesController : ControllerBase
 
             var resultado = await _servicio.CalcularAsync(
                 request.ClienteId,
+                request.TipoClienteId,
                 request.Fecha,
                 request.Margen,
                 request.Insumos.Select(i => (i.ProductoId, i.Cantidad, i.SemestreId)).ToList(),
@@ -283,8 +319,8 @@ public sealed class CotizacionesController : ControllerBase
                 Numero = numero,
                 Anio = (short)request.Fecha.Year,
                 ClienteId = request.ClienteId,
-                TipoClienteId = cliente.TipoClienteId,
-                ClienteNombre = cliente.Nombre,
+                TipoClienteId = tipoClienteId,
+                ClienteNombre = cliente?.Nombre ?? request.ClienteNombre!.Trim(),
                 TipoServicioId = request.TipoServicioId,
                 Fecha = request.Fecha,
                 ModalidadId = modalidadId,
@@ -344,7 +380,7 @@ public sealed class CotizacionesController : ControllerBase
                 cotizacion.Numero,
                 cotizacion.Anio,
                 cotizacion.ClienteId,
-                cliente.Nombre,
+                cotizacion.ClienteNombre,
                 cotizacion.TipoServicioId,
                 (await _contexto.TipoServicio.FindAsync([cotizacion.TipoServicioId], cancellationToken))?.Nombre ?? string.Empty,
                 cotizacion.Fecha,
@@ -405,13 +441,15 @@ public sealed class CotizacionesController : ControllerBase
             modalidadId = modalidad.Id;
         }
 
-        // Recalcular
+        // Recalcular. Para un cliente del catálogo el tipo sale de su ficha; para un cliente
+        // nuevo sale del snapshot con el que se cotizó, porque no hay ficha de donde sacarlo.
         var amortizablesAct = request.Amortizables is { Count: > 0 }
             ? request.Amortizables.Select(a => (a.ActivoId, a.Cantidad)).ToList()
             : null;
 
         var resultado = await _servicio.CalcularAsync(
             cotizacion.ClienteId,
+            cotizacion.ClienteId is null ? cotizacion.TipoClienteId : null,
             request.Fecha,
             request.Margen,
             request.Insumos.Select(i => (i.ProductoId, i.Cantidad, i.SemestreId)).ToList(),
@@ -470,7 +508,7 @@ public sealed class CotizacionesController : ControllerBase
             cotizacion.Numero,
             cotizacion.Anio,
             cotizacion.ClienteId,
-            (await _contexto.Cliente.FindAsync([cotizacion.ClienteId], cancellationToken))?.Nombre ?? string.Empty,
+            cotizacion.ClienteNombre,
             cotizacion.TipoServicioId,
             (await _contexto.TipoServicio.FindAsync([cotizacion.TipoServicioId], cancellationToken))?.Nombre ?? string.Empty,
             cotizacion.Fecha,

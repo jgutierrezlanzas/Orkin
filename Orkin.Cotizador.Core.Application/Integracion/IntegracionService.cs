@@ -692,21 +692,17 @@ public sealed class IntegracionService
     /// bien hecha: cuando el origen es una vista que ya entrega las columnas con los nombres que
     /// el cargador espera, no hace falta escribir un mapeo.
     /// </summary>
-    private static IReadOnlyDictionary<string, string> LeerMapeo(string? mapeoJson)
+    /// <summary>
+    /// Lee el mapeo del flujo. Sin mapeo definido devuelve <b>null</b>: la fila pasa tal cual y
+    /// son las columnas de la vista las que mandan. No puede devolver una lista fija de
+    /// columnas porque cada catálogo espera las suyas —una lista fija haría que el flujo de
+    /// clientes solo sirviera si su vista trajera las columnas del de productos.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string>? LeerMapeo(string? mapeoJson)
     {
         if (string.IsNullOrWhiteSpace(mapeoJson))
         {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["Codigo"] = "Codigo",
-                ["Nombre"] = "Nombre",
-                ["Descripcion"] = "Descripcion",
-                ["CategoriaCodigo"] = "CategoriaCodigo",
-                ["UnidadMedidaCodigo"] = "UnidadMedidaCodigo",
-                ["CostoActual"] = "CostoActual",
-                ["PrecioVentaActual"] = "PrecioVentaActual",
-                ["VidaUtilMeses"] = "VidaUtilMeses"
-            };
+            return null;
         }
 
         using var documento = JsonDocument.Parse(mapeoJson);

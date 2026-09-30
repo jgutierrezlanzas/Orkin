@@ -12,12 +12,23 @@ public static class Normalizacion
 {
     /// <summary>
     /// Aplica el mapeo de columnas: toma los valores crudos y los deja con los nombres de
-    /// campo del catálogo. Las columnas sin mapeo se ignoran; las que faltan quedan en null.
+    /// campo del catálogo.
+    /// <para>Con mapeo (<paramref name="mapeo"/> distinto de null) es una <b>proyección
+    /// estricta</b>: las columnas sin mapeo se ignoran; las que faltan quedan en null. Que sea
+    /// estricta es lo que hace que un mapeo con una columna mal escrita falle ruidosamente en
+    /// vez de cargar el catálogo a medias.</para>
+    /// <para>Sin mapeo (null) la fila pasa <b>tal cual</b>: la vista de origen ya trae los
+    /// nombres que espera el cargador, que es el caso normal de un flujo bien configurado.</para>
     /// </summary>
     public static Dictionary<string, object?> AplicarMapeo(
         Dictionary<string, object?> fila,
-        IReadOnlyDictionary<string, string> mapeo)
+        IReadOnlyDictionary<string, string>? mapeo)
     {
+        if (mapeo is null)
+        {
+            return new Dictionary<string, object?>(fila, StringComparer.OrdinalIgnoreCase);
+        }
+
         var resultado = new Dictionary<string, object?>(mapeo.Count, StringComparer.OrdinalIgnoreCase);
 
         foreach (var (columnaOrigen, campoDestino) in mapeo)

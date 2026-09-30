@@ -2042,7 +2042,7 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("nvarchar(30)")
                         .HasColumnName("ClienteDocumento");
 
-                    b.Property<Guid>("ClienteId")
+                    b.Property<Guid?>("ClienteId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ClienteNombre")
@@ -4394,8 +4394,7 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.Cliente", "Cliente")
                         .WithMany()
                         .HasForeignKey("ClienteId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.EstadoCotizacionCatalogo", "Estado")
                         .WithMany()

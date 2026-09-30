@@ -45,15 +45,24 @@ public class Cotizacion : BaseEntity
     /// <summary>Una sola versión vigente por <see cref="Numero"/> (índice único filtrado).</summary>
     public bool EsVersionActual { get; set; } = true;
 
-    public Guid ClienteId { get; set; }
+    /// <summary>
+    /// FK → <c>dbo.Cliente</c>. <b>Null cuando la cotización es para un cliente nuevo</b>, que
+    /// todavía no existe en el catálogo: alguien llamó, pidió precios y todavía no es cliente.
+    /// En ese caso la persona solo aparece en <see cref="ClienteNombre"/> y la cotización no
+    /// arrastra al catálogo una ficha que nadie confirmó. Si después el cliente se carga del
+    /// ERP, las cotizaciones viejas no se le re-asignan: son un snapshot, y re-atarlas sería
+    /// inventar que se cotizó "para la ficha" cuando se cotizó "para el nombre".
+    /// </summary>
+    public Guid? ClienteId { get; set; }
 
-    public Cliente Cliente { get; set; } = null!;
+    public Cliente? Cliente { get; set; }
 
     public Guid TipoServicioId { get; set; }
 
     public TipoServicio TipoServicio { get; set; } = null!;
 
-    /// <summary>FK → <c>dbo.TipoClienteCatalogo</c>. Copia del cliente al momento de cotizar.</summary>
+    /// <summary>FK → <c>dbo.TipoClienteCatalogo</c>. Copia del cliente al momento de cotizar; para
+    /// un cliente nuevo, lo elige quien cotiza.</summary>
     public byte TipoClienteId { get; set; }
 
     public DateOnly Fecha { get; set; }
@@ -129,6 +138,12 @@ public class Cotizacion : BaseEntity
 
     // ── Snapshot de cliente y oferta ────────────────────────────────────────────────
 
+    /// <summary>
+    /// El nombre tal como se cotizó. Para un cliente del catálogo es la copia de
+    /// <c>Cliente.Nombre</c>; para un cliente nuevo es el nombre que tecleó quien cotizó. Es
+    /// el único lugar confiable del nombre en una cotización vieja: el cliente pudo cambiar
+    /// de nombre, desactivarse o nunca llegar a existir en el catálogo.
+    /// </summary>
     public string ClienteNombre { get; set; } = null!;
 
     public string? ClienteDocumento { get; set; }

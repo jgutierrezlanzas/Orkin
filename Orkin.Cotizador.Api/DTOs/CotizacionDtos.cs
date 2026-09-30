@@ -12,8 +12,12 @@ public sealed record CotizacionAmortizableRequest(
     decimal Cantidad);
 
 /// <summary>Solicitud para calcular una cotización en memoria (preview).</summary>
+/// <param name="ClienteId">Cliente del catálogo. Null = cliente nuevo, todavía sin ficha.</param>
+/// <param name="TipoClienteId">Solo para cliente nuevo: lo elige quien cotiza y decide el método
+/// de costeo. Se ignora cuando hay <c>ClienteId</c>.</param>
 public sealed record CalcularCotizacionRequest(
-    Guid ClienteId,
+    Guid? ClienteId,
+    byte? TipoClienteId,
     DateOnly Fecha,
     decimal Margen,
     IReadOnlyList<CotizacionInsumoRequest> Insumos,
@@ -36,8 +40,14 @@ public sealed record CalculoCotizacionResponse(
     decimal? PorcentajePlantilla);
 
 /// <summary>Solicitud para crear una cotización.</summary>
+/// <param name="ClienteId">Cliente del catálogo. Null = cliente nuevo, todavía sin ficha.</param>
+/// <param name="ClienteNombre">Nombre para el cliente nuevo, cuando no hay <c>ClienteId</c>.
+/// Para un cliente del catálogo se ignora y se copia el de la ficha.</param>
+/// <param name="TipoClienteId">Tipo para el cliente nuevo. Se ignora cuando hay <c>ClienteId</c>.</param>
 public sealed record CrearCotizacionRequest(
-    Guid ClienteId,
+    Guid? ClienteId,
+    string? ClienteNombre,
+    byte? TipoClienteId,
     Guid TipoServicioId,
     DateOnly Fecha,
     string? ModalidadCodigo,
@@ -50,7 +60,7 @@ public sealed record CotizacionResponse(
     Guid Id,
     string Numero,
     int Anio,
-    Guid ClienteId,
+    Guid? ClienteId,
     string ClienteNombre,
     Guid TipoServicioId,
     string TipoServicioNombre,
@@ -96,6 +106,15 @@ public sealed record TipoServicioOption(
     string Nombre,
     bool EsResidencialPorDefecto,
     bool EsEmpresarialPorDefecto);
+
+/// <summary>
+/// Opción para dropdown de tipos de cliente. Va en las opciones de cotización para el caso
+/// "cliente nuevo": quien cotiza elige el tipo, que es lo que decide el método de costeo.
+/// </summary>
+public sealed record TipoClienteOpcion(
+    byte Id,
+    string Codigo,
+    string Nombre);
 
 /// <summary>Opción para dropdown de modalidades.</summary>
 public sealed record ModalidadOption(

@@ -19,10 +19,35 @@
             <MudText Typo="Typo.h6" Class="mb-4">Datos generales</MudText>
             <MudGrid>
                 <MudItem xs="12" md="4">
-                    <SelectorLegible TItem="ClienteOpcion" TValue="Guid"
-                                     Items="_opciones.Clientes" ValorDe="c => c.Id" TextoDe='c => $"{c.Nombre} ({c.Codigo})"'
-                                     @bind-Value="_clienteId"
-                                     Label="Cliente" />
+                    @* Cliente del catálogo o alguien nuevo que llamó y todavía no tiene ficha.
+                       El switch es lo bastante visible para que nadie cotizó "al vacío" por
+                       accidente, y lo bastante discreto para no estorbar el caso normal. *@
+                    <MudSwitch @bind-Value="_clienteEsNuevo" Label="Cliente nuevo" Color="Color.Primary" Class="mb-1" />
+                    @if (_clienteEsNuevo)
+                    {
+                        <MudTextField @bind-Value="_clienteNombreNuevo" Label="Nombre del cliente" Required="true"
+                                      RequiredError="Ponga el nombre con el que se cotiza"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    }
+                    else
+                    {
+                        <SelectorLegible TItem="ClienteOpcion" TValue="Guid"
+                                         Items="_opciones.Clientes" ValorDe="c => c.Id" TextoDe='c => $"{c.Nombre} ({c.Codigo})"'
+                                         @bind-Value="_clienteId"
+                                         Label="Cliente" />
+                    }
+                    @if (_clienteEsNuevo)
+                    {
+                        <SelectorLegible TItem="TipoClienteOpcionModel" TValue="byte"
+                                         Items="_opciones.TiposCliente" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
+                                         @bind-Value="_tipoClienteNuevoId"
+                                         Label="Tipo de cliente"
+                                         Class="mt-2" />
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            El tipo decide el método de costeo. Si el cliente termina firmando, su
+                            ficha se crea al cargar el catálogo desde el ERP.
+                        </MudText>
+                    }
                 </MudItem>
                 <MudItem xs="12" md="4">
                     <SelectorLegible TItem="TipoServicioOpcion" TValue="Guid"
@@ -131,7 +156,10 @@
         }
 
         <div class="d-flex justify-end gap-4">
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Calcular" Disabled="_calculando || _insumos.Count == 0 || _clienteId == Guid.Empty">
+            @* Deshabilitado mientras falte el cliente —del catálogo o nuevo— o no haya
+               insumos: las validaciones de Calcular/Guardar ya avisan con mensaje, pero un
+               botón que no se puede pulsar evita el rodeo de clic-queja. *@
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Calcular" Disabled="_calculando || _insumos.Count == 0 || ValidarCliente() is not null">
                 @if (_calculando)
                 {
                     <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
@@ -168,6 +196,12 @@
     private bool _calculando;
     private bool _guardando;
 
+    // Cliente nuevo: alguien llamó, pidió precios y todavía no tiene ficha en el catálogo.
+    // La cotización queda con el nombre tecleado y el tipo elegido, sin tocar dbo.Cliente.
+    private bool _clienteEsNuevo;
+    private string _clienteNombreNuevo = string.Empty;
+    private byte _tipoClienteNuevoId;
+
     protected override async Task OnInitializedAsync()
     {
         _cargando = true;
@@ -183,6 +217,10 @@
             if (_opciones.TiposServicio.Count > 0)
             {
                 _tipoServicioId = _opciones.TiposServicio[0].Id;
+            }
+            if (_opciones.TiposCliente.Count > 0)
+            {
+                _tipoClienteNuevoId = _opciones.TiposCliente[0].Id;
             }
         }
         finally
@@ -212,11 +250,29 @@
         return producto?.CostoActual ?? 0;
     }
 
+    /// <summary>Valida el cliente según el modo. Devuelve el mensaje de lo que falta, o null.</summary>
+    private string? ValidarCliente()
+    {
+        if (_clienteEsNuevo)
+        {
+            if (string.IsNullOrWhiteSpace(_clienteNombreNuevo))
+            {
+                return "Ponga el nombre del cliente nuevo.";
+            }
+        }
+        else if (_clienteId == Guid.Empty)
+        {
+            return "Seleccione un cliente.";
+        }
+
+        return null;
+    }
+
     private async Task Calcular()
     {
-        if (_clienteId == Guid.Empty)
+        if (ValidarCliente() is { } faltaCliente)
         {
-            Snackbar.Add("Seleccione un cliente.", Severity.Warning);
+            Snackbar.Add(faltaCliente, Severity.Warning);
             return;
         }
 
@@ -229,7 +285,12 @@
         _calculando = true;
         try
         {
-            var respuesta = await CotizacionService.CalcularAsync(_clienteId, _fecha, _margen, _insumos);
+            var respuesta = await CotizacionService.CalcularAsync(
+                _clienteEsNuevo ? null : _clienteId,
+                _clienteEsNuevo ? _tipoClienteNuevoId : null,
+                _fecha,
+                _margen,
+                _insumos);
 
             if (respuesta?.Exito == true && respuesta.Datos is not null)
             {
@@ -248,6 +309,12 @@
 
     private async Task Guardar()
     {
+        if (ValidarCliente() is { } faltaCliente)
+        {
+            Snackbar.Add(faltaCliente, Severity.Warning);
+            return;
+        }
+
         if (_resultado is null)
         {
             Snackbar.Add("Calcule primero.", Severity.Warning);
@@ -258,7 +325,9 @@
         try
         {
             var respuesta = await CotizacionService.CrearAsync(
-                _clienteId,
+                _clienteEsNuevo ? null : _clienteId,
+                _clienteEsNuevo ? _clienteNombreNuevo.Trim() : null,
+                _clienteEsNuevo ? _tipoClienteNuevoId : null,
                 _tipoServicioId,
                 _fecha,
                 null,
