@@ -1,0 +1,51 @@
+@* Confirmación de anulación. Ver ProductoDialogo para el patrón.
+
+   Anular es terminal: la fila y su historial se conservan, pero ya no se puede editar ni
+   convertir. Por eso el motivo es obligatorio — anular algo sin decir por qué es la puerta
+   abierta a "se anuló por accidente" sin rastro de qué pasó.
+*@
+<MudDialog>
+    <DialogContent>
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4" Variant="Variant.Outlined">
+            <b>Esta acción no se puede deshacer.</b> La cotización @Numero pasará a estado
+            ANULADA y ya no se podrá editar ni convertir. La fila y su historial se conservan.
+        </MudAlert>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_motivo" Label="Motivo de la anulación" Required="true"
+                          RequiredError="El motivo es obligatorio"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3"
+                          HelperText="Se guarda en la bitácora. Ej.: 'anulada por error de tipo de cambio', 'el cliente canceló'." />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="Cancelar">No anular</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Confirmar">
+            <MudText>Anular</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El número de la cotización que se va a anular, para el aviso.</summary>
+    [Parameter]
+    public string Numero { get; set; } = "";
+
+    private MudForm _form = null!;
+    private string _motivo = string.Empty;
+
+    private async Task Confirmar()
+    {
+        await _form.Validate();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        Dialogo.Close(DialogResult.Ok(_motivo.Trim()));
+    }
+
+    private void Cancelar() => Dialogo.Cancel();
+}

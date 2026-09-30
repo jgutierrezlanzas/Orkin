@@ -532,7 +532,79 @@ public sealed class CotizacionesController : ControllerBase
 
         return ApiResponse<CotizacionResponse>.Ok(response).AHttp();
     }
+
+    /// <summary>
+    /// Anula una cotización. Estado terminal: la fila y su historial se conservan — anular no es
+    /// borrar. Se exige un motivo, porque anular algo sin decir por qué es la puerta abierta a
+    /// «se anuló por accidente» sin rastro de qué pasó.
+    /// </summary>
+    [HttpPut("{id:guid}/anular")]
+    [Authorize("COTIZACIONES.ANULAR")]
+    public async Task<IResult> Anular(
+        Guid id,
+        [FromBody] AnularCotizacionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var cotizacion = await _contexto.Cotizacion
+            .Include(c => c.Estado)
+            .FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("La cotización no existe.");
+
+        if (cotizacion.Estado.Codigo == "ANULADA")
+        {
+            return ApiResponse<CotizacionResponse>
+                .Error("YA_ANULADA", "La cotización ya está anulada.")
+                .AHttp();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Motivo))
+        {
+            return ApiResponse<CotizacionResponse>
+                .Error("VALIDACION", "El motivo de la anulación es obligatorio.")
+                .AHttp();
+        }
+
+        var estadoAnulada = await _contexto.EstadoCotizacionCatalogo
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Codigo == "ANULADA", cancellationToken)
+            ?? throw new InvalidOperationException("El estado ANULADA no está configurado.");
+
+        cotizacion.EstadoId = estadoAnulada.Id;
+        cotizacion.UpdatedAt = DateTime.UtcNow;
+
+        await _contexto.SaveChangesAsync(cancellationToken);
+
+        return ApiResponse<CotizacionResponse>.Ok(new CotizacionResponse(
+            cotizacion.Id,
+            cotizacion.Numero,
+            cotizacion.Anio,
+            cotizacion.ClienteId,
+            cotizacion.ClienteNombre,
+            cotizacion.TipoServicioId,
+            (await _contexto.TipoServicio.FindAsync([cotizacion.TipoServicioId], cancellationToken))?.Nombre ?? string.Empty,
+            cotizacion.Fecha,
+            cotizacion.Modalidad?.Codigo ?? string.Empty,
+            cotizacion.MargenAplicado,
+            estadoAnulada.Codigo,
+            estadoAnulada.Nombre,
+            cotizacion.TotalInsumosSemestre1,
+            cotizacion.TotalInsumosSemestre2,
+            cotizacion.TotalInsumos,
+            cotizacion.TotalAmortizablesMensual,
+            cotizacion.CostoTotal,
+            cotizacion.PrecioCordobas,
+            cotizacion.PrecioUsd,
+            cotizacion.TipoCambioValor,
+            cotizacion.TipoCambioFecha,
+            cotizacion.TipoCambioId,
+            cotizacion.MetodoCosteoId,
+            cotizacion.PorcentajePlantilla,
+            cotizacion.CreatedAt)).AHttp();
+    }
 }
+
+/// <summary>Solicitud para anular una cotización. El motivo es obligatorio.</summary>
+public sealed record AnularCotizacionRequest(string Motivo);
 
 /// <summary>Respuesta paginada genérica.</summary>
 public sealed record PaginatedResponse<T>(

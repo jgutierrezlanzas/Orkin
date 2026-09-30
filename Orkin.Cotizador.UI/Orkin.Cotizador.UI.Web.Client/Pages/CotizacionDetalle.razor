@@ -1,9 +1,12 @@
 @page "/cotizaciones/{Id:guid}"
 @attribute [Authorize("COTIZACIONES.VER")]
 @layout MainLayout
+@using Microsoft.AspNetCore.Components.Authorization
 @inject HttpClient Http
+@inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
     @if (_cargando)
@@ -87,9 +90,19 @@
             </MudGrid>
         </MudPaper>
 
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Navigation.NavigateTo("/cotizaciones"))">
-            Volver al listado
-        </MudButton>
+        <div class="d-flex gap-2 mt-4">
+            @if (PuedeAnular)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Block"
+                           Disabled="_anulando" OnClick="Anular">
+                    Anular
+                </MudButton>
+            }
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack"
+                       OnClick="@(() => Navigation.NavigateTo("/cotizaciones"))">
+                Volver al listado
+            </MudButton>
+        </div>
     }
 </MudContainer>
 
@@ -99,6 +112,8 @@
 
     private CotizacionListItem? _cotizacion;
     private bool _cargando;
+    private bool _anulando;
+    private bool _puedeAnular;
 
     protected override async Task OnInitializedAsync()
     {
@@ -107,10 +122,61 @@
         {
             var respuesta = await Http.GetFromJsonAsync<ApiResponse<CotizacionListItem>>($"api/cotizaciones/{Id}");
             _cotizacion = respuesta?.Datos;
+
+            // El botón de anular aparece solo para quien tiene el permiso y cuando la
+            // cotización no está ya anulada (estado terminal) ni aprobada (para anular una
+            // aprobada hay que hacer una nueva versión, no borrar la vigente).
+            var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+            _puedeAnular = estado.User.HasClaim("orkin:permiso", "COTIZACIONES.ANULAR");
         }
         finally
         {
             _cargando = false;
+        }
+    }
+
+    private bool PuedeAnular => _puedeAnular && _cotizacion?.EstadoCodigo != "ANULADA" && _cotizacion?.EstadoCodigo != "APROBADA";
+    private bool PuedeEditar => _cotizacion?.EstadoCodigo is "BORRADOR" or "RECHAZADA";
+    private bool EsEditable => _cotizacion?.EstadoCodigo is "BORRADOR" or "RECHAZADA";
+
+    /// <summary>
+    /// Anular abre un diálogo que pide el motivo. Anular sin motivo es la puerta abierta a
+    /// "se anuló por accidente" sin rastro de qué pasó.
+    /// </summary>
+    private async Task Anular()
+    {
+        var parametros = new DialogParameters<AnularCotizacionDialogo>
+        {
+            { d => d.Numero, _cotizacion?.Numero ?? "" }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<AnularCotizacionDialogo>("Anular cotización", parametros, opciones);
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not string motivo)
+        {
+            return;
+        }
+
+        _anulando = true;
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"api/cotizaciones/{Id}/anular", new { Motivo = motivo });
+            var body = await response.Content.ReadFromJsonAsync<ApiResponse<CotizacionListItem>>();
+
+            if (body?.Exito == true)
+            {
+                Snackbar.Add("Cotización anulada. La fila y su historial se conservan.", Severity.Success);
+                Navigation.NavigateTo("/cotizaciones", forceLoad: true);
+            }
+            else
+            {
+                Snackbar.Add(body?.Mensaje ?? "No se pudo anular la cotización.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _anulando = false;
         }
     }
 
