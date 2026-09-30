@@ -1,0 +1,100 @@
+@* Alta y edición de producto en modal.
+
+   Va en modal y no embebido sobre la tabla a propósito: con cincuenta registros,
+   editar el último obligaba a pegarle a Editar y después scrollear hasta arriba
+   para encontrar el formulario. En modal, el formulario aparece donde está el
+   clic y al cerrar se vuelve exactamente al lugar de la tabla.
+
+   El diálogo es tonto: solo arma el modelo y lo devuelve. Quien habla con la
+   API sigue siendo la página, para que el guardado, el mensaje y el refresco
+   vivan en un solo sitio.
+*@
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" md="2">
+                <MudTextField @bind-Value="Modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Disabled="EsEdicion" Required="true" RequiredError="Ponga un código" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="Modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <SelectorLegible TItem="CategoriaProductoModel" TValue="Guid?"
+                                 Items="Categorias" ValorDe="c => c.Id" TextoDe="c => c.Nombre"
+                                 @bind-Value="Modelo.CategoriaId"
+                                 Label="Categoría" Clearable="true"
+                                 TextoValorActual="@NombreCategoriaActual" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <SelectorLegible TItem="UnidadMedidaModel" TValue="Guid"
+                                 Items="Unidades" ValorDe="u => u.Id" TextoDe='u => $"{u.Nombre} ({u.Abreviatura})"'
+                                 @bind-Value="Modelo.UnidadMedidaId"
+                                 Label="Unidad de medida"
+                                 TextoValorActual="@NombreUnidadActual" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="Modelo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudNumericField @bind-Value="Modelo.CostoActual" Label="Costo" Variant="Variant.Outlined" Margin="Margin.Dense" Format="N2" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudNumericField @bind-Value="Modelo.PrecioVentaActual" Label="Precio venta" Variant="Variant.Outlined" Margin="Margin.Dense" Format="N2" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudNumericField @bind-Value="Modelo.VidaUtilMeses" Label="Vida útil (meses)" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+            </MudItem>
+            @if (EsEdicion)
+            {
+                <MudItem xs="12" md="2">
+                    <MudSwitch @bind-Value="Modelo.EsActivo" Label="Activo" Color="Color.Primary" />
+                </MudItem>
+            }
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar" Disabled="_aceptando">
+            @if (_aceptando)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+            }
+            else
+            {
+                <MudText>Guardar</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El modelo que se edita. Si <see cref="ProductoModel.Id"/> es vacío, es un alta.</summary>
+    [Parameter, EditorRequired]
+    public ProductoModel Modelo { get; set; } = new();
+
+    [Parameter, EditorRequired]
+    public List<CategoriaProductoModel> Categorias { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public List<UnidadMedidaModel> Unidades { get; set; } = [];
+
+    /// <summary>Nombre de la categoría del modelo cuando ya no está en la lista (desactivada).</summary>
+    [Parameter]
+    public string? NombreCategoriaActual { get; set; }
+
+    /// <summary>Nombre de la unidad del modelo cuando ya no está en la lista (desactivada).</summary>
+    [Parameter]
+    public string? NombreUnidadActual { get; set; }
+
+    private bool _aceptando;
+
+    private bool EsEdicion => Modelo.Id != Guid.Empty;
+
+    private void Aceptar() => Dialogo.Close(DialogResult.Ok(Modelo));
+
+    private void Cancelar() => Dialogo.Cancel();
+}

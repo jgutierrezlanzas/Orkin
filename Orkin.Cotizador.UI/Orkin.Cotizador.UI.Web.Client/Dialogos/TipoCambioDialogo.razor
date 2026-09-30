@@ -1,0 +1,59 @@
+@* Alta y edición de tipo de cambio en modal. Ver ProductoDialogo para el porqué del patrón. *@
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" md="3">
+                <MudDatePicker @bind-Value="Modelo.Fecha" Label="Fecha" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudNumericField T="decimal" @bind-Value="Modelo.Valor" Label="Valor (C$/US$)" Variant="Variant.Outlined" Margin="Margin.Dense" Step="0.0001m" Min="0.0001m" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <SelectorLegible TItem="FuenteTipoCambioOption" TValue="byte"
+                                 Items="Fuentes" ValorDe="f => f.Id" TextoDe="f => f.Nombre"
+                                 @bind-Value="Modelo.FuenteId"
+                                 Label="Fuente" Clearable="true"
+                                 TextoValorActual="@NombreFuenteActual" />
+            </MudItem>
+            @if (EsEdicion)
+            {
+                <MudItem xs="12" md="2">
+                    <MudSwitch @bind-Value="Modelo.EsActivo" Label="Activo" Color="Color.Primary" />
+                </MudItem>
+            }
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">
+            <MudText>Guardar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El modelo que se edita. Si <see cref="TipoCambioModel.Id"/> es vacío, es un alta.</summary>
+    [Parameter, EditorRequired]
+    public TipoCambioModel Modelo { get; set; } = new()
+    {
+        // Un tipo de cambio nuevo casi siempre es el de hoy: dejar la fecha en blanco obliga a
+        // abrir el calendario para algo que se sabe de antemano.
+        Fecha = DateOnly.FromDateTime(DateTime.Today)
+    };
+
+    [Parameter, EditorRequired]
+    public List<FuenteTipoCambioOption> Fuentes { get; set; } = [];
+
+    /// <summary>Nombre de la fuente del modelo cuando ya no está en la lista.</summary>
+    [Parameter]
+    public string? NombreFuenteActual { get; set; }
+
+    private bool EsEdicion => Modelo.Id != Guid.Empty;
+
+    private void Aceptar() => Dialogo.Close(DialogResult.Ok(Modelo));
+
+    private void Cancelar() => Dialogo.Cancel();
+}

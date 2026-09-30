@@ -4,89 +4,16 @@
 @inject CatalogoService CatalogoService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
-    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Clientes</MudText>
-
-    @if (_puedeEditar)
-    {
-        <MudPaper Elevation="2" Class="pa-4 mb-6">
-            <MudText Typo="Typo.h6" Class="mb-4">@(_editando ? "Editar" : "Nuevo") cliente</MudText>
-            <MudGrid>
-                <MudItem xs="12" md="2">
-                    <MudTextField @bind-Value="_modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_editando" />
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <MudTextField @bind-Value="_modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField @bind-Value="_modelo.RazonSocial" Label="Razón social" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <SelectorLegible TItem="TipoClienteOption" TValue="byte"
-                                     Items="_tiposCliente" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
-                                     @bind-Value="_modelo.TipoClienteId"
-                                     Label="Tipo de cliente"
-                                     TextoValorActual="@_nombreTipoClienteActual" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField @bind-Value="_modelo.CedulaORuc" Label="Cédula/RUC" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField @bind-Value="_modelo.IdentificacionFiscal" Label="Identificación fiscal" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField @bind-Value="_modelo.Telefono" Label="Teléfono" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField @bind-Value="_modelo.Correo" Label="Correo" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <MudTextField @bind-Value="_modelo.Direccion" Label="Dirección" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField @bind-Value="_modelo.Ciudad" Label="Ciudad" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField @bind-Value="_modelo.Departamento" Label="Departamento" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudTextField @bind-Value="_modelo.ContactoNombre" Label="Contacto" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField @bind-Value="_modelo.ContactoCargo" Label="Cargo contacto" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField @bind-Value="_modelo.SitioWeb" Label="Sitio web" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <MudTextField @bind-Value="_modelo.Notas" Label="Notas" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                @if (_editando)
-                {
-                    <MudItem xs="12" md="2">
-                        <MudSwitch @bind-Value="_modelo.EsActivo" Label="Activo" Color="Color.Primary" />
-                    </MudItem>
-                }
-            </MudGrid>
-            <div class="d-flex justify-end mt-4">
-                @if (_editando)
-                {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar" Class="mr-2">Cancelar</MudButton>
-                }
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar" Disabled="_guardando">
-                    @if (_guardando)
-                    {
-                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                    }
-                    else
-                    {
-                        <MudText>Guardar</MudText>
-                    }
-                </MudButton>
-            </div>
-        </MudPaper>
-    }
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">Clientes</MudText>
+        @if (_puedeEditar)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Nuevo">Nuevo cliente</MudButton>
+        }
+    </div>
 
     <MudTable Items="_clientes" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
         <HeaderContent>
@@ -128,12 +55,8 @@
 @code {
     private List<ClienteModel> _clientes = [];
     private List<TipoClienteOption> _tiposCliente = [];
-    private ClienteModel _modelo = new();
     private bool _cargando;
-    private bool _guardando;
-    private bool _editando;
     private bool _puedeEditar;
-    private string? _nombreTipoClienteActual;
 
     protected override async Task OnInitializedAsync()
     {
@@ -144,11 +67,6 @@
             _puedeEditar = estado.User.HasClaim("orkin:permiso", "CLIENTES.CREAR") || estado.User.HasClaim("orkin:permiso", "CLIENTES.EDITAR");
             _tiposCliente = await CatalogoService.ObtenerTiposClienteAsync();
             _clientes = await CatalogoService.ListarClientesAsync();
-
-            if (_tiposCliente.Count > 0 && _modelo.TipoClienteId == 0)
-            {
-                _modelo.TipoClienteId = _tiposCliente[0].Id;
-            }
         }
         finally
         {
@@ -156,73 +74,71 @@
         }
     }
 
-    private void Editar(ClienteModel cliente)
+    private Task Nuevo() => AbrirDialogo(ModeloNuevo());
+
+    private Task Editar(ClienteModel cliente) => AbrirDialogo(new ClienteModel
     {
-        _modelo = new ClienteModel
+        Id = cliente.Id,
+        Codigo = cliente.Codigo,
+        Nombre = cliente.Nombre,
+        RazonSocial = cliente.RazonSocial,
+        TipoClienteId = cliente.TipoClienteId,
+        CedulaORuc = cliente.CedulaORuc,
+        IdentificacionFiscal = cliente.IdentificacionFiscal,
+        Direccion = cliente.Direccion,
+        Ciudad = cliente.Ciudad,
+        Departamento = cliente.Departamento,
+        Telefono = cliente.Telefono,
+        Correo = cliente.Correo,
+        ContactoNombre = cliente.ContactoNombre,
+        ContactoCargo = cliente.ContactoCargo,
+        SitioWeb = cliente.SitioWeb,
+        Notas = cliente.Notas,
+        EsActivo = cliente.EsActivo
+    });
+
+    /// <summary>El modelo de un alta, con el primer tipo de cliente ya elegido para no obligar a abrir el combo.</summary>
+    private ClienteModel ModeloNuevo()
+        => new()
         {
-            Id = cliente.Id,
-            Codigo = cliente.Codigo,
-            Nombre = cliente.Nombre,
-            RazonSocial = cliente.RazonSocial,
-            TipoClienteId = cliente.TipoClienteId,
-            CedulaORuc = cliente.CedulaORuc,
-            IdentificacionFiscal = cliente.IdentificacionFiscal,
-            Direccion = cliente.Direccion,
-            Ciudad = cliente.Ciudad,
-            Departamento = cliente.Departamento,
-            Telefono = cliente.Telefono,
-            Correo = cliente.Correo,
-            ContactoNombre = cliente.ContactoNombre,
-            ContactoCargo = cliente.ContactoCargo,
-            SitioWeb = cliente.SitioWeb,
-            Notas = cliente.Notas,
-            EsActivo = cliente.EsActivo
+            TipoClienteId = _tiposCliente.Count > 0 ? _tiposCliente[0].Id : (byte)0
         };
-        _nombreTipoClienteActual = cliente.TipoClienteNombre;
-        _editando = true;
-    }
 
-    private void Cancelar()
+    private async Task AbrirDialogo(ClienteModel modelo)
     {
-        _modelo = new ClienteModel();
-        if (_tiposCliente.Count > 0)
+        var nombreTipo = modelo.Id == Guid.Empty
+            ? null
+            : _clientes.FirstOrDefault(c => c.Id == modelo.Id)?.TipoClienteNombre;
+
+        var parametros = new DialogParameters<ClienteDialogo>
         {
-            _modelo.TipoClienteId = _tiposCliente[0].Id;
+            { d => d.Modelo, modelo },
+            { d => d.TiposCliente, _tiposCliente },
+            { d => d.NombreTipoClienteActual, nombreTipo }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<ClienteDialogo>(
+            modelo.Id == Guid.Empty ? "Nuevo cliente" : $"Editar — {modelo.Nombre}", parametros, opciones);
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not ClienteModel editado)
+        {
+            return;
         }
-        _nombreTipoClienteActual = null;
-        _editando = false;
-    }
 
-    private async Task Guardar()
-    {
-        _guardando = true;
-        try
+        var esAlta = modelo.Id == Guid.Empty;
+        var respuesta = esAlta
+            ? await CatalogoService.CrearClienteAsync(editado)
+            : await CatalogoService.ActualizarClienteAsync(editado);
+
+        if (respuesta?.Exito == true)
         {
-            ApiResponse<ClienteModel>? respuesta;
-
-            if (_editando)
-            {
-                respuesta = await CatalogoService.ActualizarClienteAsync(_modelo);
-            }
-            else
-            {
-                respuesta = await CatalogoService.CrearClienteAsync(_modelo);
-            }
-
-            if (respuesta?.Exito == true)
-            {
-                Snackbar.Add("Guardado correctamente.", Severity.Success);
-                Cancelar();
-                _clientes = await CatalogoService.ListarClientesAsync();
-            }
-            else
-            {
-                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
-            }
+            Snackbar.Add("Guardado correctamente.", Severity.Success);
+            _clientes = await CatalogoService.ListarClientesAsync();
         }
-        finally
+        else
         {
-            _guardando = false;
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
         }
     }
 }

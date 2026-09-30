@@ -4,55 +4,16 @@
 @inject CatalogoService CatalogoService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
-    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Unidades de medida</MudText>
-
-    @if (_puedeEditar)
-    {
-        <MudPaper Elevation="2" Class="pa-4 mb-6">
-            <MudText Typo="Typo.h6" Class="mb-4">@(_editando ? "Editar" : "Nueva") unidad</MudText>
-            <MudGrid>
-                <MudItem xs="12" md="2">
-                    <MudTextField @bind-Value="_modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_editando" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField @bind-Value="_modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudTextField @bind-Value="_modelo.Abreviatura" Label="Abreviatura" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudNumericField @bind-Value="_modelo.Orden" Label="Orden" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudSwitch @bind-Value="_modelo.PermiteDecimales" Label="Permite decimales" Color="Color.Primary" />
-                </MudItem>
-                @if (_editando)
-                {
-                    <MudItem xs="12" md="1">
-                        <MudSwitch @bind-Value="_modelo.EsActivo" Label="Activo" Color="Color.Primary" />
-                    </MudItem>
-                }
-            </MudGrid>
-            <div class="d-flex justify-end mt-4">
-                @if (_editando)
-                {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar" Class="mr-2">Cancelar</MudButton>
-                }
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar" Disabled="_guardando">
-                    @if (_guardando)
-                    {
-                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                    }
-                    else
-                    {
-                        <MudText>Guardar</MudText>
-                    }
-                </MudButton>
-            </div>
-        </MudPaper>
-    }
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">Unidades de medida</MudText>
+        @if (_puedeEditar)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Nuevo">Nueva unidad</MudButton>
+        }
+    </div>
 
     <MudTable Items="_unidades" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
         <HeaderContent>
@@ -93,10 +54,7 @@
 
 @code {
     private List<UnidadMedidaModel> _unidades = [];
-    private UnidadMedidaModel _modelo = new();
     private bool _cargando;
-    private bool _guardando;
-    private bool _editando;
     private bool _puedeEditar;
 
     protected override async Task OnInitializedAsync()
@@ -114,58 +72,47 @@
         }
     }
 
-    private void Editar(UnidadMedidaModel unidad)
+    private Task Nuevo() => AbrirDialogo(new UnidadMedidaModel());
+
+    private Task Editar(UnidadMedidaModel unidad) => AbrirDialogo(new UnidadMedidaModel
     {
-        _modelo = new UnidadMedidaModel
+        Id = unidad.Id,
+        Codigo = unidad.Codigo,
+        Nombre = unidad.Nombre,
+        Abreviatura = unidad.Abreviatura,
+        PermiteDecimales = unidad.PermiteDecimales,
+        Orden = unidad.Orden,
+        EsActivo = unidad.EsActivo
+    });
+
+    private async Task AbrirDialogo(UnidadMedidaModel modelo)
+    {
+        var parametros = new DialogParameters<UnidadMedidaDialogo>
         {
-            Id = unidad.Id,
-            Codigo = unidad.Codigo,
-            Nombre = unidad.Nombre,
-            Abreviatura = unidad.Abreviatura,
-            PermiteDecimales = unidad.PermiteDecimales,
-            Orden = unidad.Orden,
-            EsActivo = unidad.EsActivo
+            { d => d.Modelo, modelo }
         };
-        _editando = true;
-    }
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<UnidadMedidaDialogo>(
+            modelo.Id == Guid.Empty ? "Nueva unidad" : $"Editar — {modelo.Nombre}", parametros, opciones);
 
-    private void Cancelar()
-    {
-        _modelo = new UnidadMedidaModel();
-        _editando = false;
-    }
-
-    private async Task Guardar()
-    {
-        _guardando = true;
-        try
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not UnidadMedidaModel editado)
         {
-            ApiResponse<UnidadMedidaModel>? respuesta;
-
-            if (_editando)
-            {
-                respuesta = await CatalogoService.ActualizarUnidadMedidaAsync(_modelo);
-            }
-            else
-            {
-                respuesta = await CatalogoService.CrearUnidadMedidaAsync(_modelo);
-            }
-
-            if (respuesta?.Exito == true)
-            {
-                Snackbar.Add("Guardado correctamente.", Severity.Success);
-                _modelo = new UnidadMedidaModel();
-                _editando = false;
-                _unidades = await CatalogoService.ListarUnidadesMedidaAsync();
-            }
-            else
-            {
-                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
-            }
+            return;
         }
-        finally
+
+        var respuesta = modelo.Id == Guid.Empty
+            ? await CatalogoService.CrearUnidadMedidaAsync(editado)
+            : await CatalogoService.ActualizarUnidadMedidaAsync(editado);
+
+        if (respuesta?.Exito == true)
         {
-            _guardando = false;
+            Snackbar.Add("Guardado correctamente.", Severity.Success);
+            _unidades = await CatalogoService.ListarUnidadesMedidaAsync();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
         }
     }
 }

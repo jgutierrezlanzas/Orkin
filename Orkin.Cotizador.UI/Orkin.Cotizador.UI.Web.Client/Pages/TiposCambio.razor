@@ -4,53 +4,16 @@
 @inject CatalogoService CatalogoService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
-    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Tipos de cambio</MudText>
-
-    @if (_puedeEditar)
-    {
-        <MudPaper Elevation="2" Class="pa-4 mb-6">
-            <MudText Typo="Typo.h6" Class="mb-4">@(_editando ? "Editar" : "Nuevo") tipo de cambio</MudText>
-            <MudGrid>
-                <MudItem xs="12" md="3">
-                    <MudDatePicker @bind-Value="_modelo.Fecha" Label="Fecha" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudNumericField T="decimal" @bind-Value="_modelo.Valor" Label="Valor (C$/US$)" Variant="Variant.Outlined" Margin="Margin.Dense" Step="0.0001m" Min="0.0001m" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <SelectorLegible TItem="FuenteTipoCambioOption" TValue="byte"
-                                     Items="_fuentes" ValorDe="f => f.Id" TextoDe="f => f.Nombre"
-                                     @bind-Value="_modelo.FuenteId"
-                                     Label="Fuente" Clearable="true"
-                                     TextoValorActual="@_nombreFuenteActual" />
-                </MudItem>
-                @if (_editando)
-                {
-                    <MudItem xs="12" md="2">
-                        <MudSwitch @bind-Value="_modelo.EsActivo" Label="Activo" Color="Color.Primary" />
-                    </MudItem>
-                }
-            </MudGrid>
-            <div class="d-flex justify-end mt-4">
-                @if (_editando)
-                {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar" Class="mr-2">Cancelar</MudButton>
-                }
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar" Disabled="_guardando">
-                    @if (_guardando)
-                    {
-                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                    }
-                    else
-                    {
-                        <MudText>Guardar</MudText>
-                    }
-                </MudButton>
-            </div>
-        </MudPaper>
-    }
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">Tipos de cambio</MudText>
+        @if (_puedeEditar)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Nuevo">Nuevo tipo de cambio</MudButton>
+        }
+    </div>
 
     <MudTable Items="_tiposCambio" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
         <HeaderContent>
@@ -86,12 +49,8 @@
 @code {
     private List<TipoCambioModel> _tiposCambio = [];
     private List<FuenteTipoCambioOption> _fuentes = [];
-    private TipoCambioModel _modelo = new();
     private bool _cargando;
-    private bool _guardando;
-    private bool _editando;
     private bool _puedeEditar;
-    private string? _nombreFuenteActual;
 
     protected override async Task OnInitializedAsync()
     {
@@ -102,15 +61,6 @@
             _puedeEditar = estado.User.HasClaim("orkin:permiso", "CATALOGOS.EDITAR");
             _fuentes = await CatalogoService.ObtenerFuentesTipoCambioAsync();
             _tiposCambio = await CatalogoService.ListarTiposCambioAsync();
-
-            if (_fuentes.Count > 0 && _modelo.FuenteId == 0)
-            {
-                _modelo.FuenteId = _fuentes[0].Id;
-            }
-            if (_modelo.Fecha == default)
-            {
-                _modelo.Fecha = DateOnly.FromDateTime(DateTime.Today);
-            }
         }
         finally
         {
@@ -118,62 +68,55 @@
         }
     }
 
-    private void Editar(TipoCambioModel tc)
+    private Task Nuevo() => AbrirDialogo(new TipoCambioModel
     {
-        _modelo = new TipoCambioModel
+        Fecha = DateOnly.FromDateTime(DateTime.Today),
+        FuenteId = _fuentes.Count > 0 ? _fuentes[0].Id : (byte)0
+    });
+
+    private Task Editar(TipoCambioModel tc) => AbrirDialogo(new TipoCambioModel
+    {
+        Id = tc.Id,
+        Fecha = tc.Fecha,
+        Valor = tc.Valor,
+        FuenteId = tc.FuenteId,
+        EsActivo = tc.EsActivo
+    });
+
+    private async Task AbrirDialogo(TipoCambioModel modelo)
+    {
+        var nombreFuente = modelo.Id == Guid.Empty
+            ? null
+            : _tiposCambio.FirstOrDefault(t => t.Id == modelo.Id)?.FuenteNombre;
+
+        var parametros = new DialogParameters<TipoCambioDialogo>
         {
-            Id = tc.Id,
-            Fecha = tc.Fecha,
-            Valor = tc.Valor,
-            FuenteId = tc.FuenteId,
-            EsActivo = tc.EsActivo
+            { d => d.Modelo, modelo },
+            { d => d.Fuentes, _fuentes },
+            { d => d.NombreFuenteActual, nombreFuente }
         };
-        _nombreFuenteActual = tc.FuenteNombre;
-        _editando = true;
-    }
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<TipoCambioDialogo>(
+            modelo.Id == Guid.Empty ? "Nuevo tipo de cambio" : $"Editar — {modelo.Fecha:yyyy-MM-dd}", parametros, opciones);
 
-    private void Cancelar()
-    {
-        _modelo = new TipoCambioModel();
-        if (_fuentes.Count > 0)
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not TipoCambioModel editado)
         {
-            _modelo.FuenteId = _fuentes[0].Id;
+            return;
         }
-        _nombreFuenteActual = null;
-        _modelo.Fecha = DateOnly.FromDateTime(DateTime.Today);
-        _editando = false;
-    }
 
-    private async Task Guardar()
-    {
-        _guardando = true;
-        try
+        var respuesta = modelo.Id == Guid.Empty
+            ? await CatalogoService.CrearTipoCambioAsync(editado)
+            : await CatalogoService.ActualizarTipoCambioAsync(editado);
+
+        if (respuesta?.Exito == true)
         {
-            ApiResponse<TipoCambioModel>? respuesta;
-
-            if (_editando)
-            {
-                respuesta = await CatalogoService.ActualizarTipoCambioAsync(_modelo);
-            }
-            else
-            {
-                respuesta = await CatalogoService.CrearTipoCambioAsync(_modelo);
-            }
-
-            if (respuesta?.Exito == true)
-            {
-                Snackbar.Add("Guardado correctamente.", Severity.Success);
-                Cancelar();
-                _tiposCambio = await CatalogoService.ListarTiposCambioAsync();
-            }
-            else
-            {
-                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
-            }
+            Snackbar.Add("Guardado correctamente.", Severity.Success);
+            _tiposCambio = await CatalogoService.ListarTiposCambioAsync();
         }
-        finally
+        else
         {
-            _guardando = false;
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
         }
     }
 }

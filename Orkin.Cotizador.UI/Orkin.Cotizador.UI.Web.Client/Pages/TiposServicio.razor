@@ -4,73 +4,25 @@
 @inject CatalogoService CatalogoService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
-    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Tipos de servicio</MudText>
-
-    @if (_puedeEditar)
-    {
-        <MudPaper Elevation="2" Class="pa-4 mb-6">
-            <MudText Typo="Typo.h6" Class="mb-4">@(_editando ? "Editar" : "Nuevo") tipo de servicio</MudText>
-            <MudGrid>
-                <MudItem xs="12" md="2">
-                    <MudTextField @bind-Value="_modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_editando" />
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <MudTextField @bind-Value="_modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <MudTextField @bind-Value="_modelo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudNumericField @bind-Value="_modelo.Orden" Label="Orden" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <SelectorLegible TItem="UnidadMedidaModel" TValue="Guid?"
-                                     Items="_unidades" ValorDe="u => u.Id" TextoDe='u => $"{u.Nombre} ({u.Abreviatura})"'
-                                     @bind-Value="_modelo.UnidadMedidaId"
-                                     Label="Unidad de medida" Clearable="true"
-                                     TextoValorActual="@_nombreUnidadActual" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudSwitch @bind-Value="_modelo.EsResidencialPorDefecto" Label="Residencial" Color="Color.Primary" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudSwitch @bind-Value="_modelo.EsEmpresarialPorDefecto" Label="Empresarial" Color="Color.Primary" />
-                </MudItem>
-                @if (_editando)
-                {
-                    <MudItem xs="12" md="2">
-                        <MudSwitch @bind-Value="_modelo.EsActivo" Label="Activo" Color="Color.Primary" />
-                    </MudItem>
-                }
-            </MudGrid>
-            <div class="d-flex justify-end mt-4">
-                @if (_editando)
-                {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar" Class="mr-2">Cancelar</MudButton>
-                }
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar" Disabled="_guardando">
-                    @if (_guardando)
-                    {
-                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                    }
-                    else
-                    {
-                        <MudText>Guardar</MudText>
-                    }
-                </MudButton>
-            </div>
-        </MudPaper>
-    }
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">Tipos de servicio</MudText>
+        @if (_puedeEditar)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Nuevo">Nuevo tipo de servicio</MudButton>
+        }
+    </div>
 
     <MudTable Items="_tipos" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
         <HeaderContent>
             <MudTh>Código</MudTh>
             <MudTh>Nombre</MudTh>
-            <MudTh>Unidad de medida</MudTh>
-            <MudTh>Res.</MudTh>
-            <MudTh>Emp.</MudTh>
+            <MudTh>Descripción</MudTh>
+            <MudTh>UM</MudTh>
+            <MudTh>Residencial</MudTh>
+            <MudTh>Empresarial</MudTh>
             <MudTh>Orden</MudTh>
             <MudTh>Activo</MudTh>
             @if (_puedeEditar)
@@ -81,11 +33,12 @@
         <RowTemplate>
             <MudTd DataLabel="Código">@context.Codigo</MudTd>
             <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
-            <MudTd DataLabel="Unidad">@(context.UnidadMedidaNombre ?? "-")</MudTd>
-            <MudTd DataLabel="Res.">
+            <MudTd DataLabel="Descripción">@context.Descripcion</MudTd>
+            <MudTd DataLabel="UM">@(context.UnidadMedidaNombre ?? "-")</MudTd>
+            <MudTd DataLabel="Residencial">
                 <MudIcon Icon="@(context.EsResidencialPorDefecto ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" />
             </MudTd>
-            <MudTd DataLabel="Emp.">
+            <MudTd DataLabel="Empresarial">
                 <MudIcon Icon="@(context.EsEmpresarialPorDefecto ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" />
             </MudTd>
             <MudTd DataLabel="Orden">@context.Orden</MudTd>
@@ -108,11 +61,7 @@
 @code {
     private List<TipoServicioModel> _tipos = [];
     private List<UnidadMedidaModel> _unidades = [];
-    private TipoServicioModel _modelo = new();
-    private string? _nombreUnidadActual;
     private bool _cargando;
-    private bool _guardando;
-    private bool _editando;
     private bool _puedeEditar;
 
     protected override async Task OnInitializedAsync()
@@ -131,63 +80,55 @@
         }
     }
 
-    private void Editar(TipoServicioModel tipo)
+    private Task Nuevo() => AbrirDialogo(new TipoServicioModel());
+
+    private Task Editar(TipoServicioModel tipo) => AbrirDialogo(new TipoServicioModel
     {
-        _modelo = new TipoServicioModel
+        Id = tipo.Id,
+        Codigo = tipo.Codigo,
+        Nombre = tipo.Nombre,
+        Descripcion = tipo.Descripcion,
+        UnidadMedidaId = tipo.UnidadMedidaId,
+        EsResidencialPorDefecto = tipo.EsResidencialPorDefecto,
+        EsEmpresarialPorDefecto = tipo.EsEmpresarialPorDefecto,
+        Orden = tipo.Orden,
+        EsActivo = tipo.EsActivo
+    });
+
+    private async Task AbrirDialogo(TipoServicioModel modelo)
+    {
+        var nombreUnidad = modelo.Id == Guid.Empty
+            ? null
+            : _tipos.FirstOrDefault(t => t.Id == modelo.Id)?.UnidadMedidaNombre;
+
+        var parametros = new DialogParameters<TipoServicioDialogo>
         {
-            Id = tipo.Id,
-            Codigo = tipo.Codigo,
-            Nombre = tipo.Nombre,
-            Descripcion = tipo.Descripcion,
-            UnidadMedidaId = tipo.UnidadMedidaId,
-            EsResidencialPorDefecto = tipo.EsResidencialPorDefecto,
-            EsEmpresarialPorDefecto = tipo.EsEmpresarialPorDefecto,
-            Orden = tipo.Orden,
-            EsActivo = tipo.EsActivo
+            { d => d.Modelo, modelo },
+            { d => d.Unidades, _unidades },
+            { d => d.NombreUnidadActual, nombreUnidad }
         };
-        _nombreUnidadActual = tipo.UnidadMedidaNombre;
-        _editando = true;
-    }
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<TipoServicioDialogo>(
+            modelo.Id == Guid.Empty ? "Nuevo tipo de servicio" : $"Editar — {modelo.Nombre}", parametros, opciones);
 
-    private void Cancelar()
-    {
-        _modelo = new TipoServicioModel();
-        _nombreUnidadActual = null;
-        _editando = false;
-    }
-
-    private async Task Guardar()
-    {
-        _guardando = true;
-        try
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not TipoServicioModel editado)
         {
-            ApiResponse<TipoServicioModel>? respuesta;
-
-            if (_editando)
-            {
-                respuesta = await CatalogoService.ActualizarTipoServicioAsync(_modelo);
-            }
-            else
-            {
-                respuesta = await CatalogoService.CrearTipoServicioAsync(_modelo);
-            }
-
-            if (respuesta?.Exito == true)
-            {
-                Snackbar.Add("Guardado correctamente.", Severity.Success);
-                _modelo = new TipoServicioModel();
-                _nombreUnidadActual = null;
-                _editando = false;
-                _tipos = await CatalogoService.ListarTiposServicioAsync();
-            }
-            else
-            {
-                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
-            }
+            return;
         }
-        finally
+
+        var respuesta = modelo.Id == Guid.Empty
+            ? await CatalogoService.CrearTipoServicioAsync(editado)
+            : await CatalogoService.ActualizarTipoServicioAsync(editado);
+
+        if (respuesta?.Exito == true)
         {
-            _guardando = false;
+            Snackbar.Add("Guardado correctamente.", Severity.Success);
+            _tipos = await CatalogoService.ListarTiposServicioAsync();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
         }
     }
 }

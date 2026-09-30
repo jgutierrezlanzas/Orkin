@@ -1,0 +1,50 @@
+@* Alta y edición de unidad de medida en modal. Ver ProductoDialogo para el porqué del patrón. *@
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" md="2">
+                <MudTextField @bind-Value="Modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Disabled="EsEdicion" Required="true" RequiredError="Ponga un código" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudTextField @bind-Value="Modelo.Abreviatura" Label="Abreviatura" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudNumericField @bind-Value="Modelo.Orden" Label="Orden" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudSwitch @bind-Value="Modelo.PermiteDecimales" Label="Permite decimales" Color="Color.Primary" />
+            </MudItem>
+            @if (EsEdicion)
+            {
+                <MudItem xs="12" md="1">
+                    <MudSwitch @bind-Value="Modelo.EsActivo" Label="Activo" Color="Color.Primary" />
+                </MudItem>
+            }
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">
+            <MudText>Guardar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El modelo que se edita. Si <see cref="UnidadMedidaModel.Id"/> es vacío, es un alta.</summary>
+    [Parameter, EditorRequired]
+    public UnidadMedidaModel Modelo { get; set; } = new();
+
+    private bool EsEdicion => Modelo.Id != Guid.Empty;
+
+    private void Aceptar() => Dialogo.Close(DialogResult.Ok(Modelo));
+
+    private void Cancelar() => Dialogo.Cancel();
+}

@@ -1,0 +1,92 @@
+@* Alta y edición de flujo de carga en modal. Ver ProductoDialogo para el porqué del patrón. *@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudGrid>
+                <MudItem xs="12" md="3">
+                    <MudTextField @bind-Value="Modelo.Nombre" Label="Nombre" Required="true"
+                                  RequiredError="Ponga un nombre"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <SelectorLegible TItem="ErpConexionModel" TValue="Guid"
+                                     Items="Conexiones" ValorDe="c => c.Id" TextoDe="c => c.Nombre"
+                                     @bind-Value="Modelo.ErpConexionId"
+                                     Label="Conexión"
+                                     TextoValorActual="— conexión eliminada —" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudSelect T="string" @bind-Value="Modelo.Catalogo" Label="Catálogo"
+                               Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var cat in Catalogos)
+                        {
+                            <MudSelectItem T="string" Value="@cat">@cat</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="Modelo.Origen" Label="Origen (vista, tabla o consulta)"
+                                  Required="true" RequiredError="Falta el origen"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  HelperText="Ejemplo: dbo.vw_ProductosOrkin" />
+                </MudItem>
+            </MudGrid>
+            <MudGrid Class="mt-1">
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="Modelo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudExpansionPanels Elevation="0">
+                        <MudExpansionPanel Text="@(string.IsNullOrWhiteSpace(Modelo.MapeoJson) ? "Mapeo de columnas (opcional)" : "Mapeo de columnas (configurado)")">
+                            <MudTextField @bind-Value="Modelo.MapeoJson" Lines="5" Label="Mapeo (JSON)"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          HelperText='Vacío = la vista ya trae los nombres esperados. Con contenido: { "columna del ERP": "Campo nuestro" }' />
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">
+            <MudText>Guardar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El modelo que se edita. Si <see cref="ErpFlujoModel.Id"/> es vacío, es un alta.</summary>
+    [Parameter, EditorRequired]
+    public ErpFlujoModel Modelo { get; set; } = new();
+
+    [Parameter, EditorRequired]
+    public List<ErpConexionModel> Conexiones { get; set; } = [];
+
+    /// <summary>
+    /// Catálogos a los que hoy hay cargador. Se listan en vez de dejarlos en un campo de texto
+    /// libre porque el nombre va guardado tal cual en <c>int.ErpFlujo</c> y se compara contra
+    /// la tabla de cargadores: escribir "productos" en minúsculas produce un flujo que se guarda
+    /// sin quejarse y falla al ejecutarse, que es la peor forma de fallar.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public string[] Catalogos { get; set; } = ["PRODUCTOS"];
+
+    private MudForm _form = null!;
+
+    private async Task Aceptar()
+    {
+        await _form.Validate();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        Dialogo.Close(DialogResult.Ok(Modelo));
+    }
+
+    private void Cancelar() => Dialogo.Cancel();
+}

@@ -4,72 +4,16 @@
 @inject CatalogoService CatalogoService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
-    <MudText Typo="Typo.h4" Color="Color.Primary" Class="mb-4">Productos</MudText>
-
-    @if (_puedeEditar)
-    {
-        <MudPaper Elevation="2" Class="pa-4 mb-6">
-            <MudText Typo="Typo.h6" Class="mb-4">@(_editando ? "Editar" : "Nuevo") producto</MudText>
-            <MudGrid>
-                <MudItem xs="12" md="2">
-                    <MudTextField @bind-Value="_modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_editando" />
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <MudTextField @bind-Value="_modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <SelectorLegible TItem="CategoriaProductoModel" TValue="Guid?"
-                                     Items="_categorias" ValorDe="c => c.Id" TextoDe="c => c.Nombre"
-                                     @bind-Value="_modelo.CategoriaId"
-                                     Label="Categoría" Clearable="true"
-                                     TextoValorActual="@_nombreCategoriaActual" />
-                </MudItem>
-                <MudItem xs="12" md="3">
-                    <SelectorLegible TItem="UnidadMedidaModel" TValue="Guid"
-                                     Items="_unidades" ValorDe="u => u.Id" TextoDe='u => $"{u.Nombre} ({u.Abreviatura})"'
-                                     @bind-Value="_modelo.UnidadMedidaId"
-                                     Label="Unidad de medida"
-                                     TextoValorActual="@_nombreUnidadActual" />
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <MudTextField @bind-Value="_modelo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudNumericField @bind-Value="_modelo.CostoActual" Label="Costo" Variant="Variant.Outlined" Margin="Margin.Dense" Format="N2" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudNumericField @bind-Value="_modelo.PrecioVentaActual" Label="Precio venta" Variant="Variant.Outlined" Margin="Margin.Dense" Format="N2" />
-                </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudNumericField @bind-Value="_modelo.VidaUtilMeses" Label="Vida útil (meses)" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
-                </MudItem>
-                @if (_editando)
-                {
-                    <MudItem xs="12" md="2">
-                        <MudSwitch @bind-Value="_modelo.EsActivo" Label="Activo" Color="Color.Primary" />
-                    </MudItem>
-                }
-            </MudGrid>
-            <div class="d-flex justify-end mt-4">
-                @if (_editando)
-                {
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar" Class="mr-2">Cancelar</MudButton>
-                }
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar" Disabled="_guardando">
-                    @if (_guardando)
-                    {
-                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                    }
-                    else
-                    {
-                        <MudText>Guardar</MudText>
-                    }
-                </MudButton>
-            </div>
-        </MudPaper>
-    }
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">Productos</MudText>
+        @if (_puedeEditar)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Nuevo">Nuevo producto</MudButton>
+        }
+    </div>
 
     <MudTable Items="_productos" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
         <HeaderContent>
@@ -114,12 +58,7 @@
     private List<ProductoModel> _productos = [];
     private List<CategoriaProductoModel> _categorias = [];
     private List<UnidadMedidaModel> _unidades = [];
-    private ProductoModel _modelo = new();
-    private string? _nombreCategoriaActual;
-    private string? _nombreUnidadActual;
     private bool _cargando;
-    private bool _guardando;
-    private bool _editando;
     private bool _puedeEditar;
 
     protected override async Task OnInitializedAsync()
@@ -132,11 +71,6 @@
             _categorias = await CatalogoService.ListarCategoriasProductoAsync();
             _unidades = await CatalogoService.ListarUnidadesMedidaAsync();
             _productos = await CatalogoService.ListarProductosAsync();
-
-            if (_unidades.Count > 0 && _modelo.UnidadMedidaId == Guid.Empty)
-            {
-                _modelo.UnidadMedidaId = _unidades[0].Id;
-            }
         }
         finally
         {
@@ -144,70 +78,67 @@
         }
     }
 
-    private void Editar(ProductoModel producto)
+    private Task Nuevo() => AbrirDialogo(ModeloNuevo());
+
+    private Task Editar(ProductoModel producto) => AbrirDialogo(new ProductoModel
     {
-        _modelo = new ProductoModel
+        Id = producto.Id,
+        Codigo = producto.Codigo,
+        Nombre = producto.Nombre,
+        Descripcion = producto.Descripcion,
+        CategoriaId = producto.CategoriaId,
+        UnidadMedidaId = producto.UnidadMedidaId,
+        CostoActual = producto.CostoActual,
+        PrecioVentaActual = producto.PrecioVentaActual,
+        VidaUtilMeses = producto.VidaUtilMeses,
+        EsActivo = producto.EsActivo
+    });
+
+    /// <summary>El modelo de un alta, con la unidad por defecto ya elegida para no obligar a abrir el combo.</summary>
+    private ProductoModel ModeloNuevo()
+        => new()
         {
-            Id = producto.Id,
-            Codigo = producto.Codigo,
-            Nombre = producto.Nombre,
-            Descripcion = producto.Descripcion,
-            CategoriaId = producto.CategoriaId,
-            UnidadMedidaId = producto.UnidadMedidaId,
-            CostoActual = producto.CostoActual,
-            PrecioVentaActual = producto.PrecioVentaActual,
-            VidaUtilMeses = producto.VidaUtilMeses,
-            EsActivo = producto.EsActivo
+            UnidadMedidaId = _unidades.Count > 0 ? _unidades[0].Id : Guid.Empty
         };
-        _nombreCategoriaActual = producto.CategoriaNombre;
-        _nombreUnidadActual = producto.UnidadMedidaNombre is null
-            ? producto.UnidadMedidaAbreviatura
+
+    private async Task AbrirDialogo(ProductoModel modelo)
+    {
+        var nombreCategoria = modelo.Id == Guid.Empty ? null : _productos.FirstOrDefault(p => p.Id == modelo.Id)?.CategoriaNombre;
+        var producto = modelo.Id == Guid.Empty ? null : _productos.FirstOrDefault(p => p.Id == modelo.Id);
+        var nombreUnidad = producto is null ? null
+            : producto.UnidadMedidaNombre is null ? producto.UnidadMedidaAbreviatura
             : $"{producto.UnidadMedidaNombre} ({producto.UnidadMedidaAbreviatura})";
-        _editando = true;
-    }
 
-    private void Cancelar()
-    {
-        _modelo = new ProductoModel();
-        if (_unidades.Count > 0)
+        var parametros = new DialogParameters<ProductoDialogo>
         {
-            _modelo.UnidadMedidaId = _unidades[0].Id;
+            { d => d.Modelo, modelo },
+            { d => d.Categorias, _categorias },
+            { d => d.Unidades, _unidades },
+            { d => d.NombreCategoriaActual, nombreCategoria },
+            { d => d.NombreUnidadActual, nombreUnidad }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<ProductoDialogo>(
+            modelo.Id == Guid.Empty ? "Nuevo producto" : $"Editar — {modelo.Nombre}", parametros, opciones);
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not ProductoModel editado)
+        {
+            return;
         }
-        _nombreCategoriaActual = null;
-        _nombreUnidadActual = null;
-        _editando = false;
-    }
 
-    private async Task Guardar()
-    {
-        _guardando = true;
-        try
+        var respuesta = modelo.Id == Guid.Empty
+            ? await CatalogoService.CrearProductoAsync(editado)
+            : await CatalogoService.ActualizarProductoAsync(editado);
+
+        if (respuesta?.Exito == true)
         {
-            ApiResponse<ProductoModel>? respuesta;
-
-            if (_editando)
-            {
-                respuesta = await CatalogoService.ActualizarProductoAsync(_modelo);
-            }
-            else
-            {
-                respuesta = await CatalogoService.CrearProductoAsync(_modelo);
-            }
-
-            if (respuesta?.Exito == true)
-            {
-                Snackbar.Add("Guardado correctamente.", Severity.Success);
-                Cancelar();
-                _productos = await CatalogoService.ListarProductosAsync();
-            }
-            else
-            {
-                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
-            }
+            Snackbar.Add("Guardado correctamente.", Severity.Success);
+            _productos = await CatalogoService.ListarProductosAsync();
         }
-        finally
+        else
         {
-            _guardando = false;
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
         }
     }
 }

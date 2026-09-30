@@ -1,0 +1,168 @@
+@* Resultado de una simulación, en modal de pantalla completa.
+
+   No es un formulario sino un resultado, y por eso ocupa casi toda la pantalla:
+   la grilla de detalle tiene una fila por registro del origen (con 111 productos,
+   es una grilla larga) y en la página se escondía debajo de todo lo demás.
+*@
+<MudDialog>
+    <DialogContent>
+        <MudAlert Severity="Severity.Info" Class="mb-3" Dense="true" Variant="Variant.Outlined">
+            <b>Esto no modificó nada.</b> Es una previdencia: la misma carga, con el paso
+            de escritura cortado. Nada de lo que sigue tocó el catálogo, y esta simulación
+            no aparece en el historial porque no fue una corrida.
+        </MudAlert>
+
+        <MudGrid Class="mb-3">
+            <MudItem xs="6" sm="3">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Se crearían</MudText>
+                <MudText Typo="Typo.h6" Color="@(Simulacion.Insertados > 0 ? Color.Success : Color.Default)">
+                    @Simulacion.Insertados
+                </MudText>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Cambiarían</MudText>
+                <MudText Typo="Typo.h6" Color="@(Simulacion.Actualizados > 0 ? Color.Info : Color.Default)">
+                    @Simulacion.Actualizados
+                </MudText>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Sin cambio</MudText>
+                <MudText Typo="Typo.h6">@Simulacion.Omitidos</MudText>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Se rechazarían</MudText>
+                <MudText Typo="Typo.h6" Color="@(Simulacion.Rechazados > 0 ? Color.Error : Color.Default)">
+                    @Simulacion.Rechazados
+                </MudText>
+            </MudItem>
+        </MudGrid>
+
+        @if (Simulacion.Rechazados > 0)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-3" Dense="true" Variant="Variant.Outlined">
+                @Simulacion.Rechazados filas no se podrían transformar.
+                @(Simulacion.Rechazos.FirstOrDefault() is { } primero
+                    ? $" La primera está en la fila {primero.NumeroFila}: {primero.Motivo}"
+                    : string.Empty)
+            </MudAlert>
+        }
+
+        <div class="d-flex align-center justify-space-between mb-2">
+            <MudText Typo="Typo.subtitle1">Detalle por fila</MudText>
+            <MudChipSet Filter="true" SelectedValue="_filtro"
+                        SelectedValueChanged="@((string v) => _filtro = v)">
+                <MudChip T="string" Value="@("TODOS")" Variant="Variant.Outlined">Todas (@Simulacion.Total)</MudChip>
+                <MudChip T="string" Value="@("CAMBIOS")" Variant="Variant.Outlined">Cambian (@(Simulacion.Insertados + Simulacion.Actualizados))</MudChip>
+                <MudChip T="string" Value="@("OMITIR")" Variant="Variant.Outlined">Sin cambio (@Simulacion.Omitidos)</MudChip>
+            </MudChipSet>
+        </div>
+
+        @if (!HayVisibles)
+        {
+            <MudText Class="pa-4 mud-text-secondary">
+                @(_filtro == "CAMBIOS"
+                    ? "Ningún campo cambiaría: la carga sería no-op."
+                    : "Ninguna fila sin cambio.")
+            </MudText>
+        }
+        else
+        {
+            <MudTable Items="@Filtrados" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0"
+                      Outlined="true">
+                <HeaderContent>
+                    <MudTh>Fila</MudTh>
+                    <MudTh>Código</MudTh>
+                    <MudTh>Acción</MudTh>
+                    <MudTh>Campos</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Fila">@context.NumeroFila</MudTd>
+                    <MudTd DataLabel="Código">
+                        <code>@(context.CodigoExterno ?? "—")</code>
+                    </MudTd>
+                    <MudTd DataLabel="Acción">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                 Color="@ColorDeAccion(context.Accion)">@context.Accion</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Campos">
+                        @if (context.Campos.Count == 0)
+                        {
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">—</MudText>
+                        }
+                        else
+                        {
+                            @* Tabla anidada: el contexto se renombra a "campo" porque el
+                               de fuera ya se llama "context" y Razor no admite que dos
+                               RowTemplate anidados compartan el nombre. *@
+                            <MudTable Items="@context.Campos" Dense="true" Elevation="0"
+                                      Style="background: transparent; box-shadow: none;">
+                                <RowTemplate Context="campo">
+                                    <MudTd DataLabel="Campo" Style="border: none; padding: 0 8px 0 0;">
+                                        <b>@campo.Campo:</b>
+                                    </MudTd>
+                                    <MudTd DataLabel="Antes" Style="border: none; padding: 0 8px 0 0;">
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                            @(campo.Anterior ?? "(vacío)")
+                                        </MudText>
+                                    </MudTd>
+                                    <MudTd DataLabel="Después" Style="border: none; padding: 0;">
+                                        <MudText Typo="Typo.body2" Color="Color.Primary">
+                                            @(campo.Nuevo ?? "(vacío)")
+                                        </MudText>
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager RowsPerPageString="Filas por página" />
+                </PagerContent>
+            </MudTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cerrar" Class="mr-auto">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El resultado de la simulación, tal como lo devolvió la API.</summary>
+    [Parameter, EditorRequired]
+    public SimulacionFlujoModel Simulacion { get; set; } = null!;
+
+    // El filtro existe porque con 111 filas el caso normal es "no cambia nada", y una grilla
+    // de 111 líneas todas iguales esconde el hecho interesante: las tres que sí cambian.
+    private string _filtro = "TODOS";
+
+    private IEnumerable<CambioSimuladoModel> Filtrados =>
+        Simulacion.Cambios.Where(AplicaFiltro);
+
+    private bool AplicaFiltro(CambioSimuladoModel c) => _filtro switch
+    {
+        "CAMBIOS" => c.Accion is "Insertar" or "Actualizar" or "Adoptar",
+        "OMITIR" => c.Accion == "Omitir",
+        _ => true
+    };
+
+    private bool HayVisibles => Filtrados.Any();
+
+    /// <summary>
+    /// Color de la acción en la grilla. "Adoptar" va en advertencia y no en información porque
+    /// es el caso que merece una segunda mirada: la fila ya existía y alguien la escribió a mano
+    /// (o la subió del Excel), y con la simulación de encima va a pasar a ser propiedad del ERP.
+    /// Que el ERP gane la fila es lo correcto, pero no debería pasar desapercibido.
+    /// </summary>
+    private static Color ColorDeAccion(string accion) => accion switch
+    {
+        "Insertar" => Color.Success,
+        "Actualizar" => Color.Info,
+        "Adoptar" => Color.Warning,
+        _ => Color.Default
+    };
+
+    private void Cerrar() => Dialogo.Close();
+}

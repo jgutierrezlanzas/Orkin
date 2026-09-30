@@ -1,0 +1,116 @@
+@* Configuración de la sincronización automática de un flujo, en modal.
+
+   Los valores viven dentro del diálogo y no sobre la fila de la tabla porque son una
+   edición en curso: si alguien abre el panel, cambia el intervalo a 60 s y se arrepiente,
+   la tabla no debe mostrar 60 s mientras el panel está abierto, ni guardarlos sin Guardar.
+*@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3 mud-text-secondary">
+            Con la sincronización activa, el motor corre este flujo sin que nadie le dé ejecutar.
+            Cada corrida que no cambie nada no se anota en el historial: lo que no pasó se ve en
+            el «último intento» de la tabla, y el historial guarda solo lo que sí pasó.
+        </MudText>
+
+        <MudSelect T="string" Label="Cuándo corre" @bind-Value="_tipoDisparador" Class="mb-3">
+            <MudSelectItem T="string" Value="@("MANUAL")">Solo cuando yo le dé ejecutar</MudSelectItem>
+            <MudSelectItem T="string" Value="@("PROGRAMADO")">Cada cierto tiempo, automáticamente</MudSelectItem>
+        </MudSelect>
+
+        @if (_tipoDisparador == "PROGRAMADO")
+        {
+            <MudSelect T="int" Label="Cada cuánto" @bind-Value="_intervaloSegundos" Class="mb-1">
+                @foreach (var opcion in IntervalosSugeridos)
+                {
+                    <MudSelectItem T="int" Value="@opcion">@TextoIntervalo(opcion)</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudText Typo="Typo.caption" Class="mb-3 mud-text-secondary">
+                El mínimo son 10 segundos. Más rápido que eso son miles de consultas diarias
+                contra la base de producción del cliente, y la diferencia para quien cotiza
+                entre 10 y 30 segundos no se nota.
+            </MudText>
+
+            <MudNumericField T="int?" Label="Máximo de registros por corrida (opcional)"
+                             @bind-Value="_maximoRegistrosPorCorrida" Class="mb-3"
+                             HelperText="Sin tope, salvo que el ERP del cliente sea lento." />
+
+            <MudNumericField T="short" Label="Corridas fallidas seguidas antes de pausar"
+                             @bind-Value="_maximoFallosConsecutivos" Class="mb-3"
+                             HelperText="Es lo que impide que un ERP caído reciba intentos para siempre." />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Guardar">
+            <MudText>Guardar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El flujo cuya programación se está configurando.</summary>
+    [Parameter, EditorRequired]
+    public ErpFlujoModel Flujo { get; set; } = null!;
+
+    private string _tipoDisparador = "MANUAL";
+    private int _intervaloSegundos = 300;
+    private int? _maximoRegistrosPorCorrida;
+    private short _maximoFallosConsecutivos = 5;
+
+    /// <summary>
+    /// Los intervalos que se ofrecen. No es una lista arbitraria: son los escalones de §4.3 del
+    /// documento, empezando por el más frecuente que se puede configurar sin machacar la base del
+    /// cliente. Cada uno es un número que una persona pueda defender frente a un DBA.
+    /// </summary>
+    public static readonly int[] IntervalosSugeridos =
+        [10, 30, 60, 300, 900, 3600, 86400];
+
+    protected override void OnInitialized()
+    {
+        _tipoDisparador = Flujo.EstaProgramado ? "PROGRAMADO" : "MANUAL";
+        _intervaloSegundos = Flujo.IntervaloSegundos ?? 300;
+
+        // Si el flujo ya tenía un intervalo que no está en la lista, se pone el más cercano por
+        // encima en vez de borrarlo: quien configuró 120 s no quiere que al guardar le cambien
+        // el intervalo a 5 minutos sin haberlo pedido.
+        if (Flujo.IntervaloSegundos is { } actual && !IntervalosSugeridos.Contains(actual))
+        {
+            _intervaloSegundos = IntervalosSugeridos.FirstOrDefault(s => s >= actual, 86400);
+        }
+
+        _maximoRegistrosPorCorrida = Flujo.MaximoRegistrosPorCorrida;
+        _maximoFallosConsecutivos = Flujo.MaximoFallosConsecutivos > 0
+            ? Flujo.MaximoFallosConsecutivos
+            : (short)5;
+    }
+
+    private void Guardar()
+    {
+        var esProgramado = _tipoDisparador == "PROGRAMADO";
+        Dialogo.Close(DialogResult.Ok(new ResultadoProgramacion(
+            esProgramado ? "PROGRAMADO" : "MANUAL",
+            esProgramado ? _intervaloSegundos : null,
+            esProgramado ? _maximoRegistrosPorCorrida : null,
+            esProgramado ? _maximoFallosConsecutivos : null)));
+    }
+
+    private void Cancelar() => Dialogo.Cancel();
+
+    /// <summary>Un intervalo en palabras, para los desplegables y los mensajes.</summary>
+    public static string TextoIntervalo(int segundos) => segundos switch
+    {
+        <= 0 => "—",
+        86400 => "día",
+        3600 => "hora",
+        900 => "15 min",
+        300 => "5 min",
+        60 => "minuto",
+        30 => "30 segundos",
+        _ => $"{segundos} segundos"
+    };
+}

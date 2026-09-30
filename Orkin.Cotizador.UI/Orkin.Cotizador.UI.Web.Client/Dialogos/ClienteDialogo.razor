@@ -1,0 +1,95 @@
+@* Alta y edición de cliente en modal. Ver ProductoDialogo para el porqué del patrón.
+
+   La ficha es grande (quince campos) y en un modal se ve apretada en pantallas
+   chicas; por eso abre a MaxWidth.Medium con FullWidth.
+*@
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" md="2">
+                <MudTextField @bind-Value="Modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Disabled="EsEdicion" Required="true" RequiredError="Ponga un código" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="Modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.RazonSocial" Label="Razón social" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <SelectorLegible TItem="TipoClienteOption" TValue="byte"
+                                 Items="TiposCliente" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
+                                 @bind-Value="Modelo.TipoClienteId"
+                                 Label="Tipo de cliente"
+                                 TextoValorActual="@NombreTipoClienteActual" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.CedulaORuc" Label="Cédula/RUC" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.IdentificacionFiscal" Label="Identificación fiscal" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.Telefono" Label="Teléfono" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.Correo" Label="Correo" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="Modelo.Direccion" Label="Dirección" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.Ciudad" Label="Ciudad" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.Departamento" Label="Departamento" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudTextField @bind-Value="Modelo.ContactoNombre" Label="Contacto" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.ContactoCargo" Label="Cargo contacto" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.SitioWeb" Label="Sitio web" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="Modelo.Notas" Label="Notas" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            @if (EsEdicion)
+            {
+                <MudItem xs="12" md="2">
+                    <MudSwitch @bind-Value="Modelo.EsActivo" Label="Activo" Color="Color.Primary" />
+                </MudItem>
+            }
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">
+            <MudText>Guardar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El modelo que se edita. Si <see cref="ClienteModel.Id"/> es vacío, es un alta.</summary>
+    [Parameter, EditorRequired]
+    public ClienteModel Modelo { get; set; } = new();
+
+    [Parameter, EditorRequired]
+    public List<TipoClienteOption> TiposCliente { get; set; } = [];
+
+    /// <summary>Nombre del tipo de cliente del modelo cuando ya no está en la lista.</summary>
+    [Parameter]
+    public string? NombreTipoClienteActual { get; set; }
+
+    private bool EsEdicion => Modelo.Id != Guid.Empty;
+
+    private void Aceptar() => Dialogo.Close(DialogResult.Ok(Modelo));
+
+    private void Cancelar() => Dialogo.Cancel();
+}

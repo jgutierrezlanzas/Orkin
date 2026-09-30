@@ -3,10 +3,10 @@
 @layout MainLayout
 @inject IntegracionService IntegracionService
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 @*
    -orígenes de datos -
-
     El orden de la pantalla es el orden en que se configura, no el orden de las tablas:
     primero una conexión (¿de dónde viene el dato?), después una prueba (¿nos podemos
     conectar?), después el flujo (¿qué llenamos y desde qué vista?) y por último la
@@ -30,273 +30,19 @@
         <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
     }
 
-    @* ── Programación ──────────────────────────────────────────────────────── *@
-    @if (_programando is not null)
-    {
-        <MudPaper Class="pa-4 mb-4" Outlined="true" Style="border-left: 4px solid var(--mud-palette-primary);">
-            <div class="d-flex align-center justify-space-between mb-3">
-                <MudText Typo="Typo.h6" Color="Color.Primary">
-                    Sincronización automática — @_programando.Nombre
-                </MudText>
-                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="CerrarProgramacion" />
-            </div>
+    @* Programación y simulación abren en modales (Dialogos/ProgramacionDialogo.razor y
+       Dialogos/SimulacionDialogo.razor): son pantallas completas sobre la tabla, y no
+       bloques que empujan el contenido para abajo mientras alguien mira las filas. *@
 
-            <MudText Typo="Typo.body2" Class="mb-3 mud-text-secondary">
-                Con la sincronización activa, el motor corre este flujo sin que nadie le dé ejecutar.
-                Cada corrida que no cambie nada no se anota en el historial: lo que no pasó se ve en
-                el «último intento» de la tabla, y el historial guarda solo lo que sí pasó.
-            </MudText>
-
-            <MudSelect T="string" Label="Cuándo corre" @bind-Value="_tipoDisparador" Class="mb-3">
-                <MudSelectItem T="string" Value="@("MANUAL")">Solo cuando yo le dé ejecutar</MudSelectItem>
-                <MudSelectItem T="string" Value="@("PROGRAMADO")">Cada cierto tiempo, automáticamente</MudSelectItem>
-            </MudSelect>
-
-            @if (_tipoDisparador == "PROGRAMADO")
-            {
-                <MudSelect T="int" Label="Cada cuánto" @bind-Value="_intervaloSegundos" Class="mb-1">
-                    @foreach (var opcion in _intervalosSugeridos)
-                    {
-                        <MudSelectItem T="int" Value="@opcion">@TextoIntervalo(opcion)</MudSelectItem>
-                    }
-                </MudSelect>
-
-                <MudText Typo="Typo.caption" Class="mb-3 mud-text-secondary">
-                    El mínimo son 10 segundos. Más rápido que eso son miles de consultas diarias
-                    contra la base de producción del cliente, y la diferencia para quien cotiza
-                    entre 10 y 30 segundos no se nota.
-                </MudText>
-
-                <MudNumericField T="int?" Label="Máximo de registros por corrida (opcional)"
-                                 @bind-Value="_maximoRegistrosPorCorrida" Class="mb-3"
-                                 HelperText="Sin tope, salvo que el ERP del cliente sea lento." />
-
-                <MudNumericField T="short" Label="Corridas fallidas seguidas antes de pausar"
-                                 @bind-Value="_maximoFallosConsecutivos" Class="mb-3"
-                                 HelperText="Es lo que impide que un ERP caído reciba intentos para siempre." />
-            }
-
-            <div class="d-flex gap-2">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                           OnClick="GuardarProgramacion" Disabled="_guardandoProgramacion">
-                    Guardar
-                </MudButton>
-                <MudButton Variant="Variant.Text" OnClick="CerrarProgramacion">Cancelar</MudButton>
-            </div>
-        </MudPaper>
-    }
-
-    @* ── Simulación ────────────────────────────────────────────────────────── *@
-    @if (_simulandoFlujoId is not null || _simulacion is not null)
-    {
-        <MudPaper Class="pa-4 mb-4" Outlined="true" Style="border-left: 4px solid var(--mud-palette-primary);">
-            <div class="d-flex align-center justify-space-between mb-3">
-                <MudText Typo="Typo.h6" Color="Color.Primary">
-                    Simulación — @_simulacionFlujoNombre
-                </MudText>
-                @if (_simulacion is not null)
-                {
-                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="CerrarSimulacion" />
-                }
-            </div>
-
-            @if (_simulacion is null)
-            {
-                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-2" />
-                <MudText Typo="Typo.body2" Class="mud-text-secondary">
-                    Leyendo el origen y calculando qué haría, sin escribir nada.
-                </MudText>
-            }
-            else
-            {
-                <MudAlert Severity="Severity.Info" Class="mb-3" Dense="true" Variant="Variant.Outlined">
-                    <b>Esto no modificó nada.</b> Es una previdencia: la misma carga, con el paso
-                    de escritura cortado. Nada de lo que sigue tocó el catálogo, y esta simulación
-                    no aparece en el historial porque no fue una corrida.
-                </MudAlert>
-
-                <MudGrid Class="mb-3">
-                    <MudItem xs="6" sm="3">
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Se crearían</MudText>
-                        <MudText Typo="Typo.h6" Color="@(_simulacion.Insertados > 0 ? Color.Success : Color.Default)">
-                            @_simulacion.Insertados
-                        </MudText>
-                    </MudItem>
-                    <MudItem xs="6" sm="3">
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Cambiarían</MudText>
-                        <MudText Typo="Typo.h6" Color="@(_simulacion.Actualizados > 0 ? Color.Info : Color.Default)">
-                            @_simulacion.Actualizados
-                        </MudText>
-                    </MudItem>
-                    <MudItem xs="6" sm="3">
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Sin cambio</MudText>
-                        <MudText Typo="Typo.h6">@_simulacion.Omitidos</MudText>
-                    </MudItem>
-                    <MudItem xs="6" sm="3">
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Se rechazarían</MudText>
-                        <MudText Typo="Typo.h6" Color="@(_simulacion.Rechazados > 0 ? Color.Error : Color.Default)">
-                            @_simulacion.Rechazados
-                        </MudText>
-                    </MudItem>
-                </MudGrid>
-
-                @if (_simulacion.Rechazados > 0)
-                {
-                    <MudAlert Severity="Severity.Warning" Class="mb-3" Dense="true" Variant="Variant.Outlined">
-                        @_simulacion.Rechazados filas no se podrían transformar.
-                        @(_simulacion.Rechazos.FirstOrDefault() is { } primero
-                            ? $" La primera está en la fila {primero.NumeroFila}: {primero.Motivo}"
-                            : string.Empty)
-                    </MudAlert>
-                }
-
-                <div class="d-flex align-center justify-space-between mb-2">
-                    <MudText Typo="Typo.subtitle1">Detalle por fila</MudText>
-                    <MudChipSet Filter="true" SelectedValue="_filtroSimulacion"
-                                SelectedValueChanged="@((string v) => _filtroSimulacion = v)">
-                        <MudChip T="string" Value="@("TODOS")" Variant="Variant.Outlined">Todas (@_simulacion.Total)</MudChip>
-                        <MudChip T="string" Value="@("CAMBIOS")" Variant="Variant.Outlined">Cambian (@(_simulacion.Insertados + _simulacion.Actualizados))</MudChip>
-                        <MudChip T="string" Value="@("OMITIR")" Variant="Variant.Outlined">Sin cambio (@_simulacion.Omitidos)</MudChip>
-                    </MudChipSet>
-                </div>
-
-                @if (!HayCambiosVisibles)
-                {
-                    <MudText Class="pa-4 mud-text-secondary">
-                        @(_filtroSimulacion == "CAMBIOS"
-                            ? "Ningún campo cambiaría: la carga sería no-op."
-                            : "Ninguna fila sin cambio.")
-                    </MudText>
-                }
-                else
-                {
-                    <MudTable Items="@CambiosFiltrados" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0"
-                              Outlined="true">
-                        <HeaderContent>
-                            <MudTh>Fila</MudTh>
-                            <MudTh>Código</MudTh>
-                            <MudTh>Acción</MudTh>
-                            <MudTh>Campos</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd DataLabel="Fila">@context.NumeroFila</MudTd>
-                            <MudTd DataLabel="Código">
-                                <code>@(context.CodigoExterno ?? "—")</code>
-                            </MudTd>
-                            <MudTd DataLabel="Acción">
-                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
-                                         Color="@ColorDeAccion(context.Accion)">@context.Accion</MudChip>
-                            </MudTd>
-                            <MudTd DataLabel="Campos">
-                                @if (context.Campos.Count == 0)
-                                {
-                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                        @(context.Accion == "Omitir" ? "Idéntica" : "Se crea la fila")
-                                    </MudText>
-                                }
-                                else
-                                {
-                                            @* Tabla anidada: el contexto se renombra a "campo" porque el
-                                       de fuera ya se llama "context" y Razor no admite que dos
-                                       RowTemplate anidados compartan el nombre. *@
-                                    <MudTable Items="@context.Campos" Dense="true" Elevation="0"
-                                              Style="background: transparent; box-shadow: none;">
-                                        <RowTemplate Context="campo">
-                                            <MudTd DataLabel="Campo" Style="border: none; padding: 0 8px 0 0;">
-                                                <b>@campo.Campo:</b>
-                                            </MudTd>
-                                            <MudTd DataLabel="Antes" Style="border: none; padding: 0 8px 0 0;">
-                                                <MudText Typo="Typo.body2" Class="mud-text-secondary">
-                                                    @(campo.Anterior ?? "(vacío)")
-                                                </MudText>
-                                            </MudTd>
-                                            <MudTd DataLabel="Después" Style="border: none; padding: 0;">
-                                                <MudText Typo="Typo.body2" Color="Color.Primary">
-                                                    @(campo.Nuevo ?? "(vacío)")
-                                                </MudText>
-                                            </MudTd>
-                                        </RowTemplate>
-                                    </MudTable>
-                                }
-                            </MudTd>
-                        </RowTemplate>
-                        <PagerContent>
-                            <MudTablePager RowsPerPageString="Filas por página" />
-                        </PagerContent>
-                    </MudTable>
-                }
-            }
-        </MudPaper>
-    }
+    @* ── Simulación (migrada a modal) ────────────────────────────────────────── *@
 
     <MudExpansionPanels MultiExpansion="true" Elevation="2" Class="mb-4">
         @* ── 1. Conexiones ──────────────────────────────────────────── *@
         <MudExpansionPanel Text="1 · Conexiones al ERP" IsInitiallyExpanded="true">
-            <MudPaper Class="pa-4 mb-4 mud-background-gray-light">
-                <MudText Typo="Typo.subtitle1" Class="mb-3">@(_editandoConexion ? "Editar" : "Nueva") conexión</MudText>
-                <MudGrid>
-                    <MudItem xs="12" md="3">
-                        <MudTextField @bind-Value="_conexion.Nombre" Label="Nombre" Required="true" RequiredError="Ponga un nombre que lo reconozca"
-                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                    <MudItem xs="12" md="2">
-                        <MudTextField @bind-Value="_conexion.Servidor" Label="Servidor" Required="true" RequiredError="Falta el servidor"
-                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                    <MudItem xs="12" md="1">
-                        <MudNumericField @bind-Value="_conexion.Puerto" Label="Puerto" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                    <MudItem xs="12" md="2">
-                        <MudTextField @bind-Value="_conexion.NombreBaseDatos" Label="Base de datos" Required="true" RequiredError="Falta la base de datos"
-                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                    <MudItem xs="12" md="1">
-                        <MudTextField @bind-Value="_conexion.Esquema" Label="Esquema" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                    <MudItem xs="12" md="1">
-                        <MudTextField @bind-Value="_conexion.Usuario" Label="Usuario" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                    <MudItem xs="12" md="2">
-                        @* Tipo=Password porque la contraseña del ERP de un cliente se teclea en
-                           pantalla compartida más de una vez de lo que uno quisiera. *@
-                        <MudTextField @bind-Value="_contrasenaConexion" Label="@_etiquetaContrasena" InputType="InputType.Password"
-                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                </MudGrid>
-                <MudGrid Class="mt-1">
-                    <MudItem xs="12" md="6">
-                        <MudTextField @bind-Value="_conexion.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                    <MudItem xs="12" md="2">
-                        <MudNumericField @bind-Value="_conexion.TiempoEsperaSegundos" Label="Espera (segundos)" Min="1" Max="600"
-                                         Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                </MudGrid>
-
-                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3" Icon="@Icons.Material.Filled.Info">
-                    Pida al cliente una cuenta de <b>solo lectura</b> y una vista que entregue los
-                    datos con los nombres que espera la plataforma. Si el dato está repartido en
-                    varias tablas, la vista las une: el cotizador no necesita saber cómo lo tiene
-                    guardado el ERP.
-                </MudAlert>
-
-                <div class="d-flex justify-end mt-3">
-                    @if (_editandoConexion)
-                    {
-                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="CancelarConexion" Class="mr-2">Cancelar</MudButton>
-                    }
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GuardarConexion" Disabled="_guardandoConexion">
-                        @if (_guardandoConexion)
-                        {
-                            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                        }
-                        else
-                        {
-                            <MudText>Guardar</MudText>
-                        }
-                    </MudButton>
-                </div>
-            </MudPaper>
+            <div class="d-flex justify-end mb-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="NuevaConexion">Nueva conexión</MudButton>
+            </div>
 
             <MudTable Items="_conexiones" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Elevation="0">
                 <HeaderContent>
@@ -373,66 +119,10 @@
 
         @* ── 2. Flujos ───────────────────────────────────────────────── *@
         <MudExpansionPanel Text="2 · Flujos de carga" IsInitiallyExpanded="true">
-            <MudPaper Class="pa-4 mb-4 mud-background-gray-light">
-                <MudText Typo="Typo.subtitle1" Class="mb-3">@(_editandoFlujo ? "Editar" : "Nuevo") flujo</MudText>
-                <MudGrid>
-                    <MudItem xs="12" md="3">
-                        <MudTextField @bind-Value="_flujo.Nombre" Label="Nombre" Required="true" RequiredError="Ponga un nombre"
-                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                    <MudItem xs="12" md="3">
-                        <SelectorLegible TItem="ErpConexionModel" TValue="Guid"
-                                         Items="_conexiones" ValorDe="c => c.Id" TextoDe="c => c.Nombre"
-                                         @bind-Value="_flujo.ErpConexionId"
-                                         Label="Conexión"
-                                         TextoValorActual="— conexión eliminada —" />
-                    </MudItem>
-                    <MudItem xs="12" md="2">
-                        <MudSelect T="string" @bind-Value="_flujo.Catalogo" Label="Catálogo" Variant="Variant.Outlined" Margin="Margin.Dense">
-                            @foreach (var cat in CatalogosDisponibles)
-                            {
-                                <MudSelectItem T="string" Value="@cat">@cat</MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-                    <MudItem xs="12" md="4">
-                        <MudTextField @bind-Value="_flujo.Origen" Label="Origen (vista, tabla o consulta)" Required="true" RequiredError="Falta el origen"
-                                      Variant="Variant.Outlined" Margin="Margin.Dense"
-                                      HelperText="Ejemplo: dbo.vw_ProductosOrkin" />
-                    </MudItem>
-                </MudGrid>
-                <MudGrid Class="mt-1">
-                    <MudItem xs="12" md="6">
-                        <MudTextField @bind-Value="_flujo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    </MudItem>
-                    <MudItem xs="12" md="6">
-                        <MudExpansionPanels Elevation="0">
-                            <MudExpansionPanel Text="@(string.IsNullOrWhiteSpace(_flujo.MapeoJson) ? "Mapeo de columnas (opcional)" : "Mapeo de columnas (configurado)")">
-                                <MudTextField @bind-Value="_flujo.MapeoJson" Lines="5" Label="Mapeo (JSON)"
-                                              Variant="Variant.Outlined" Margin="Margin.Dense"
-                                              HelperText='Vacío = la vista ya trae los nombres esperados. Con contenido: { "columna del ERP": "Campo nuestro" }' />
-                            </MudExpansionPanel>
-                        </MudExpansionPanels>
-                    </MudItem>
-                </MudGrid>
-
-                <div class="d-flex justify-end mt-3">
-                    @if (_editandoFlujo)
-                    {
-                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="CancelarFlujo" Class="mr-2">Cancelar</MudButton>
-                    }
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GuardarFlujo" Disabled="_guardandoFlujo">
-                        @if (_guardandoFlujo)
-                        {
-                            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                        }
-                        else
-                        {
-                            <MudText>Guardar</MudText>
-                        }
-                    </MudButton>
-                </div>
-            </MudPaper>
+            <div class="d-flex justify-end mb-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="NuevoFlujo">Nuevo flujo</MudButton>
+            </div>
 
             <MudTable Items="_flujos" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Elevation="0">
                 <HeaderContent>
@@ -548,9 +238,9 @@
                                 <MudIconButton Icon="@Icons.Material.Filled.PauseCircle" Color="Color.Warning" Size="Size.Small" OnClick="@(() => PausarFlujo(context))" Disabled="_programandoFlujoId == context.Id" />
                             </MudTooltip>
                         }
-                        else
+                        @if (!context.EsPausado)
                         {
-                            <MudTooltip Text="Programar la sincronización automática">
+                            <MudTooltip Text="@(context.EstaProgramado ? "Cambiar cada cuánto corre" : "Programar la sincronización automática")">
                                 <MudIconButton Icon="@Icons.Material.Filled.Schedule" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EditarProgramacion(context))" />
                             </MudTooltip>
                         }
@@ -642,88 +332,12 @@
     private List<ErpFlujoModel> _flujos = [];
     private List<SincronizacionEjecucionModel> _ejecuciones = [];
 
-    private ErpConexionModel _conexion = new();
-    private string _contrasenaConexion = string.Empty;
-    private bool _editandoConexion;
-
-    private ErpFlujoModel _flujo = new();
-    private bool _editandoFlujo;
-
     private ErpFlujoModel? _flujoHistorial;
     private bool _cargando;
-    private bool _guardandoConexion;
-    private bool _guardandoFlujo;
     private bool _cargandoHistorial;
     private Guid? _ejecutandoFlujoId;
     private Guid? _simulandoFlujoId;
-
-    // Simulación: el resultado que se está mirando, el flujo al que pertenece y el filtro de
-    // la grilla. El filtro existe porque con 111 filas el caso normal es "no cambia nada", y una
-    // grilla de 111 líneas todas iguales esconde el hecho interesante: las tres que sí cambian.
-    private SimulacionFlujoModel? _simulacion;
-    private string? _simulacionFlujoNombre;
-    private string _filtroSimulacion = "TODOS";
-
-    // Programación: el flujo cuya sincronización automática se está configurando y los valores
-    // del formulario. Viven aparte de los del flujo de la fila porque son una edición en curso: si
-    // alguien abre el panel, cambia el intervalo a 60 s y se arrepiente, la tabla no debe mostrar
-    // 60 s mientras el panel está abierto, ni guardarlos sin que se pulse Guardar.
-    private ErpFlujoModel? _programando;
-    private string _tipoDisparador = "MANUAL";
-    private int _intervaloSegundos = 300;
-    private int? _maximoRegistrosPorCorrida;
-    private short _maximoFallosConsecutivos = 5;
-    private bool _guardandoProgramacion;
     private Guid? _programandoFlujoId;
-
-    private IEnumerable<CambioSimuladoModel> CambiosFiltrados =>
-        _simulacion?.Cambios.Where(AplicaFiltroSimulacion) ?? [];
-
-    private bool AplicaFiltroSimulacion(CambioSimuladoModel c) => _filtroSimulacion switch
-    {
-        "CAMBIOS" => c.Accion is "Insertar" or "Actualizar" or "Adoptar",
-        "OMITIR" => c.Accion == "Omitir",
-        _ => true
-    };
-
-    private bool HayCambiosVisibles => CambiosFiltrados.Any();
-
-    private async Task SimularFlujo(ErpFlujoModel flujo)
-    {
-        _simulandoFlujoId = flujo.Id;
-        _simulacion = null;
-        _simulacionFlujoNombre = flujo.Nombre;
-        _filtroSimulacion = "TODOS";
-
-        try
-        {
-            var respuesta = await IntegracionService.SimularFlujoAsync(flujo.Id);
-
-            if (respuesta?.Exito == true && respuesta.Datos is { } r)
-            {
-                _simulacion = r;
-            }
-            else
-            {
-                _simulacion = null;
-                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo simular el flujo.", Severity.Error);
-            }
-        }
-        finally
-        {
-            _simulandoFlujoId = null;
-        }
-    }
-
-    private void CerrarSimulacion()
-    {
-        _simulacion = null;
-        _simulacionFlujoNombre = null;
-    }
-
-    private string _etiquetaContrasena => _editandoConexion
-        ? (_conexion.TieneContrasena ? "Contraseña (vacío = dejar la actual)" : "Contraseña")
-        : "Contraseña";
 
     protected override async Task OnInitializedAsync()
     {
@@ -742,93 +356,54 @@
     {
         _conexiones = await IntegracionService.ListarConexionesAsync();
         _flujos = await IntegracionService.ListarFlujosAsync();
-
-        // La conexión seleccionada puede haber desaparecido (se editó en otra pestaña, o la
-        // lista se recargó). Dejarla apuntando a algo que ya no existe convierte el guardado del
-        // flujo siguiente en un error de FK que no dice nada del origen real.
-        if (_flujo.ErpConexionId != Guid.Empty && _conexiones.All(c => c.Id != _flujo.ErpConexionId))
-        {
-            _flujo.ErpConexionId = Guid.Empty;
-        }
     }
 
     // ── Conexiones ────────────────────────────────────────────────────────────
 
-    private void EditarConexion(ErpConexionModel conexion)
+    private Task NuevaConexion() => AbrirDialogoConexion(new ErpConexionModel());
+
+    private Task EditarConexion(ErpConexionModel conexion) => AbrirDialogoConexion(new ErpConexionModel
     {
-        _conexion = new ErpConexionModel
+        Id = conexion.Id,
+        Nombre = conexion.Nombre,
+        Descripcion = conexion.Descripcion,
+        Servidor = conexion.Servidor,
+        Puerto = conexion.Puerto,
+        NombreBaseDatos = conexion.NombreBaseDatos,
+        Esquema = conexion.Esquema,
+        Usuario = conexion.Usuario,
+        TiempoEsperaSegundos = conexion.TiempoEsperaSegundos,
+        TieneContrasena = conexion.TieneContrasena
+    });
+
+    private async Task AbrirDialogoConexion(ErpConexionModel modelo)
+    {
+        var parametros = new DialogParameters<ConexionDialogo>
         {
-            Id = conexion.Id,
-            Nombre = conexion.Nombre,
-            Descripcion = conexion.Descripcion,
-            Servidor = conexion.Servidor,
-            Puerto = conexion.Puerto,
-            NombreBaseDatos = conexion.NombreBaseDatos,
-            Esquema = conexion.Esquema,
-            Usuario = conexion.Usuario,
-            TiempoEsperaSegundos = conexion.TiempoEsperaSegundos,
-            TieneContrasena = conexion.TieneContrasena
+            { d => d.Modelo, modelo }
         };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<ConexionDialogo>(
+            modelo.Id == Guid.Empty ? "Nueva conexión" : $"Editar — {modelo.Nombre}", parametros, opciones);
 
-        // Vacía a propósito: es lo que hace que "vacío" signifique "no la cambio" en vez de
-        // "bórrala". La caja se rellena solo si alguien escribe algo.
-        _contrasenaConexion = string.Empty;
-        _editandoConexion = true;
-    }
-
-    private void CancelarConexion()
-    {
-        _conexion = new ErpConexionModel();
-        _contrasenaConexion = string.Empty;
-        _editandoConexion = false;
-    }
-
-    private async Task GuardarConexion()
-    {
-        if (string.IsNullOrWhiteSpace(_conexion.Nombre)
-            || string.IsNullOrWhiteSpace(_conexion.Servidor)
-            || string.IsNullOrWhiteSpace(_conexion.NombreBaseDatos))
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not ResultadoConexion edicion)
         {
-            Snackbar.Add("Nombre, servidor y base de datos son obligatorios.", Severity.Warning);
             return;
         }
 
-        _guardandoConexion = true;
-        try
+        var respuesta = modelo.Id == Guid.Empty
+            ? await IntegracionService.CrearConexionAsync(edicion.Modelo, edicion.Contrasena ?? string.Empty)
+            : await IntegracionService.ActualizarConexionAsync(edicion.Modelo, edicion.Contrasena);
+
+        if (respuesta?.Exito == true)
         {
-            ApiResponse<ErpConexionModel>? respuesta;
-
-            if (_editandoConexion)
-            {
-                // La contraseña solo viaja si se escribió algo en la caja. null = déjala.
-                var nueva = string.IsNullOrEmpty(_contrasenaConexion) ? null : _contrasenaConexion;
-                respuesta = await IntegracionService.ActualizarConexionAsync(_conexion, nueva);
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(_contrasenaConexion))
-                {
-                    Snackbar.Add("La conexión necesita contraseña.", Severity.Warning);
-                    return;
-                }
-
-                respuesta = await IntegracionService.CrearConexionAsync(_conexion, _contrasenaConexion);
-            }
-
-            if (respuesta?.Exito == true)
-            {
-                Snackbar.Add("Conexión guardada. Pruébela antes de crear un flujo.", Severity.Success);
-                CancelarConexion();
-                await Recargar();
-            }
-            else
-            {
-                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar la conexión.", Severity.Error);
-            }
+            Snackbar.Add("Conexión guardada. Pruébela antes de crear un flujo.", Severity.Success);
+            await Recargar();
         }
-        finally
+        else
         {
-            _guardandoConexion = false;
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar la conexión.", Severity.Error);
         }
     }
 
@@ -852,58 +427,86 @@
 
     // ── Flujos ────────────────────────────────────────────────────────────────
 
-    private void EditarFlujo(ErpFlujoModel flujo)
+    private Task NuevoFlujo() => AbrirDialogoFlujo(new ErpFlujoModel());
+
+    private Task EditarFlujo(ErpFlujoModel flujo) => AbrirDialogoFlujo(new ErpFlujoModel
     {
-        _flujo = new ErpFlujoModel
+        Id = flujo.Id,
+        ErpConexionId = flujo.ErpConexionId,
+        Nombre = flujo.Nombre,
+        Descripcion = flujo.Descripcion,
+        Catalogo = flujo.Catalogo,
+        Origen = flujo.Origen,
+        MapeoJson = flujo.MapeoJson
+    });
+
+    private async Task AbrirDialogoFlujo(ErpFlujoModel modelo)
+    {
+        var parametros = new DialogParameters<FlujoDialogo>
         {
-            Id = flujo.Id,
-            ErpConexionId = flujo.ErpConexionId,
-            Nombre = flujo.Nombre,
-            Descripcion = flujo.Descripcion,
-            Catalogo = flujo.Catalogo,
-            Origen = flujo.Origen,
-            MapeoJson = flujo.MapeoJson
+            { d => d.Modelo, modelo },
+            { d => d.Conexiones, _conexiones },
+            { d => d.Catalogos, CatalogosDisponibles }
         };
-        _editandoFlujo = true;
-    }
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<FlujoDialogo>(
+            modelo.Id == Guid.Empty ? "Nuevo flujo" : $"Editar — {modelo.Nombre}", parametros, opciones);
 
-    private void CancelarFlujo()
-    {
-        _flujo = new ErpFlujoModel();
-        _editandoFlujo = false;
-    }
-
-    private async Task GuardarFlujo()
-    {
-        if (string.IsNullOrWhiteSpace(_flujo.Nombre)
-            || string.IsNullOrWhiteSpace(_flujo.Origen)
-            || _flujo.ErpConexionId == Guid.Empty)
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not ErpFlujoModel editado)
         {
-            Snackbar.Add("Nombre, conexión y origen son obligatorios.", Severity.Warning);
             return;
         }
 
-        _guardandoFlujo = true;
+        var respuesta = modelo.Id == Guid.Empty
+            ? await IntegracionService.CrearFlujoAsync(editado)
+            : await IntegracionService.ActualizarFlujoAsync(editado);
+
+        if (respuesta?.Exito == true)
+        {
+            Snackbar.Add("Flujo guardado.", Severity.Success);
+            await Recargar();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar el flujo.", Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// Simula y abre el resultado en el modal de pantalla completa. La lectura del origen puede
+    /// tardar contra un ERP remoto; mientras tanto, el botón de la fila queda girando, que es la
+    /// señal de "está trabajando" más cerca de donde se le dio clic.
+    /// </summary>
+    private async Task SimularFlujo(ErpFlujoModel flujo)
+    {
+        _simulandoFlujoId = flujo.Id;
         try
         {
-            var respuesta = _editandoFlujo
-                ? await IntegracionService.ActualizarFlujoAsync(_flujo)
-                : await IntegracionService.CrearFlujoAsync(_flujo);
+            var respuesta = await IntegracionService.SimularFlujoAsync(flujo.Id);
 
-            if (respuesta?.Exito == true)
+            if (respuesta?.Exito == true && respuesta.Datos is { } simulacion)
             {
-                Snackbar.Add("Flujo guardado.", Severity.Success);
-                CancelarFlujo();
-                await Recargar();
+                var parametros = new DialogParameters<SimulacionDialogo>
+                {
+                    { d => d.Simulacion, simulacion }
+                };
+                var opciones = new DialogOptions
+                {
+                    MaxWidth = MaxWidth.ExtraExtraLarge,
+                    FullWidth = true,
+                    CloseButton = true
+                };
+                await DialogService.ShowAsync<SimulacionDialogo>($"Simulación — {flujo.Nombre}", parametros, opciones);
             }
             else
             {
-                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar el flujo.", Severity.Error);
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo simular el flujo.", Severity.Error);
             }
         }
         finally
         {
-            _guardandoFlujo = false;
+            _simulandoFlujoId = null;
         }
     }
 
@@ -967,20 +570,6 @@
     }
 
     /// <summary>
-    /// Color de la acción en la grilla. "Adoptar" va en advertencia y no en información porque
-    /// es el caso que merece una segunda mirada: la fila ya existía y alguien la escribió a mano
-    /// (o la subió del Excel), y con la simulación de encima va a pasar a ser propiedad del ERP.
-    /// Que el ERP gane la fila es lo correcto, pero no debería pasar desapercibido.
-    /// </summary>
-    private static Color ColorDeAccion(string accion) => accion switch
-    {
-        "Insertar" => Color.Success,
-        "Actualizar" => Color.Info,
-        "Adoptar" => Color.Warning,
-        _ => Color.Default
-    };
-
-    /// <summary>
     /// Fecha en formato local legible, o un guion. La bitácora guarda UTC porque es la única
     /// forma de comparar corridas de clientes en zonas horarias distintas; mostrarla en UTC en
     /// pantalla haría que dos corridas parecieran descolocadas cuando no lo están.
@@ -988,27 +577,8 @@
     private static string Fecha(DateTime? utc) =>
         utc is null ? "—" : utc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
 
-    // ── Programación ─────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Los intervalos que se ofrecen. No es una lista arbitraria: son los escalones de §4.3 del
-    /// documento, empezando por el más frecuente que se puede configurar sin machacar la base del
-    /// cliente. Cada uno es un número que una persona pueda defender frente a un DBA.
-    /// </summary>
-    private static readonly int[] _intervalosSugeridos =
-        [10, 30, 60, 300, 900, 3600, 86400];
-
-    private static string TextoIntervalo(int segundos) => segundos switch
-    {
-        <= 0 => "—",
-        86400 => "día",
-        3600 => "hora",
-        900 => "15 min",
-        300 => "5 min",
-        60 => "minuto",
-        30 => "30 segundos",
-        _ => $"{segundos} segundos"
-    };
+    /// <summary>Un intervalo en palabras. La lista de intervalos vive en ProgramacionDialogo.</summary>
+    private static string TextoIntervalo(int segundos) => ProgramacionDialogo.TextoIntervalo(segundos);
 
     /// <summary>
     /// Cuánto falta para la próxima corrida, en palabras. Se redondea al segundo porque a menos
@@ -1038,67 +608,41 @@
             : $"{(int)Math.Ceiling(segundos / 86400)} d";
     }
 
-    private void EditarProgramacion(ErpFlujoModel flujo)
+    private async Task EditarProgramacion(ErpFlujoModel flujo)
     {
-        _programando = flujo;
-        _tipoDisparador = flujo.EstaProgramado ? "PROGRAMADO" : "MANUAL";
-        _intervaloSegundos = flujo.IntervaloSegundos ?? 300;
-
-        // Si el flujo ya tenía un intervalo que no está en la lista, se pone el más cercano por
-        // encima en vez de borrarlo: quien configuró 120 s no quiere que al guardar le cambien
-        // el intervalo a 5 minutos sin haberlo pedido.
-        if (flujo.IntervaloSegundos is { } actual && !_intervalosSugeridos.Contains(actual))
+        var parametros = new DialogParameters<ProgramacionDialogo>
         {
-            _intervaloSegundos = _intervalosSugeridos.FirstOrDefault(s => s >= actual, 86400);
-        }
+            { d => d.Flujo, flujo }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<ProgramacionDialogo>(
+            $"Sincronización automática — {flujo.Nombre}", parametros, opciones);
 
-        _maximoRegistrosPorCorrida = flujo.MaximoRegistrosPorCorrida;
-        _maximoFallosConsecutivos = flujo.MaximoFallosConsecutivos > 0
-            ? flujo.MaximoFallosConsecutivos
-            : (short)5;
-    }
-
-    private void CerrarProgramacion()
-    {
-        _programando = null;
-        _guardandoProgramacion = false;
-    }
-
-    private async Task GuardarProgramacion()
-    {
-        if (_programando is not { } flujo)
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not ResultadoProgramacion programacion)
         {
             return;
         }
 
-        _guardandoProgramacion = true;
-        try
-        {
-            var respuesta = await IntegracionService.ConfigurarProgramacionAsync(
-                flujo.Id,
-                _tipoDisparador,
-                _tipoDisparador == "PROGRAMADO" ? _intervaloSegundos : null,
-                _tipoDisparador == "PROGRAMADO" ? _maximoRegistrosPorCorrida : null,
-                _tipoDisparador == "PROGRAMADO" ? _maximoFallosConsecutivos : null);
+        var respuesta = await IntegracionService.ConfigurarProgramacionAsync(
+            flujo.Id,
+            programacion.TipoDisparador,
+            programacion.IntervaloSegundos,
+            programacion.MaximoRegistrosPorCorrida,
+            programacion.MaximoFallosConsecutivos);
 
-            if (respuesta?.Exito == true)
-            {
-                Snackbar.Add(
-                    _tipoDisparador == "PROGRAMADO"
-                        ? $"{flujo.Nombre}: se sincronizará cada {TextoIntervalo(_intervaloSegundos)}."
-                        : $"{flujo.Nombre}: vuelve a sincronizarse solo cuando se le pida.",
-                    Severity.Success);
-                CerrarProgramacion();
-                await Recargar();
-            }
-            else
-            {
-                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar la programación.", Severity.Error);
-            }
-        }
-        finally
+        if (respuesta?.Exito == true)
         {
-            _guardandoProgramacion = false;
+            Snackbar.Add(
+                programacion.TipoDisparador == "PROGRAMADO"
+                    ? $"{flujo.Nombre}: se sincronizará cada {TextoIntervalo(programacion.IntervaloSegundos!.Value)}."
+                    : $"{flujo.Nombre}: vuelve a sincronizarse solo cuando se le pida.",
+                Severity.Success);
+            await Recargar();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar la programación.", Severity.Error);
         }
     }
 

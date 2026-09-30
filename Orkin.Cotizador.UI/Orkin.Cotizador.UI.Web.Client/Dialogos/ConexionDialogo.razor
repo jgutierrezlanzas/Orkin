@@ -1,0 +1,103 @@
+@* Alta y edición de conexión al ERP en modal. Ver ProductoDialogo para el porqué del patrón.
+
+   Devuelve modelo y contraseña juntos: la contraseña viaja aparte del resto porque
+   vacío significa "dejar la que hay" al editar, y exigirla es solo al crear.
+*@
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudGrid>
+                <MudItem xs="12" md="3">
+                    <MudTextField @bind-Value="Modelo.Nombre" Label="Nombre" Required="true"
+                                  RequiredError="Ponga un nombre que lo reconozca"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudTextField @bind-Value="Modelo.Servidor" Label="Servidor" Required="true"
+                                  RequiredError="Falta el servidor"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="1">
+                    <MudNumericField @bind-Value="Modelo.Puerto" Label="Puerto" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudTextField @bind-Value="Modelo.NombreBaseDatos" Label="Base de datos" Required="true"
+                                  RequiredError="Falta la base de datos"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="1">
+                    <MudTextField @bind-Value="Modelo.Esquema" Label="Esquema" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="1">
+                    <MudTextField @bind-Value="Modelo.Usuario" Label="Usuario" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    @* Tipo=Password porque la contraseña del ERP de un cliente se teclea en
+                       pantalla compartida más de una vez de lo que uno quisiera. *@
+                    <MudTextField @bind-Value="_contrasena" Label="@EtiquetaContrasena" InputType="InputType.Password"
+                                  Required="@EsAlta" RequiredError="La conexión necesita contraseña"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+            <MudGrid Class="mt-1">
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="Modelo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="2">
+                    <MudNumericField @bind-Value="Modelo.TiempoEsperaSegundos" Label="Espera (segundos)" Min="1" Max="600"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3" Icon="@Icons.Material.Filled.Info">
+            Pida al cliente una cuenta de <b>solo lectura</b> y una vista que entregue los
+            datos con los nombres que espera la plataforma. Si el dato está repartido en
+            varias tablas, la vista las une: el cotizador no necesita saber cómo lo tiene
+            guardado el ERP.
+        </MudAlert>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">
+            <MudText>Guardar</MudText>
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    /// <summary>El modelo que se edita. Si <see cref="ErpConexionModel.Id"/> es vacío, es un alta.</summary>
+    [Parameter, EditorRequired]
+    public ErpConexionModel Modelo { get; set; } = new();
+
+    private MudForm _form = null!;
+    private string _contrasena = string.Empty;
+
+    private bool EsAlta => Modelo.Id == Guid.Empty;
+
+    /// <summary>
+    /// Al editar, la caja arranca vacía y vacío significa "no la cambies"; solo al crear la
+    /// contraseña es obligatoria, y eso se exige con Required.
+    /// </summary>
+    private string EtiquetaContrasena => EsAlta
+        ? "Contraseña"
+        : Modelo.TieneContrasena ? "Contraseña (vacío = dejar la actual)" : "Contraseña";
+
+    private async Task Aceptar()
+    {
+        await _form.Validate();
+        if (!_form.IsValid)
+        {
+            return;
+        }
+
+        // La contraseña solo viaja si se escribió algo en la caja. null = déjala.
+        var contrasena = string.IsNullOrEmpty(_contrasena) ? null : _contrasena;
+        Dialogo.Close(DialogResult.Ok(new ResultadoConexion(Modelo, contrasena)));
+    }
+
+    private void Cancelar() => Dialogo.Cancel();
+}
