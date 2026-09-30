@@ -28,14 +28,20 @@
                           For="@(() => _modelo.Credencial)"
                           Class="mb-4" />
 
+            @* El ojo muestra y esconde la contraseña. Va como adorno final y clickeable:
+               un campo de contraseña sin forma de ver lo que se tecleó castiga al que
+               escribe en un teclado ajeno, y el 80 % de los "no puedo entrar" es una
+               mayúscula o un bloqueo de mayúsculas que este ojo habría mostrado. *@
             <MudTextField @bind-Value="_modelo.Contrasena"
                           Label="Contraseña"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
                           FullWidth="true"
-                          InputType="InputType.Password"
-                          Adornment="Adornment.Start"
-                          AdornmentIcon="@Icons.Material.Filled.Lock"
+                          InputType="@(_verContrasena ? InputType.Text : InputType.Password)"
+                          Adornment="Adornment.End"
+                          AdornmentIcon="@(_verContrasena ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                          AdornmentAriaLabel="@(_verContrasena ? "Esconder la contraseña" : "Mostrar la contraseña")"
+                          OnAdornmentClick="@(() => _verContrasena = !_verContrasena)"
                           For="@(() => _modelo.Contrasena)"
                           Class="mb-4" />
 
@@ -72,6 +78,7 @@
 @code {
     private LoginRequest _modelo = new();
     private bool _cargando;
+    private bool _verContrasena;
 
     private async Task Ingresar()
     {
