@@ -36,9 +36,19 @@ public sealed class CustomAuthStateProvider : AuthenticationStateProvider
             return new AuthenticationState(_anonimo);
         }
 
-        var identity = new ClaimsIdentity(ParseClaimsFromJwt(token), "jwt");
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return new AuthenticationState(new ClaimsPrincipal(identity));
+        // Un token corrupto o malformado no debe matar la aplicación: se trata como si
+        // no hubiera sesión, y el siguiente paso (el 401 de la API o la redirección al
+        // login) hace el resto.
+        try
+        {
+            var identity = new ClaimsIdentity(ParseClaimsFromJwt(token), "jwt");
+            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            return new AuthenticationState(new ClaimsPrincipal(identity));
+        }
+        catch
+        {
+            return new AuthenticationState(_anonimo);
+        }
     }
 
     public async Task MarkUserAsAuthenticated(string token, bool recordar = true)
@@ -58,7 +68,18 @@ public sealed class CustomAuthStateProvider : AuthenticationStateProvider
 
     private static IEnumerable<Claim> ParseClaimsFromJwt(string jwt)
     {
-        var payload = jwt.Split('.')[1];
+        var partes = jwt.Split('.');
+
+        // Un token que no es un JWT de tres partes no tiene claims que leer. Sin esta guarda,
+        // un token corrupto en localStorage revienta con IndexOutOfRangeException en el Split
+        // y la app entera muere en el ErrorBoundary antes de que el 401 llegue a redirigir.
+        if (partes.Length < 2)
+        {
+            return [];
+        }
+
+        var payload = partes[1];
+
         var jsonBytes = Convert.FromBase64String(PadBase64(payload));
         var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(jsonBytes);
 

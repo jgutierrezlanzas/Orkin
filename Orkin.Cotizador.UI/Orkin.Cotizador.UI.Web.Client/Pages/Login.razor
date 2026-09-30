@@ -5,6 +5,16 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
+@* El aviso de sesión expirada aparece cuando el FalloTransporteHandler detectó un 401 y
+   redirigió acá. La sesión murió y quien estaba trabajando debe saber por qué lo sacaron,
+   no adivinarlo. *@
+@if (_sesionExpirada)
+{
+    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4" Variant="Variant.Outlined">
+        Su sesión ha expirado. Vuelva a ingresar para continuar.
+    </MudAlert>
+}
+
 <MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="d-flex align-center justify-center" Style="height: 100vh;">
     <MudPaper Elevation="4" Class="pa-8" Style="width: 100%; max-width: 420px;">
         <div class="d-flex justify-center mb-6">
@@ -79,6 +89,15 @@
     private LoginRequest _modelo = new();
     private bool _cargando;
     private bool _verContrasena;
+    private bool _sesionExpirada;
+
+    protected override void OnInitialized()
+    {
+        // Cuando el FalloTransporteHandler detecta un 401 (token expirado), redirige a
+        // /login?expirada=1. Aquí se lee la bandera para mostrar el aviso y que quien
+        // estaba trabajando sepa por qué lo sacaron, en vez de adivinar.
+        _sesionExpirada = Navigation.Uri.Contains("expirada=1", StringComparison.OrdinalIgnoreCase);
+    }
 
     private async Task Ingresar()
     {

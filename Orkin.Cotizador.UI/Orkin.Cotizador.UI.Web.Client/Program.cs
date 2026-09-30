@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.JSInterop;
 using MudBlazor.Services;
 using Orkin.Cotizador.UI.Web.Client.Services;
 
@@ -18,12 +19,16 @@ public class Program
         // en producción el BFF (Orkin.Cotizador.UI.Web) puede servir en el mismo origen.
         //
         // El FalloTransporteHandler va en el medio para que un fallo de red (API caída, CORS)
-        // se vea como un mensaje de error en la pantalla y no como la página muerta de Blazor.
-        // El InnerHandler es HttpClientHandler a propósito: en WebAssembly el runtime lo cambia
-        // por el navegador real (BrowserHttpMessageHandler) en cuanto arranca.
+        // o un 401 de sesión expirada se vea como un mensaje de error en la pantalla y no como
+        // la página muerta de Blazor. El IJSRuntime le sirve para limpiar el token y redirigir
+        // al login cuando la sesión vence: el handler no puede recibir NavigationManager
+        // (es scoped del árbol de componentes), pero sí puede llamar a JavaScript.
         var api = builder.Configuration["ApiUrl"] ?? builder.HostEnvironment.BaseAddress;
-        builder.Services.AddScoped(_ => new HttpClient(
-            new FalloTransporteHandler(api) { InnerHandler = new HttpClientHandler() })
+        builder.Services.AddScoped(sp => new HttpClient(
+            new FalloTransporteHandler(api, sp.GetRequiredService<IJSRuntime>())
+            {
+                InnerHandler = new HttpClientHandler()
+            })
         {
             BaseAddress = new Uri(api)
         });

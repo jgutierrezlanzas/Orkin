@@ -15,43 +15,64 @@
     }
     else
     {
+        @* Los KPI van en cards separadas, no una dentro de la otra. Cada dato es una
+           métrica que quien administra mira de reojo: cotizaciones del período, valor
+           cotizado, cuántas esperan aprobación y cuántos catálogos vivos hay. *@
         <MudGrid Class="mb-6">
             <MudItem xs="6" md="3">
                 <MudPaper Elevation="2" Class="pa-4">
                     <MudText Typo="Typo.caption" Class="mud-text-secondary">Cotizaciones</MudText>
-                    <MudText Typo="Typo.h4" Color="Color.Primary">@_datos.Cotizaciones</MudText>
+                    <MudText Typo="Typo.h3" Color="Color.Primary">@_datos.Cotizaciones</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" md="3">
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Valor cotizado</MudText>
+                    <MudText Typo="Typo.h3" Color="Color.Primary">@_datos.ValorCotizado.ToString("N0") C$</MudText>
                 </MudPaper>
             </MudItem>
             <MudItem xs="6" md="3">
                 <MudPaper Elevation="2" Class="pa-4">
                     <MudText Typo="Typo.caption" Class="mud-text-secondary">Clientes</MudText>
-                    <MudText Typo="Typo.h4" Color="Color.Primary">@_datos.Clientes</MudText>
+                    <MudText Typo="Typo.h3" Color="Color.Primary">@_datos.Clientes</MudText>
                 </MudPaper>
             </MudItem>
             <MudItem xs="6" md="3">
                 <MudPaper Elevation="2" Class="pa-4">
                     <MudText Typo="Typo.caption" Class="mud-text-secondary">Productos activos</MudText>
-                    <MudText Typo="Typo.h4" Color="Color.Primary">@_datos.Productos</MudText>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="6" md="3">
-                <MudPaper Elevation="2" Class="pa-4">
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Últimas cotizaciones</MudText>
-                    <MudTable Items="_datos.Ultimas" Dense="true" Elevation="0" Hover="false">
-                        <HeaderContent>
-                            <MudTh>Número</MudTh>
-                            <MudTh>Cliente</MudTh>
-                            <MudTh>Estado</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd>@context.Numero</MudTd>
-                            <MudTd>@context.ClienteNombre</MudTd>
-                            <MudTd>@context.EstadoNombre</MudTd>
-                        </RowTemplate>
-                    </MudTable>
+                    <MudText Typo="Typo.h3" Color="Color.Primary">@_datos.Productos</MudText>
                 </MudPaper>
             </MudItem>
         </MudGrid>
+
+        @* Las últimas cotizaciones van en una tabla aparte, abajo de los cards — no
+           adentro de un card. El card es para una métrica; la tabla es para leer. *@
+        <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mb-2">Últimas cotizaciones</MudText>
+        <MudTable Items="_datos.Ultimas" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="2">
+            <HeaderContent>
+                <MudTh>Número</MudTh>
+                <MudTh>Cliente</MudTh>
+                <MudTh>Servicio</MudTh>
+                <MudTh>Fecha</MudTh>
+                <MudTh>Estado</MudTh>
+                <MudTh>Precio C$</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    <MudLink Href="@($"/cotizaciones/{context.Id}")" Typo="Typo.body2">@context.Numero</MudLink>
+                </MudTd>
+                <MudTd>@context.ClienteNombre</MudTd>
+                <MudTd>@context.TipoServicioNombre</MudTd>
+                <MudTd>@context.Fecha.ToString("dd/MM/yyyy")</MudTd>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" Color="@EstadoColor(context.EstadoCodigo)">@context.EstadoNombre</MudChip>
+                </MudTd>
+                <MudTd>@context.PrecioCordobas.ToString("N2")</MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Class="pa-4 mud-text-secondary">Todavía no hay cotizaciones.</MudText>
+            </NoRecordsContent>
+        </MudTable>
     }
 </MudContainer>
 
@@ -64,16 +85,29 @@
         _cargando = true;
         try
         {
-            var cotizaciones = await CotizacionService.ListarAsync(1, 5);
-            var clientes = await CatalogoService.ListarClientesAsync();
-            var productos = await CatalogoService.ListarProductosAsync();
+            // Cada fuente de datos es independiente: si una falla, las demás cargan y la
+            // pantalla muestra lo que pudo conseguir. El dashboard es para mirar de reojo,
+            // no un reporte que tiene que estar completo o no ser.
+            PaginatedCotizaciones? cotizaciones = null;
+            List<ClienteModel>? clientes = null;
+            List<ProductoModel>? productos = null;
+
+            try { cotizaciones = await CotizacionService.ListarAsync(1, 5); }
+            catch { /* la sesión expirada ya redirigió; otros fallos se muestran vacíos */ }
+
+            try { clientes = await CatalogoService.ListarClientesAsync(); }
+            catch { }
+
+            try { productos = await CatalogoService.ListarProductosAsync(); }
+            catch { }
 
             _datos = new DatosDashboard
             {
-                Cotizaciones = cotizaciones.Total,
-                Ultimas = cotizaciones.Items,
-                Clientes = clientes.Count,
-                Productos = productos.Count
+                Cotizaciones = cotizaciones?.Total ?? 0,
+                ValorCotizado = cotizaciones?.Items?.Sum(c => c.PrecioCordobas) ?? 0m,
+                Ultimas = cotizaciones?.Items ?? [],
+                Clientes = clientes?.Count ?? 0,
+                Productos = productos?.Count ?? 0
             };
         }
         finally
@@ -82,9 +116,20 @@
         }
     }
 
+    private static Color EstadoColor(string codigo) => codigo switch
+    {
+        "BORRADOR" => Color.Warning,
+        "ENVIADA" => Color.Info,
+        "APROBADA" => Color.Success,
+        "RECHAZADA" => Color.Error,
+        "ANULADA" => Color.Default,
+        _ => Color.Default
+    };
+
     private sealed class DatosDashboard
     {
         public int Cotizaciones { get; set; }
+        public decimal ValorCotizado { get; set; }
         public List<CotizacionListItem> Ultimas { get; set; } = [];
         public int Clientes { get; set; }
         public int Productos { get; set; }
