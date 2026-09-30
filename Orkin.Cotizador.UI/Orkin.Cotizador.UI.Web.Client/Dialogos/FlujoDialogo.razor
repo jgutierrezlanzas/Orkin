@@ -12,8 +12,12 @@
                     <SelectorLegible TItem="ErpConexionModel" TValue="Guid"
                                      Items="Conexiones" ValorDe="c => c.Id" TextoDe="c => c.Nombre"
                                      @bind-Value="Modelo.ErpConexionId"
-                                     Label="Conexión"
+                                     Label="Conexión" Clearable="true"
                                      TextoValorActual="— conexión eliminada —" />
+                    @if (_faltaConexion)
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-error-text">Elija la conexión: es la base de la que este flujo lee.</MudText>
+                    }
                 </MudItem>
                 <MudItem xs="12" md="2">
                     <MudSelect T="string" @bind-Value="Modelo.Catalogo" Label="Catálogo"
@@ -76,11 +80,21 @@
     public string[] Catalogos { get; set; } = ["PRODUCTOS"];
 
     private MudForm _form = null!;
+    private bool _faltaConexion;
 
     private async Task Aceptar()
     {
         await _form.Validate();
         if (!_form.IsValid)
+        {
+            return;
+        }
+
+        // La conexión se puede borrar con la X; el MudForm no la ve porque los combos no
+        // participan del EditContext. Sin la guarda, el error lo daría la API después del
+        // viaje completo.
+        _faltaConexion = Modelo.ErpConexionId == Guid.Empty;
+        if (_faltaConexion)
         {
             return;
         }

@@ -30,8 +30,15 @@
                 <SelectorLegible TItem="UnidadMedidaModel" TValue="Guid"
                                  Items="Unidades" ValorDe="u => u.Id" TextoDe='u => $"{u.Nombre} ({u.Abreviatura})"'
                                  @bind-Value="Modelo.UnidadMedidaId"
-                                 Label="Unidad de medida"
+                                 Label="Unidad de medida" Clearable="true"
                                  TextoValorActual="@NombreUnidadActual" />
+                @* El error se muestra acá y no llega el del servidor: la unidad se puede borrar
+                   con la X, y el mensaje del framework ("The UnidadMedidaId field is required")
+                   después de un viaje completo no le dice nada a quien capturó el producto. *@
+                @if (_faltaUnidad)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-error-text">Elija la unidad de medida.</MudText>
+                }
             </MudItem>
             <MudItem xs="12" md="4">
                 <MudTextField @bind-Value="Modelo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
@@ -91,10 +98,20 @@
     public string? NombreUnidadActual { get; set; }
 
     private bool _aceptando;
+    private bool _faltaUnidad;
 
     private bool EsEdicion => Modelo.Id != Guid.Empty;
 
-    private void Aceptar() => Dialogo.Close(DialogResult.Ok(Modelo));
+    private void Aceptar()
+    {
+        _faltaUnidad = Modelo.UnidadMedidaId == Guid.Empty;
+        if (_faltaUnidad)
+        {
+            return;
+        }
+
+        Dialogo.Close(DialogResult.Ok(Modelo));
+    }
 
     private void Cancelar() => Dialogo.Cancel();
 }

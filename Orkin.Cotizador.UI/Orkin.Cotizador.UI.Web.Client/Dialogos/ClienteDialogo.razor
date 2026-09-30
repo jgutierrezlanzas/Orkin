@@ -20,8 +20,12 @@
                 <SelectorLegible TItem="TipoClienteOption" TValue="byte"
                                  Items="TiposCliente" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
                                  @bind-Value="Modelo.TipoClienteId"
-                                 Label="Tipo de cliente"
+                                 Label="Tipo de cliente" Clearable="true"
                                  TextoValorActual="@NombreTipoClienteActual" />
+                @if (_faltaTipo)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-error-text">Elija el tipo de cliente: decide el método de costeo.</MudText>
+                }
             </MudItem>
             <MudItem xs="12" md="3">
                 <MudTextField @bind-Value="Modelo.CedulaORuc" Label="Cédula/RUC" Variant="Variant.Outlined" Margin="Margin.Dense" />
@@ -88,8 +92,18 @@
     public string? NombreTipoClienteActual { get; set; }
 
     private bool EsEdicion => Modelo.Id != Guid.Empty;
+    private bool _faltaTipo;
 
-    private void Aceptar() => Dialogo.Close(DialogResult.Ok(Modelo));
+    private void Aceptar()
+    {
+        _faltaTipo = Modelo.TipoClienteId == 0;
+        if (_faltaTipo)
+        {
+            return;
+        }
+
+        Dialogo.Close(DialogResult.Ok(Modelo));
+    }
 
     private void Cancelar() => Dialogo.Cancel();
 }

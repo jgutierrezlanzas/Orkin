@@ -17,12 +17,14 @@
     {
         <MudPaper Elevation="2" Class="pa-4 mb-6">
             <MudText Typo="Typo.h6" Class="mb-4">Datos generales</MudText>
+
+            @* El switch va en su propia línea, arriba de la grilla: adentro de la columna de
+               cliente, según el modo apilaba dos campos o uno y desalineaba toda la fila. Así
+               el cambio de modo mueve el contenido de las casillas sin mover las casillas. *@
+            <MudSwitch @bind-Value="_clienteEsNuevo" Label="Cliente nuevo (todavía sin ficha en el catálogo)" Color="Color.Primary" Class="mb-2" />
+
             <MudGrid>
                 <MudItem xs="12" md="4">
-                    @* Cliente del catálogo o alguien nuevo que llamó y todavía no tiene ficha.
-                       El switch es lo bastante visible para que nadie cotizó "al vacío" por
-                       accidente, y lo bastante discreto para no estorbar el caso normal. *@
-                    <MudSwitch @bind-Value="_clienteEsNuevo" Label="Cliente nuevo" Color="Color.Primary" Class="mb-1" />
                     @if (_clienteEsNuevo)
                     {
                         <MudTextField @bind-Value="_clienteNombreNuevo" Label="Nombre del cliente" Required="true"
@@ -34,35 +36,57 @@
                         <SelectorLegible TItem="ClienteOpcion" TValue="Guid"
                                          Items="_opciones.Clientes" ValorDe="c => c.Id" TextoDe='c => $"{c.Nombre} ({c.Codigo})"'
                                          @bind-Value="_clienteId"
-                                         Label="Cliente" />
+                                         Label="Cliente"
+                                         Clearable="true" />
                     }
+                </MudItem>
+                <MudItem xs="12" md="4">
                     @if (_clienteEsNuevo)
                     {
                         <SelectorLegible TItem="TipoClienteOpcionModel" TValue="byte"
                                          Items="_opciones.TiposCliente" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
                                          @bind-Value="_tipoClienteNuevoId"
                                          Label="Tipo de cliente"
-                                         Class="mt-2" />
+                                         Clearable="true" />
                         <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                            El tipo decide el método de costeo. Si el cliente termina firmando, su
-                            ficha se crea al cargar el catálogo desde el ERP.
+                            El tipo decide el método de costeo.
                         </MudText>
+                    }
+                    else
+                    {
+                        @* El tipo del cliente del catálogo se muestra, no se elige: sale de su
+                           ficha y manda por encima de cualquier otra cosa, porque cotizarle a
+                           ACME con el margen de otro tipo es coticar con el método de otro. *@
+                        <MudTextField Value="@TipoDelClienteSeleccionado"
+                                      Label="Tipo de cliente"
+                                      ReadOnly="true"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" />
                     }
                 </MudItem>
                 <MudItem xs="12" md="4">
                     <SelectorLegible TItem="TipoServicioOpcion" TValue="Guid"
                                      Items="_opciones.TiposServicio" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
                                      @bind-Value="_tipoServicioId"
-                                     Label="Tipo de servicio" />
+                                     Label="Tipo de servicio"
+                                     Clearable="true" />
                 </MudItem>
-                <MudItem xs="12" md="2">
+                <MudItem xs="12" md="4">
                     <MudDatePicker @bind-Value="_fecha" Label="Fecha" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudNumericField T="decimal" @bind-Value="_margen" Label="Margen (fracción)" Variant="Variant.Outlined" Margin="Margin.Dense" Step="0.005m" Min="0m" Max="1m" />
+                <MudItem xs="12" md="4">
+                    @* Margen en porcentaje porque así piensa quien cotiza: "con el 5,5" y no
+                       "con 0,055". El Excel y la base trabajan en fracción (0.055 = 5,5 %);
+                       la conversión vive en MargenFraccion, y quien teclea 5.5 ve 5.5. La
+                       nota va dentro de la casilla: flotando abajo, se separaba del campo. *@
+                    <MudNumericField T="decimal" @bind-Value="_margenPorcentaje" Label="Margen (%)"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Adornment="Adornment.End" AdornmentText="%"
+                                     Step="0.5m" Min="0m" Max="100m" />
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Margen sobre el costo total.
+                    </MudText>
                 </MudItem>
             </MudGrid>
-            <MudText Typo="Typo.caption" Class="mt-1 mb-4">Margen: <b>@((_margen * 100).ToString("N1"))%</b> (ej. 0.055 = 5.5%)</MudText>
         </MudPaper>
 
         <MudPaper Elevation="2" Class="pa-4 mb-6">
@@ -88,12 +112,17 @@
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd Style="min-width: 250px">
+                            @* La lista de cada fila excluye lo ya elegido en las demás: así no se
+                               puede duplicar un insumo sin darse cuenta, y no hace falta validarlo.
+                               El producto de ESTA fila sí va, para que cambiarlo o ver cuál tiene
+                               siga siendo posible. *@
                             <SelectorLegible TItem="ProductoModel" TValue="Guid"
-                                             Items="_productos"
+                                             Items="@ProductosDisponibles(context)"
                                              ValorDe="p => p.Id"
                                              TextoDe='p => $"{p.Nombre} — {p.CostoActual:N2} C$/{p.UnidadMedidaAbreviatura}"'
                                              @bind-Value="context.ProductoId"
-                                             Dense="true" />
+                                             Dense="true"
+                                             Clearable="true" />
                         </MudTd>
                         <MudTd>
                             <MudNumericField T="decimal" @bind-Value="context.Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Min="0.01m" Step="1m" Style="width: 120px" />
@@ -164,7 +193,7 @@
             @* Deshabilitado mientras falte el cliente —del catálogo o nuevo— o no haya
                insumos: las validaciones de Calcular/Guardar ya avisan con mensaje, pero un
                botón que no se puede pulsar evita el rodeo de clic-queja. *@
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Calcular" Disabled="_calculando || _insumos.Count == 0 || ValidarCliente() is not null">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Calcular" Disabled="_calculando || ValidarCliente() is not null || ValidarInsumos() is not null">
                 @if (_calculando)
                 {
                     <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
@@ -196,10 +225,26 @@
     private Guid _clienteId;
     private Guid _tipoServicioId;
     private DateOnly _fecha = DateOnly.FromDateTime(DateTime.Today);
-    private decimal _margen = 0.055m;
     private bool _cargando;
     private bool _calculando;
     private bool _guardando;
+
+    /// <summary>
+    /// El margen tal como se teclea: porcentaje. El Excel original y la base trabajan en fracción
+    /// (0.055 = 5.5 %), pero "con el 5,5" es como habla quien cotiza; pedirle 0.055 es hacerla
+    /// multiplicar en la cabeza para usar el sistema. La fracción se arma al llamar a la API.
+    /// </summary>
+    private decimal _margenPorcentaje = 5.5m;
+
+    private decimal MargenFraccion => _margenPorcentaje / 100m;
+
+    /// <summary>
+    /// El tipo del cliente del catálogo, para mostrarlo al lado del nombre. Sale de la ficha y
+    /// no se puede cambiar desde aquí: cotizarle a un cliente con el método de costeo de otro
+    /// tipo es cotizar con el margen de otro, y la ficha manda.
+    /// </summary>
+    private string TipoDelClienteSeleccionado
+        => _opciones.Clientes.FirstOrDefault(c => c.Id == _clienteId)?.TipoClienteNombre ?? "";
 
     // Cliente nuevo: alguien llamó, pidió precios y todavía no tiene ficha en el catálogo.
     // La cotización queda con el nombre tecleado y el tipo elegido, sin tocar dbo.Cliente.
@@ -237,11 +282,29 @@
     private void AgregarInsumo()
     {
         if (_productos.Count == 0) return;
+
+        // La fila arranca SIN producto, no con el primero de la lista. Con uno pre-elegido, la
+        // fila nueva hereda un texto que hay que borrar antes de poder filtrar — y quien no lo
+        // borra solo ve "un resultado" que en realidad es la selección vieja. Vacía, la primera
+        // tecla ya filtra. La validación de Calcular/Guardar exige que toda fila tenga producto.
         _insumos.Add(new LineaInsumoRequest
         {
-            ProductoId = _productos[0].Id,
             Cantidad = 1
         });
+    }
+
+    /// <summary>
+    /// Los productos que esta fila puede elegir: todos menos los que ya eligieron las demás.
+    /// El de esta fila queda, para que se pueda ver cuál tiene y cambiarlo.
+    /// </summary>
+    private IReadOnlyList<ProductoModel> ProductosDisponibles(LineaInsumoRequest fila)
+    {
+        var usados = _insumos
+            .Where(i => !ReferenceEquals(i, fila) && i.ProductoId != Guid.Empty)
+            .Select(i => i.ProductoId)
+            .ToHashSet();
+
+        return _productos.Where(p => !usados.Contains(p.Id)).ToList();
     }
 
     private void QuitarInsumo(LineaInsumoRequest insumo)
@@ -264,10 +327,44 @@
             {
                 return "Ponga el nombre del cliente nuevo.";
             }
+
+            if (_tipoClienteNuevoId == 0)
+            {
+                return "Elija el tipo del cliente nuevo: es lo que decide el método de costeo.";
+            }
         }
         else if (_clienteId == Guid.Empty)
         {
             return "Seleccione un cliente.";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// El tipo de servicio es obligatorio en toda cotización. Se valida acá y no solo al
+    /// guardar, porque calcular sale bien sin él y el error aparecería tarde, cuando ya se
+    /// revisó el resultado.
+    /// </summary>
+    private string? ValidarTipoServicio()
+        => _tipoServicioId == Guid.Empty ? "Seleccione el tipo de servicio." : null;
+
+    /// <summary>
+    /// La parte de los insumos que el botón de Calcular exige. La fila sin producto existe a
+    /// propósito —arranca vacía para que filtrar sea la primera tecla— pero no puede llegar
+    /// al cálculo: al servidor llegaría un insumo "00000000-..." y el error hablaría de un
+    /// producto inexistente en vez de de la fila que falta completar.
+    /// </summary>
+    private string? ValidarInsumos()
+    {
+        if (_insumos.Count == 0)
+        {
+            return "Agregue al menos un insumo.";
+        }
+
+        if (_insumos.Any(i => i.ProductoId == Guid.Empty))
+        {
+            return "Hay una fila de insumo sin producto: elija uno o quítela.";
         }
 
         return null;
@@ -281,9 +378,15 @@
             return;
         }
 
-        if (_insumos.Count == 0)
+        if (ValidarTipoServicio() is { } faltaServicio)
         {
-            Snackbar.Add("Agregue al menos un insumo.", Severity.Warning);
+            Snackbar.Add(faltaServicio, Severity.Warning);
+            return;
+        }
+
+        if (ValidarInsumos() is { } faltaInsumo)
+        {
+            Snackbar.Add(faltaInsumo, Severity.Warning);
             return;
         }
 
@@ -294,7 +397,7 @@
                 _clienteEsNuevo ? null : _clienteId,
                 _clienteEsNuevo ? _tipoClienteNuevoId : null,
                 _fecha,
-                _margen,
+                MargenFraccion,
                 _insumos);
 
             if (respuesta?.Exito == true && respuesta.Datos is not null)
@@ -320,6 +423,18 @@
             return;
         }
 
+        if (ValidarTipoServicio() is { } faltaServicio)
+        {
+            Snackbar.Add(faltaServicio, Severity.Warning);
+            return;
+        }
+
+        if (ValidarInsumos() is { } faltaInsumo)
+        {
+            Snackbar.Add(faltaInsumo, Severity.Warning);
+            return;
+        }
+
         if (_resultado is null)
         {
             Snackbar.Add("Calcule primero.", Severity.Warning);
@@ -336,7 +451,7 @@
                 _tipoServicioId,
                 _fecha,
                 null,
-                _margen,
+                MargenFraccion,
                 _insumos);
 
             if (respuesta?.Exito == true && respuesta.Datos is not null)
