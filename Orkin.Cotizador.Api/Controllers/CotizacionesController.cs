@@ -196,12 +196,21 @@ public sealed class CotizacionesController : ControllerBase
 
         if (entidad is null)
         {
-            return ApiResponse<CotizacionResponse>
+            return ApiResponse<CotizacionDetalleResponse>
                 .Error("COTIZACION_NO_ENCONTRADA", "La cotización no existe.")
                 .AHttp();
         }
 
-        var response = new CotizacionResponse(
+        // Las líneas de insumo van con la cotización: el detalle las muestra y el formulario de
+        // edición las necesita para recargar la pantalla. Sin ellas, editar significaría
+        // rearmar los insumos de memoria, y nadie debería tener que adivinar lo que ya guardó.
+        var insumos = await _contexto.DetalleInsumo
+            .AsNoTracking()
+            .Where(d => d.CotizacionId == id)
+            .Select(d => new DetalleInsumoResponse(d.ProductoId, d.Cantidad, d.SemestreId))
+            .ToListAsync(cancellationToken);
+
+        var response = new CotizacionDetalleResponse(
             entidad.Id,
             entidad.Numero,
             entidad.Anio,
@@ -226,9 +235,10 @@ public sealed class CotizacionesController : ControllerBase
             entidad.TipoCambioId,
             entidad.MetodoCosteoId,
             entidad.PorcentajePlantilla,
-            entidad.CreatedAt);
+            entidad.CreatedAt,
+            insumos);
 
-        return ApiResponse<CotizacionResponse>.Ok(response).AHttp();
+        return ApiResponse<CotizacionDetalleResponse>.Ok(response).AHttp();
     }
 
     [HttpPost]
@@ -605,6 +615,45 @@ public sealed class CotizacionesController : ControllerBase
 
 /// <summary>Solicitud para anular una cotización. El motivo es obligatorio.</summary>
 public sealed record AnularCotizacionRequest(string Motivo);
+
+/// <summary>Línea de insumo de una cotización existente, para el detalle y la edición.</summary>
+public sealed record DetalleInsumoResponse(
+    Guid ProductoId,
+    decimal Cantidad,
+    byte? SemestreId);
+
+/// <summary>
+/// Una cotización con sus líneas de insumo. El listado usa <c>CotizacionResponse</c> (sin
+/// insumos, que es todo lo que hace falta para la tabla); el detalle y la edición usan esta,
+/// que trae las líneas para que editar sea recargar la pantalla y no rearmar de memoria.
+/// </summary>
+public sealed record CotizacionDetalleResponse(
+    Guid Id,
+    string Numero,
+    int Anio,
+    Guid? ClienteId,
+    string ClienteNombre,
+    Guid TipoServicioId,
+    string TipoServicioNombre,
+    DateOnly Fecha,
+    string ModalidadCodigo,
+    decimal Margen,
+    string EstadoCodigo,
+    string EstadoNombre,
+    decimal TotalInsumosSemestre1,
+    decimal TotalInsumosSemestre2,
+    decimal TotalInsumos,
+    decimal TotalAmortizablesMensual,
+    decimal CostoTotal,
+    decimal PrecioCordobas,
+    decimal PrecioUsd,
+    decimal TipoCambioValor,
+    DateOnly TipoCambioFecha,
+    Guid? TipoCambioId,
+    byte MetodoCosteoId,
+    decimal? PorcentajePlantilla,
+    DateTime CreatedAt,
+    IReadOnlyList<DetalleInsumoResponse> Insumos);
 
 /// <summary>Respuesta paginada genérica.</summary>
 public sealed record PaginatedResponse<T>(

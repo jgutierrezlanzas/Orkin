@@ -106,4 +106,45 @@ public sealed class CotizacionService
         var response = await _http.PostAsJsonAsync("api/cotizaciones", request);
         return await response.Content.ReadFromJsonAsync<ApiResponse<CotizacionListItem>>();
     }
+
+    /// <summary>
+    /// Trae una cotización con sus líneas de insumo — lo que hace falta para recargar el
+    /// formulario de edición y el detalle completo.
+    /// </summary>
+    public async Task<CotizacionDetalleModel?> ObtenerDetalleAsync(Guid id)
+    {
+        var response = await _http.GetFromJsonAsync<ApiResponse<CotizacionDetalleModel>>($"api/cotizaciones/{id}");
+        return response?.Datos;
+    }
+
+    /// <summary>
+    /// Actualiza una cotización existente (solo en BORRADOR o RECHAZADA). La API recalcula
+    /// todo: los insumos se reemplazan completos y el resultado sale del motor, no de lo
+    /// que la pantalla traiga.
+    /// </summary>
+    public async Task<ApiResponse<CotizacionListItem>?> ActualizarAsync(
+        Guid id,
+        Guid tipoServicioId,
+        DateOnly fecha,
+        decimal margen,
+        List<LineaInsumoRequest> insumos)
+    {
+        var request = new
+        {
+            TipoServicioId = tipoServicioId,
+            Fecha = fecha,
+            ModalidadCodigo = (string?)null,
+            Margen = margen,
+            Insumos = insumos.Select(i => new
+            {
+                i.ProductoId,
+                i.Cantidad,
+                i.SemestreId
+            }).ToList(),
+            Amortizables = new List<object>()
+        };
+
+        var response = await _http.PutAsJsonAsync($"api/cotizaciones/{id}", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<CotizacionListItem>>();
+    }
 }

@@ -54,6 +54,30 @@ public sealed class CotizacionListItem
     public DateTime CreatedAt { get; set; }
 }
 
+public sealed class CotizacionDetalleModel
+{
+    public Guid Id { get; set; }
+    public string Numero { get; set; } = string.Empty;
+    public Guid? ClienteId { get; set; }
+    public string ClienteNombre { get; set; } = string.Empty;
+    public Guid TipoServicioId { get; set; }
+    public string TipoServicioNombre { get; set; } = string.Empty;
+    public DateOnly Fecha { get; set; }
+    public decimal Margen { get; set; }
+    public string EstadoCodigo { get; set; } = string.Empty;
+    public string EstadoNombre { get; set; } = string.Empty;
+    public decimal PrecioCordobas { get; set; }
+    public decimal PrecioUsd { get; set; }
+    public List<DetalleInsumoModel> Insumos { get; set; } = [];
+}
+
+public sealed class DetalleInsumoModel
+{
+    public Guid ProductoId { get; set; }
+    public decimal Cantidad { get; set; }
+    public byte? SemestreId { get; set; }
+}
+
 public sealed class PaginatedCotizaciones
 {
     public List<CotizacionListItem> Items { get; set; } = [];
