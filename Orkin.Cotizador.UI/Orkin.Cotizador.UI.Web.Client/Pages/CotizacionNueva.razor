@@ -71,7 +71,11 @@
                                      Clearable="true" />
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudDatePicker @bind-Value="_fecha" Label="Fecha" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    @* @bind-Date y no @bind-Value: es el parámetro nativo del picker. Value enlaza el
+                   estado pero no repinta el texto inicial — la caja nacía vacía aunque el
+                   modelo ya traía hoy, y quien cotiza no debe adivinar qué fecha viajará. *@
+                <MudDatePicker @bind-Date="_fecha" Label="Fecha" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              DateFormat="dd/MM/yyyy" />
                 </MudItem>
                 <MudItem xs="12" md="4">
                     @* Margen en porcentaje porque así piensa quien cotiza: "con el 5,5" y no
@@ -193,7 +197,7 @@
             @* Deshabilitado mientras falte el cliente —del catálogo o nuevo— o no haya
                insumos: las validaciones de Calcular/Guardar ya avisan con mensaje, pero un
                botón que no se puede pulsar evita el rodeo de clic-queja. *@
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Calcular" Disabled="_calculando || ValidarCliente() is not null || ValidarInsumos() is not null">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Calcular" Disabled="_calculando || ValidarCliente() is not null || ValidarTipoServicio() is not null || ValidarFecha() is not null || ValidarInsumos() is not null">
                 @if (_calculando)
                 {
                     <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
@@ -224,10 +228,20 @@
     private CotizacionCalculadaResponse? _resultado;
     private Guid _clienteId;
     private Guid _tipoServicioId;
-    private DateOnly _fecha = DateOnly.FromDateTime(DateTime.Today);
     private bool _cargando;
     private bool _calculando;
     private bool _guardando;
+
+    /// <summary>
+    /// La fecha del picker, en DateTime: es el tipo nativo de MudDatePicker, y con DateOnly el
+    /// picker enlaza bien pero no pinta el valor inicial — la caja nacía vacía aunque el modelo
+    /// ya traía hoy, y quien cotiza no debe preguntarse qué fecha va a viajar. La conversión a
+    /// DateOnly —lo que habla la API— vive en Fecha.
+    /// </summary>
+    private DateTime? _fecha = DateTime.Today;
+
+    /// <summary>La fecha como la pide la API. La validación garantiza que ya esté elegida.</summary>
+    private DateOnly Fecha => DateOnly.FromDateTime(_fecha!.Value);
 
     /// <summary>
     /// El margen tal como se teclea: porcentaje. El Excel original y la base trabajan en fracción
@@ -349,6 +363,10 @@
     private string? ValidarTipoServicio()
         => _tipoServicioId == Guid.Empty ? "Seleccione el tipo de servicio." : null;
 
+    /// <summary>La fecha es el tipo nativo del picker (DateTime?) y puede quedar en null.</summary>
+    private string? ValidarFecha()
+        => _fecha is null ? "Elija la fecha de la cotización." : null;
+
     /// <summary>
     /// La parte de los insumos que el botón de Calcular exige. La fila sin producto existe a
     /// propósito —arranca vacía para que filtrar sea la primera tecla— pero no puede llegar
@@ -384,6 +402,12 @@
             return;
         }
 
+        if (ValidarFecha() is { } faltaFecha)
+        {
+            Snackbar.Add(faltaFecha, Severity.Warning);
+            return;
+        }
+
         if (ValidarInsumos() is { } faltaInsumo)
         {
             Snackbar.Add(faltaInsumo, Severity.Warning);
@@ -396,7 +420,7 @@
             var respuesta = await CotizacionService.CalcularAsync(
                 _clienteEsNuevo ? null : _clienteId,
                 _clienteEsNuevo ? _tipoClienteNuevoId : null,
-                _fecha,
+                Fecha,
                 MargenFraccion,
                 _insumos);
 
@@ -429,6 +453,12 @@
             return;
         }
 
+        if (ValidarFecha() is { } faltaFecha)
+        {
+            Snackbar.Add(faltaFecha, Severity.Warning);
+            return;
+        }
+
         if (ValidarInsumos() is { } faltaInsumo)
         {
             Snackbar.Add(faltaInsumo, Severity.Warning);
@@ -449,7 +479,7 @@
                 _clienteEsNuevo ? _clienteNombreNuevo.Trim() : null,
                 _clienteEsNuevo ? _tipoClienteNuevoId : null,
                 _tipoServicioId,
-                _fecha,
+                Fecha,
                 null,
                 MargenFraccion,
                 _insumos);
