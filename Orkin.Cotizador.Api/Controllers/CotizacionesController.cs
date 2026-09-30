@@ -177,7 +177,7 @@ public sealed class CotizacionesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var amortizables = request.Amortizables is { Count: > 0 }
-            ? request.Amortizables.Select(a => (a.ActivoId, a.Cantidad)).ToList()
+            ? request.Amortizables.Select(a => (a.ActivoId, a.Cantidad, a.MesesVidaUtil)).ToList()
             : null;
 
         var resultado = await _servicio.CalcularAsync(
@@ -367,7 +367,7 @@ public sealed class CotizacionesController : ControllerBase
 
             // Calcular usando el servicio
             var amortizables = request.Amortizables is { Count: > 0 }
-                ? request.Amortizables.Select(a => (a.ActivoId, a.Cantidad)).ToList()
+                ? request.Amortizables.Select(a => (a.ActivoId, a.Cantidad, a.MesesVidaUtil)).ToList()
                 : null;
 
             var resultado = await _servicio.CalcularAsync(
@@ -512,7 +512,7 @@ public sealed class CotizacionesController : ControllerBase
         // Recalcular. Para un cliente del catálogo el tipo sale de su ficha; para un cliente
         // nuevo sale del snapshot con el que se cotizó, porque no hay ficha de donde sacarlo.
         var amortizablesAct = request.Amortizables is { Count: > 0 }
-            ? request.Amortizables.Select(a => (a.ActivoId, a.Cantidad)).ToList()
+            ? request.Amortizables.Select(a => (a.ActivoId, a.Cantidad, a.MesesVidaUtil)).ToList()
             : null;
 
         var resultado = await _servicio.CalcularAsync(

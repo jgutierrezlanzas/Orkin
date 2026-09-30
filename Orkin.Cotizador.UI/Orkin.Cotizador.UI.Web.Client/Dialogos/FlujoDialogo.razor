@@ -1,4 +1,8 @@
 @* Alta y edición de flujo de carga en modal. Ver ProductoDialogo para el porqué del patrón. *@
+@using System.Text.Json
+@inject IntegracionService IntegracionService
+@inject ISnackbar Snackbar
+
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form">
@@ -11,7 +15,8 @@
                 <MudItem xs="12" md="3">
                     <SelectorLegible TItem="ErpConexionModel" TValue="Guid"
                                      Items="Conexiones" ValorDe="c => c.Id" TextoDe="c => c.Nombre"
-                                     @bind-Value="Modelo.ErpConexionId"
+                                     Value="Modelo.ErpConexionId"
+                                     ValueChanged="@(v => CambiarConexion(v))"
                                      Label="Conexión" Clearable="true"
                                      TextoValorActual="— conexión eliminada —" />
                     @if (_faltaConexion)
@@ -19,36 +24,184 @@
                         <MudText Typo="Typo.caption" Class="mud-error-text">Elija la conexión: es la base de la que este flujo lee.</MudText>
                     }
                 </MudItem>
-                <MudItem xs="12" md="2">
-                    <MudSelect T="string" @bind-Value="Modelo.Catalogo" Label="Catálogo"
-                               Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudItem xs="12" md="3">
+                    @* Value/ValueChanged en vez de @bind-Value: cambiar de catálogo tiene que
+                       recargar la tabla de homologación, y eso solo se puede colgar del evento. *@
+                    <MudSelect T="string" Value="Modelo.Catalogo" ValueChanged="CambiarCatalogo"
+                               Label="Catálogo" Variant="Variant.Outlined" Margin="Margin.Dense">
                         @foreach (var cat in Catalogos)
                         {
                             <MudSelectItem T="string" Value="@cat">@cat</MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" md="4">
-                    <MudTextField @bind-Value="Modelo.Origen" Label="Origen (vista, tabla o consulta)"
+                <MudItem xs="12" md="3">
+                    <MudTextField T="string" Value="@Modelo.Origen" ValueChanged="@(v => CambiarOrigen(v))"
+                                  Label="Origen (vista, tabla o consulta)"
                                   Required="true" RequiredError="Falta el origen"
                                   Variant="Variant.Outlined" Margin="Margin.Dense"
                                   HelperText="Ejemplo: dbo.vw_ProductosOrkin" />
                 </MudItem>
-            </MudGrid>
-            <MudGrid Class="mt-1">
-                <MudItem xs="12" md="6">
+                <MudItem xs="12">
                     <MudTextField @bind-Value="Modelo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudExpansionPanels Elevation="0">
-                        <MudExpansionPanel Text="@(string.IsNullOrWhiteSpace(Modelo.MapeoJson) ? "Mapeo de columnas (opcional)" : "Mapeo de columnas (configurado)")">
-                            <MudTextField @bind-Value="Modelo.MapeoJson" Lines="5" Label="Mapeo (JSON)"
-                                          Variant="Variant.Outlined" Margin="Margin.Dense"
-                                          HelperText='Vacío = la vista ya trae los nombres esperados. Con contenido: { "columna del ERP": "Campo nuestro" }' />
-                        </MudExpansionPanel>
-                    </MudExpansionPanels>
-                </MudItem>
             </MudGrid>
+
+            @* ── Homologación ──────────────────────────────────────────────── *@
+            @* La tabla reemplaza el JSON crudo. Quien configura un flujo en la base de un
+               cliente no debería tener que saber escribir JSON: le interesa saber QUÉ datos se
+               necesitan, DE QUÉ tipo y cuáles son obligatorios — y, si deja que la plataforma
+               lea su vista, cuáles de esos datos le faltan. *@
+            <MudDivider Class="my-3" />
+            <div class="d-flex align-center justify-space-between mb-1">
+                <MudText Typo="Typo.subtitle1">Homologación de columnas</MudText>
+                @if (_mapeo.Count > 0)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        @if (_columnas.Count == 0)
+                        {
+                            @($"{_mapeo.Count} campos · sin renombrar: su vista ya trae estos nombres")
+                        }
+                        else
+                        {
+                            @($"{_mapeo.Count} campos · {_resueltos} resuelto{(_resueltos == 1 ? "" : "s")} · {_sinResolver} sin resolver en su vista")
+                        }
+                    </MudText>
+                }
+            </div>
+
+            <div class="d-flex align-center mb-2" style="gap: 8px;">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.TravelExplore"
+                           Disabled="@(_columnasCargando || Modelo.ErpConexionId == Guid.Empty || string.IsNullOrWhiteSpace(Modelo.Origen))"
+                           OnClick="@(() => LeerColumnas())">
+                    @(_columnasCargando ? "Leyendo la vista…" : "Leer columnas de la vista")
+                </MudButton>
+                @if (_columnas.Count > 0)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        @($"{_columnas.Count} columnas leídas. Déjelo vacío si su columna se llama igual que el dato.")
+                    </MudText>
+                }
+            </div>
+
+            @if (_cargandoCampos)
+            {
+                <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-2" />
+            }
+            else if (_mapeo.Count == 0)
+            {
+                <MudAlert Severity="Severity.Info" Dense="true" Variant="Variant.Outlined">
+                    Elija un catálogo para ver qué columnas necesita su vista.
+                </MudAlert>
+            }
+            else
+            {
+                @if (_columnas.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">
+                        Si su vista ya se llama como estos datos, déjelo vacío y no escriba nada. Si su ERP
+                        los llama de otro modo, escríbalo en «Columna en su vista».
+                    </MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">
+                        La columna se elige de las que trae su vista. Déjela vacía cuando el nombre ya coincide
+                        con el del dato.
+                    </MudText>
+                }
+
+                <MudTable Items="_mapeo" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+                          Elevation="0" Bordered="true" Class="mb-2">
+                    <HeaderContent>
+                        <MudTh>Dato que necesita la plataforma</MudTh>
+                        <MudTh>Tipo</MudTh>
+                        <MudTh Style="width: 100px;">Obligatorio</MudTh>
+                        <MudTh Style="min-width: 220px;">Columna en su vista</MudTh>
+                        @if (_columnas.Count > 0)
+                        {
+                            <MudTh Style="width: 130px;">Estado</MudTh>
+                        }
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Dato">
+                            <MudText Typo="Typo.body2" Style="font-family: monospace;">@context.Campo</MudText>
+                            @if (!string.IsNullOrWhiteSpace(context.Descripcion))
+                            {
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Descripcion</MudText>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Tipo">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="mud-text-secondary">
+                                @context.Tipo
+                            </MudChip>
+                        </MudTd>
+                        <MudTd DataLabel="Obligatorio">
+                            @if (context.EsObligatorio)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">Sí</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="mud-text-secondary">No</MudChip>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Columna en su vista">
+                            @if (_columnas.Count > 0)
+                            {
+                                <MudSelect T="string" Value="@context.ColumnaOrigen"
+                                           ValueChanged="@(v => FijarColumna(context, v))"
+                                           Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                                           Clearable="true"
+                                           Placeholder="@($"= {context.Campo}")">
+                                    @foreach (var columna in _columnas)
+                                    {
+                                        <MudSelectItem T="string" Value="@columna.Nombre">@columna.Texto</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                            else
+                            {
+                                <MudTextField T="string" Value="@context.ColumnaOrigen"
+                                              ValueChanged="@(v => FijarColumna(context, v))"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                                              Placeholder="@context.Campo" />
+                            }
+                        </MudTd>
+                        @if (_columnas.Count > 0)
+                        {
+                            <MudTd DataLabel="Estado">
+                                @if (EstaEnLaVista(context))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">Ya está</MudChip>
+                                }
+                                else if (context.EsObligatorio)
+                                {
+                                    <MudTooltip Text="Su vista no trae este dato. Las filas vendrán sin él y el cargador las rechazará.">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Text">Falta</MudChip>
+                                    </MudTooltip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="mud-text-secondary">Opcional</MudChip>
+                                }
+                            </MudTd>
+                        }
+                    </RowTemplate>
+                </MudTable>
+
+                @if (_faltanObligatorios.Count > 0)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Variant="Variant.Outlined" Class="mb-2">
+                        <MudText Typo="Typo.body2">
+                            Su vista no trae: @string.Join(", ", _faltanObligatorios).
+                            Puede guardar el flujo igual —los datos faltantes simplesmente no se cargan—,
+                            pero conviene saberlo antes de la primera corrida y no en la bitácora.
+                        </MudText>
+                    </MudAlert>
+                }
+            }
         </MudForm>
     </DialogContent>
     <DialogActions>
@@ -81,6 +234,237 @@
 
     private MudForm _form = null!;
     private bool _faltaConexion;
+    private bool _cargandoCampos;
+    private bool _columnasCargando;
+
+    /// <summary>Una fila de la tabla de homologación: el dato que espera el cargador y la
+    /// columna del ERP que lo trae (vacía = mismo nombre).</summary>
+    private sealed class FilaMapeo
+    {
+        public required string Campo { get; init; }
+        public required string Tipo { get; init; }
+        public required bool EsObligatorio { get; init; }
+        public string Descripcion { get; init; } = string.Empty;
+        public string ColumnaOrigen { get; set; } = string.Empty;
+    }
+
+    private List<FilaMapeo> _mapeo = [];
+    private List<string> _faltanObligatorios = [];
+
+    /// <summary>Las columnas que trae la vista del ERP. Vacío = todavía no se leyó, y entonces
+    /// la caja es de texto libre porque no hay nada de dónde elegir.</summary>
+    private List<ColumnaOrigenModel> _columnas = [];
+
+    private int _resueltos => _mapeo.Count(EstaEnLaVista);
+
+    private int _sinResolver => _mapeo.Count(f => !EstaEnLaVista(f));
+
+    /// <summary>
+    /// Si el dato está resuelto: hay una columna elegida, o la vista ya trae una con el mismo
+    /// nombre. La comparación es sin distinguir mayúsculas porque SQL Server no las distingue en
+    /// la mayoría de las intercalaciones, y «costo» serviría igual que «CostoActual».
+    /// </summary>
+    private bool EstaEnLaVista(FilaMapeo fila)
+    {
+        var columna = string.IsNullOrWhiteSpace(fila.ColumnaOrigen) ? fila.Campo : fila.ColumnaOrigen;
+        return _columnas.Any(c => string.Equals(c.Nombre, columna, StringComparison.OrdinalIgnoreCase));
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarCampos();
+
+        // Editar un flujo que ya tiene origen arranca con la vista leída: quien abre el diálogo
+        // para revisar el mapeo quiere ver el estado real, no una tabla en blanco que lo invite a
+        // escribir lo que ya está escrito.
+        if (Modelo.ErpConexionId != Guid.Empty && !string.IsNullOrWhiteSpace(Modelo.Origen))
+        {
+            await LeerColumnas(silencioso: true);
+        }
+    }
+
+    /// <summary>
+    /// Pide al API los campos que el cargador del catálogo declara y arma la tabla. El API los
+    /// saca del cargador registrado, no de una lista fija: agregar un cargador o cambiarle un
+    /// campo hace que la tabla cambie sola, sin tocar esta pantalla.
+    /// </summary>
+    private async Task CargarCampos()
+    {
+        _mapeo = [];
+        _faltanObligatorios = [];
+
+        if (string.IsNullOrWhiteSpace(Modelo.Catalogo))
+        {
+            return;
+        }
+
+        _cargandoCampos = true;
+        try
+        {
+            var campos = await IntegracionService.ObtenerCamposEsperadosAsync(Modelo.Catalogo);
+            var guardado = LeerMapeoGuardado(Modelo.MapeoJson);
+
+            _mapeo = campos
+                .Select(c => new FilaMapeo
+                {
+                    Campo = c.Nombre,
+                    Tipo = c.Tipo,
+                    EsObligatorio = c.EsObligatorio,
+                    Descripcion = c.Descripcion,
+                    // Solo se pre-llenan los que el flujo ya tenía mapeados. Los demás quedan
+                    // vacíos a propósito: vacío significa «su vista ya se llama así», que es lo
+                    // que hace el cargador cuando no hay mapeo. Poner el nombre del dato ahí lo
+                    // convertiría en un mapeo explícito que se desincroniza del cargador el día
+                    // que este cambie.
+                    ColumnaOrigen = guardado.TryGetValue(c.Nombre, out var columna) ? columna : string.Empty
+                })
+                .ToList();
+
+            RecalcularFaltantes();
+        }
+        finally
+        {
+            _cargandoCampos = false;
+        }
+    }
+
+    private async Task CambiarCatalogo(string catalogo)
+    {
+        Modelo.Catalogo = catalogo;
+        // El mapeo guardado era del catálogo anterior: aplicarlo al nuevo rechazaría filas por
+        // columnas que no significan nada. Empieza limpio.
+        Modelo.MapeoJson = null;
+        await CargarCampos();
+        RecalcularFaltantes();
+    }
+
+    private void CambiarConexion(Guid conexionId)
+    {
+        Modelo.ErpConexionId = conexionId;
+        _faltaConexion = false;
+        // Las columnas leídas eran de otra base: si no se limpian, la tabla seguiría diciendo
+        // «ya está» para columnas que no existen en el ERP que se acaba de elegir.
+        _columnas = [];
+    }
+
+    private void CambiarOrigen(string origen)
+    {
+        Modelo.Origen = origen;
+        _columnas = [];
+    }
+
+    /// <summary>
+    /// Abre la conexión al ERP del cliente y pide el esquema de la vista —solo el esquema, sin
+    /// leer filas—. Es un viaje al ERP del cliente, así que lo dispara quien lo pide con el botón
+    /// y no automáticamente al escribir el origen: nadie quiere que cada tecla abra una
+    /// conexión a un servidor ajeno.
+    /// </summary>
+    private async Task LeerColumnas(bool silencioso = false)
+    {
+        _columnasCargando = true;
+
+        try
+        {
+            var respuesta = await IntegracionService.ObtenerColumnasOrigenAsync(
+                Modelo.ErpConexionId, Modelo.Origen);
+
+            if (respuesta?.Exito == true && respuesta.Datos is { } columnas)
+            {
+                _columnas = columnas;
+                RecalcularFaltantes();
+
+                if (!silencioso && _faltanObligatorios.Count > 0)
+                {
+                    Snackbar.Add(
+                        $"Su vista no trae {_faltanObligatorios.Count} de los datos obligatorios. Revise la tabla.",
+                        Severity.Warning);
+                }
+            }
+            else
+            {
+                _columnas = [];
+                RecalcularFaltantes();
+
+                if (!silencioso)
+                {
+                    Snackbar.Add(respuesta?.Mensaje ?? "No se pudieron leer las columnas de la vista.", Severity.Error);
+                }
+            }
+        }
+        finally
+        {
+            _columnasCargando = false;
+        }
+    }
+
+    private void FijarColumna(FilaMapeo fila, string? columna)
+    {
+        fila.ColumnaOrigen = columna ?? string.Empty;
+        RecalcularFaltantes();
+    }
+
+    /// <summary>
+    /// Qué datos obligatorios no resuelve lo que hay. Solo tiene sentido con las columnas leídas:
+    /// sin ellas no se sabe qué trae la vista, y adivinar que un dato falta cuando nadie lo ha
+    /// comprobado es peor que no avisar.
+    /// </summary>
+    private void RecalcularFaltantes()
+        => _faltanObligatorios = _columnas.Count == 0
+            ? []
+            : _mapeo
+                .Where(f => f.EsObligatorio && !EstaEnLaVista(f))
+                .Select(f => f.Campo)
+                .ToList();
+
+    /// <summary>
+    /// Lee el <c>MapeoJson</c> guardado, que va de «columna del ERP» a «campo nuestro».
+    /// Un JSON roto no se lleva por delante el diálogo: se ignora y la tabla sale vacía, que es
+    /// lo mismo que se vería si el flujo nunca hubiera tenido mapeo.
+    /// </summary>
+    private static Dictionary<string, string> LeerMapeoGuardado(string? mapeoJson)
+    {
+        if (string.IsNullOrWhiteSpace(mapeoJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(mapeoJson) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Arma el <c>MapeoJson</c> desde la tabla.
+    /// <para><b>Si hay algún renombre, se emiten TODOS los campos</b>, incluidos los que coinciden
+    /// con su nombre. No es descuido: el motor aplica el mapeo como proyección estricta —lo que no
+    /// está en el mapeo llega vacío—, así que un mapeo con una sola columna renombrada dejaría sin
+    /// costo, sin nombre y sin unidad a cada fila del catálogo. La fila se vería bien en esta
+    /// pantalla y el cargador rechazaría todas en la primera corrida.</para>
+    /// <para>Si nadie renombró nada y no se leyó la vista, el mapeo queda vacío y la fila pasa
+    /// tal cual: ese es el caso normal de una vista bien construida, y dejarlo explícito solo
+    /// haría que la lista de flujos anunciara un mapeo donde no lo hay.</para>
+    /// </summary>
+    private string? ConstruirMapeoJson()
+    {
+        var hayRenombres = _mapeo.Any(f => !string.IsNullOrWhiteSpace(f.ColumnaOrigen));
+
+        if (!hayRenombres && _columnas.Count == 0)
+        {
+            return null;
+        }
+
+        var pares = _mapeo.ToDictionary(
+            f => string.IsNullOrWhiteSpace(f.ColumnaOrigen) ? f.Campo : f.ColumnaOrigen.Trim(),
+            f => f.Campo,
+            StringComparer.Ordinal);
+
+        return pares.Count == 0 ? null : JsonSerializer.Serialize(pares);
+    }
 
     private async Task Aceptar()
     {
@@ -98,6 +482,8 @@
         {
             return;
         }
+
+        Modelo.MapeoJson = ConstruirMapeoJson();
 
         Dialogo.Close(DialogResult.Ok(Modelo));
     }

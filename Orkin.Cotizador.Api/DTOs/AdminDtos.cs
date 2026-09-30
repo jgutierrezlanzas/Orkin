@@ -89,6 +89,21 @@ public sealed record ActualizarRolRequest(string? Nombre, string? Descripcion);
     bool EsObligatorio,
     string Descripcion);
 
+/// <summary>Una columna que trae la vista del ERP, para cotejarla contra los campos esperados.</summary>
+public sealed record ColumnaOrigenResponse(
+    string Nombre,
+    string Tipo,
+    bool PermiteNulos,
+    int? Longitud);
+
+/// <summary>
+/// Qué columnas leer. Va como cuerpo y no en la URL porque abre una conexión al ERP del cliente:
+/// la cadena de conexión y el nombre de la vista no pueden quedar en un log de acceso.
+/// </summary>
+public sealed record LeerColumnasRequest(
+    Guid ErpConexionId,
+    string Origen);
+
 // ── Parámetros generales ─────────────────────────────────────────────────────
 
 public sealed record ParametroResponse(

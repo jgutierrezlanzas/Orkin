@@ -9,7 +9,8 @@ public sealed record CotizacionInsumoRequest(
 /// <summary>Línea de activo amortizable para crear/actualizar una cotización.</summary>
 public sealed record CotizacionAmortizableRequest(
     Guid ActivoId,
-    decimal Cantidad);
+    decimal Cantidad,
+    int? MesesVidaUtil = null);
 
 /// <summary>Solicitud para calcular una cotización en memoria (preview).</summary>
 /// <param name="ClienteId">Cliente del catálogo. Null = cliente nuevo, todavía sin ficha.</param>

@@ -144,9 +144,11 @@
                     </MudTd>
                     <MudTd DataLabel="Origen">
                         <MudText Typo="Typo.body2" Style="font-family: monospace;">@context.Origen</MudText>
-                        @if (!string.IsNullOrWhiteSpace(context.MapeoJson))
+                        @if (ConteoColumnas(context.MapeoJson) is { } columnas)
                         {
-                            <MudText Typo="Typo.caption" Class="mud-text-secondary">con mapeo</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                @($"{columnas} columna{(columnas == 1 ? "" : "s")} homologada{(columnas == 1 ? "" : "s")}")
+                            </MudText>
                         }
                     </MudTd>
                     <MudTd DataLabel="Programación">
@@ -449,7 +451,7 @@
             { d => d.Conexiones, _conexiones },
             { d => d.Catalogos, _catalogosDisponibles }
         };
-        var opciones = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
         var dialogo = await DialogService.ShowAsync<FlujoDialogo>(
             modelo.Id == Guid.Empty ? "Nuevo flujo" : $"Editar — {modelo.Nombre}", parametros, opciones);
 
@@ -607,6 +609,30 @@
         return segundos < 86400
             ? $"{(int)Math.Ceiling(segundos / 3600)} h"
             : $"{(int)Math.Ceiling(segundos / 86400)} d";
+    }
+
+    /// <summary>
+    /// Cuántas columnas trae el mapeo guardado, o null si el flujo no tiene mapeo. Va como
+    /// número y no como «con mapeo» porque un mapeo de 20 columnas en una vista que ya se llama
+    /// bien no es lo mismo que uno de 2, y quien mira la tabla quiere saber cuánto revisar si
+    /// el ERP cambia.
+    /// </summary>
+    private static int? ConteoColumnas(string? mapeoJson)
+    {
+        if (string.IsNullOrWhiteSpace(mapeoJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            var mapa = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(mapeoJson);
+            return mapa?.Count;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
 
     private async Task EditarProgramacion(ErpFlujoModel flujo)

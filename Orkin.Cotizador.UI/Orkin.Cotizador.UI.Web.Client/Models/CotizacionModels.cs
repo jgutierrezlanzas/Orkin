@@ -132,6 +132,14 @@ public sealed class LineaAmortizableRequest
 {
     public Guid ActivoId { get; set; }
     public decimal Cantidad { get; set; } = 1;
+
+    /// <summary>
+    /// Vida útil en meses PARA ESTA COTIZACIÓN. Si no viene, se usa la del catálogo. Es
+    /// editable porque el valor del catálogo es el típico, no el real: una trampa a la
+    /// intemperie dura 6 meses y la misma trampa bajo techo dura 24 — quien está cotizando
+    /// lo sabe, el catálogo no.
+    /// </summary>
+    public int? MesesVidaUtil { get; set; }
 }
 
 public sealed class ClienteOpcion

@@ -208,7 +208,15 @@
                                              Dense="true" Clearable="true" />
                         </MudTd>
                         <MudTd>@ObtenerCostoActivo(context.ActivoId).ToString("N2")</MudTd>
-                        <MudTd>@ObtenerVidaUtil(context.ActivoId) meses</MudTd>
+                        <MudTd>
+                            @* La vida útil se EDITA: el catálogo trae el típico (12 meses),
+                               pero una trampa a la intemperie dura 6 y bajo techo dura 24 —
+                               quien cotiza lo sabe. Si no se toca, se usa la del catálogo. *@
+                            <MudNumericField T="int?" @bind-Value="context.MesesVidaUtil"
+                                             Min="1" Max="600" Placeholder="@ObtenerVidaUtil(context.ActivoId).ToString()"
+                                             Dense="true" Margin="Margin.Dense" Style="width: 100px"
+                                             HelperText="@(context.MesesVidaUtil is null ? "catálogo" : "editado")" />
+                        </MudTd>
                         <MudTd>
                             <MudNumericField T="decimal" @bind-Value="context.Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Min="0.01m" Step="1m" Style="width: 100px" />
                         </MudTd>
@@ -481,7 +489,7 @@
     private decimal ValorMensual(LineaAmortizableRequest fila)
     {
         var costo = ObtenerCostoActivo(fila.ActivoId);
-        var vida = ObtenerVidaUtil(fila.ActivoId);
+        var vida = fila.MesesVidaUtil ?? ObtenerVidaUtil(fila.ActivoId);
         if (vida <= 0) return 0;
         return costo / vida * fila.Cantidad;
     }

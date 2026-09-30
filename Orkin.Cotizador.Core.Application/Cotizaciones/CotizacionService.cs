@@ -41,7 +41,7 @@ public sealed class CotizacionService
         DateOnly fecha,
         decimal margen,
         IReadOnlyList<(Guid ProductoId, decimal Cantidad, byte? SemestreId)> insumos,
-        IReadOnlyList<(Guid ActivoId, decimal Cantidad)>? amortizables = null,
+        IReadOnlyList<(Guid ActivoId, decimal Cantidad, int? MesesVidaUtil)>? amortizables = null,
         CancellationToken cancellationToken = default)
     {
         byte tipo;
@@ -108,7 +108,7 @@ public sealed class CotizacionService
         var lineasAmortizables = new List<LineaAmortizable>();
         if (amortizables is not null)
         {
-            foreach (var (activoId, cantidad) in amortizables)
+            foreach (var (activoId, cantidad, mesesVidaUtil) in amortizables)
             {
                 var activo = await _contexto.ActivoAmortizable
                     .AsNoTracking()
@@ -116,12 +116,18 @@ public sealed class CotizacionService
                     .FirstOrDefaultAsync(a => a.Id == activoId && a.IsActive, cancellationToken)
                     ?? throw new InvalidOperationException($"El activo '{activoId}' no existe o está inactivo.");
 
+                // La vida útil de la cotización pisa la del catálogo: el catálogo trae el valor
+                // típico (12 meses), pero una trampa a la intemperie dura 6 y la misma bajo
+                // techo dura 24 — quien cotiza lo sabe. Si la cotización no trae el dato, se
+                // usa el del catálogo.
+                var vidaUtil = mesesVidaUtil is > 0 ? mesesVidaUtil.Value : activo.MesesVidaUtil;
+
                 lineasAmortizables.Add(new LineaAmortizable(
                     activo.Nombre,
                     activo.UnidadMedida?.Abreviatura ?? string.Empty,
                     cantidad,
                     activo.CostoActual,
-                    activo.MesesVidaUtil));
+                    vidaUtil));
             }
         }
 

@@ -16,9 +16,21 @@ public static class Normalizacion
     /// <para>Con mapeo (<paramref name="mapeo"/> distinto de null) es una <b>proyección
     /// estricta</b>: las columnas sin mapeo se ignoran; las que faltan quedan en null. Que sea
     /// estricta es lo que hace que un mapeo con una columna mal escrita falle ruidosamente en
-    /// vez de cargar el catálogo a medias.</para>
+    /// vez de cargar el catálogo a medias. Por eso la pantalla de homologación escribe en el
+    /// mapeo <i>todos</i> los campos, no solo los renombrados.</para>
     /// <para>Sin mapeo (null) la fila pasa <b>tal cual</b>: la vista de origen ya trae los
     /// nombres que espera el cargador, que es el caso normal de un flujo bien configurado.</para>
+    /// <para>El destino se guarda sin distinguir mayúsculas porque son los nombres de la
+    /// plataforma y el cargador los pide con esa capitalización exacta. La <i>columna de
+    /// origen</i>, en cambio, la trae el ERP y este sí la distingue: <c>DESCRIPCION</c> y
+    /// <c>Descripcion</c> son dos columnas diferentes en una vista de SQL Server —su
+    /// intercalación no las iguala— y las dos tienen que poder alimentar datos distintos. Por eso
+    /// la fila se guarda distinguiendo mayúsculas y <see cref="BuscarColumna"/> solo perdona las
+    /// mayúsculas cuando el nombre exacto no aparece.</para>
+    /// <para>Sin mapeo la fila se copia sin distinguirlas. Ahí no hay con qué desambiguar —sin
+    /// mapeo no hay manera de saber que <c>DESCRIPCION</c> significa <c>Nombre</c>—, y el
+    /// cargador termina diciendo «el campo 'Nombre' es obligatorio», que es un error honesto: una
+    /// vista ambigua se resuelve con un mapeo.</para>
     /// </summary>
     public static Dictionary<string, object?> AplicarMapeo(
         Dictionary<string, object?> fila,
@@ -33,13 +45,46 @@ public static class Normalizacion
 
         foreach (var (columnaOrigen, campoDestino) in mapeo)
         {
-            if (fila.TryGetValue(columnaOrigen, out var valor))
+            if (BuscarColumna(fila, columnaOrigen, out var valor))
             {
                 resultado[campoDestino] = valor;
             }
         }
 
         return resultado;
+    }
+
+    /// <summary>
+    /// Busca la columna en la fila: primero por el nombre exacto, y solo si no está, sin
+    /// distinguir mayúsculas.
+    /// <para>El orden importa y no es un detalle. La fila guarda las columnas tal como las trajo
+    /// el origen y las guarda <b>distinguiendo</b> mayúsculas, porque «DESCRIPCION» y
+    /// «Descripcion» son dos columnas y una no puede pisar a la otra. Pero el mapeo lo escribe
+    /// una persona, y esa persona escribe "descripcion" con minúscula tan fácil como
+    /// "DESCRIPCION". Por eso el rescate sin distinguir mayúsculas va <b>después</b>: si las dos
+    /// columnas existen, gana la que coincide exactamente, que es la inequívoca.</para>
+    /// </summary>
+    private static bool BuscarColumna(
+        Dictionary<string, object?> fila,
+        string columna,
+        out object? valor)
+    {
+        if (fila.TryGetValue(columna, out valor))
+        {
+            return true;
+        }
+
+        foreach (var (clave, dato) in fila)
+        {
+            if (string.Equals(clave, columna, StringComparison.OrdinalIgnoreCase))
+            {
+                valor = dato;
+                return true;
+            }
+        }
+
+        valor = null;
+        return false;
     }
 
     /// <summary>SHA-256 del contenido de la fila, para detectar cambios sin escribir.</summary>

@@ -32,6 +32,18 @@ public sealed record CampoEsperado(
     string Descripcion);
 
 /// <summary>
+/// Una columna que trae el origen: lo que hay del lado del ERP, para cotejarlo contra los
+/// campos que el cargador espera. Es lo que permite decirle a quien configura «a tu vista le
+/// falta el costo» en vez de dejar que lo descubra en la bitácora, tres días después, cuando una
+/// corrida rechaza 400 filas.
+/// </summary>
+public sealed record ColumnaOrigen(
+    string Nombre,
+    string Tipo,
+    bool PermiteNulos,
+    int? Longitud = null);
+
+/// <summary>
 /// Sabe cómo cargar UN catálogo: normaliza una fila cruda, busca la fila existente, decide
 /// si es insert / update / omit, y escribe en la base. Cada catálogo implementa esta
 /// interfaz; el orquestador no sabe cuál es cuál.

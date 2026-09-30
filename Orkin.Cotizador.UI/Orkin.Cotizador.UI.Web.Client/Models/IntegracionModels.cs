@@ -1,6 +1,33 @@
 namespace Orkin.Cotizador.UI.Web.Client.Models;
 
 /// <summary>
+/// Un campo que un cargador espera del origen, con lo que la pantalla de homologación
+/// necesita para mostrar la tabla de mapeo.
+/// </summary>
+public sealed class CampoEsperadoModel
+{
+    public string Nombre { get; set; } = string.Empty;
+    public string Tipo { get; set; } = string.Empty;
+    public bool EsObligatorio { get; set; }
+    public string Descripcion { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Una columna que trae la vista del ERP. Es el otro lado de la homologación: los campos los
+/// dice la plataforma, las columnas las dice el cliente.
+/// </summary>
+public sealed class ColumnaOrigenModel
+{
+    public string Nombre { get; set; } = string.Empty;
+    public string Tipo { get; set; } = string.Empty;
+    public bool PermiteNulos { get; set; }
+    public int? Longitud { get; set; }
+
+    /// <summary>Lo que se escribe en la caja de selección, con el tipo entre paréntesis.</summary>
+    public string Texto => $"{Nombre} ({Tipo})";
+}
+
+/// <summary>
 /// Una conexión al ERP de un cliente. No tiene <c>Contrasena</c> a propósito: la contraseña se
 /// escribe una vez, al guardar, y nunca vuelve a salir del servidor. Por eso el formulario
 /// distingue "sin contraseña" de "no la cambió" con un campo aparte, y no con una caja vacía que

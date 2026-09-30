@@ -184,7 +184,10 @@ public sealed class OrigenesController : ControllerBase
 
         if (cargador is null)
         {
-            return ApiResponse<object>.Error("CATALOGO_NO_SOPORTADO",
+            // NO_ENCONTRADO y no un 500: acá el catálogo es el cliente quien lo nombra, y la
+            // respuesta le dice cuáles sí existen. Es un 404 con la lista, no un fallo del
+            // servidor.
+            return ApiResponse<object>.Error("NO_ENCONTRADO",
                 $"El catálogo '{catalogo}' no tiene cargador. Los disponibles son: {string.Join(", ", _proceso.CatalogosDisponibles)}.").AHttp();
         }
 
@@ -192,6 +195,45 @@ public sealed class OrigenesController : ControllerBase
             cargador.CamposEsperados
                 .Select(c => new CampoEsperadoResponse(c.Nombre, c.Tipo, c.EsObligatorio, c.Descripcion))
                 .ToList()).AHttp();
+    }
+
+    /// <summary>
+    /// Las columnas que trae la vista del ERP — la otra mitad de la homologación.
+    /// <para>Con los dos lados a la vista, configurar un flujo deja de ser adivinar: la pantalla
+    /// muestra qué campos necesita la plataforma, cuáles trae la vista y cuáles faltan. Es un
+    /// <c>POST</c> y no un <c>GET</c> porque abre una conexión al ERP del cliente —algo con
+    /// efecto, aunque no escriba— y mandarlo en la URL acabaría con la cadena de conexión y el
+    /// nombre de la vista en el log de cualquier proxy.</para>
+    /// </summary>
+    [HttpPost("flujos/columnas")]
+    public async Task<IResult> ColumnasDelOrigen(
+        [FromBody] LeerColumnasRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var columnas = await _servicio.LeerColumnasOrigenAsync(
+                request.ErpConexionId, request.Origen, cancellationToken);
+
+            return ApiResponse<IReadOnlyList<ColumnaOrigenResponse>>.Ok(
+                columnas
+                    .Select(c => new ColumnaOrigenResponse(c.Nombre, c.Tipo, c.PermiteNulos, c.Longitud))
+                    .ToList()).AHttp();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApiResponse<IReadOnlyList<ColumnaOrigenResponse>>
+                .Error("VALIDACION", ex.Message).AHttp();
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex)
+        {
+            // VALIDACION y no un error de servidor, porque el que lo mandó lo puede arreglar:
+            // casi siempre es un nombre de vista equivocado. Y el mensaje del SQL Server se pasa
+            // tal cual a propósito —«invalid object name» le dice a un administrador qué
+            // escribir, y un genérico «no se pudo leer» lo deja probando nombres a ciegas.
+            return ApiResponse<IReadOnlyList<ColumnaOrigenResponse>>
+                .Error("VALIDACION", $"No se pudo leer el origen: {ex.Message}").AHttp();
+        }
     }
 
     [HttpGet("flujos")]

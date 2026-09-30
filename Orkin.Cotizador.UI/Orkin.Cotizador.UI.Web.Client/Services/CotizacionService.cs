@@ -39,7 +39,8 @@ public sealed class CotizacionService
             Amortizables = (amortizables ?? []).Select(a => new
             {
                 a.ActivoId,
-                a.Cantidad
+                a.Cantidad,
+                a.MesesVidaUtil
             }).ToList()
         };
 
@@ -109,7 +110,8 @@ public sealed class CotizacionService
             Amortizables = (amortizables ?? []).Select(a => new
             {
                 a.ActivoId,
-                a.Cantidad
+                a.Cantidad,
+                a.MesesVidaUtil
             }).ToList()
         };
 

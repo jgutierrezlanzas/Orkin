@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.Data.SqlClient;
 
 using Orkin.Cotizador.Core.Domain.Carga;
@@ -75,7 +76,12 @@ public sealed class LectorSqlServer : ILectorOrigen
 
         while (await lector.ReadAsync(cancellationToken))
         {
-            var fila = new Dictionary<string, object?>(lector.FieldCount, StringComparer.OrdinalIgnoreCase);
+            // Ordinal y no OrdinalIgnoreCase: la fila guarda los nombres que trae la vista, y dos
+            // que solo difieren en mayúsculas son dos columnas distintas — "DESCRIPCION" y
+            // "Descripcion" conviven sin problema en una vista de SQL Server (su intercalación no
+            // las distingue) y aquí no podem pisarse. Con un diccionario que no las distingue, una
+            // borraba a la otra y el cargador veía el dato vacío sin ninguna señal.
+            var fila = new Dictionary<string, object?>(lector.FieldCount, StringComparer.Ordinal);
 
             for (var i = 0; i < lector.FieldCount; i++)
             {
@@ -88,5 +94,60 @@ public sealed class LectorSqlServer : ILectorOrigen
         }
 
         return filas;
+    }
+
+    /// <summary>
+    /// Los nombres y tipos de las columnas que devuelve el origen, <b>sin leer ni una fila</b>.
+    /// <para>Existe para la pantalla de homologación: quien configura un flujo necesita ver qué
+    /// trae la vista de su ERP para saber qué le falta, y no debería enterarse de eso leyendo una
+    /// corrida que rechazó 400 filas.</para>
+    /// <para>Se pide el esquema con <see cref="CommandBehavior.SchemaOnly"/> y no «la primera
+    /// fila»: una vista de productos del cliente puede tener un millón de filas, y correrla
+    /// entera para descartar los datos sería el trabajo más caro que hace la plataforma en una
+    /// pantalla que solo quiere mostrar nombres de columnas.</para>
+    /// </summary>
+    public async Task<IReadOnlyList<ColumnaOrigen>> LeerColumnasAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await using var conexion = new SqlConnection(_cadenaConexion);
+        await conexion.OpenAsync(cancellationToken);
+
+        await using var comando = new SqlCommand(_consulta, conexion)
+        {
+            CommandTimeout = _tiempoEspera
+        };
+
+        await using var lector = await comando.ExecuteReaderAsync(
+            CommandBehavior.SchemaOnly, cancellationToken);
+
+        var columnas = new List<ColumnaOrigen>(lector.FieldCount);
+
+        // GetSchemaTable es el camino con los metadatos completos (tipo de dato, si admite
+        // nulos, longitud). Si el proveedor no lo implementara, el bucle por FieldCount deja
+        // salir la lista igual con el nombre: peor que ningún tipo, pero no un error.
+        var esquema = lector.GetSchemaTable();
+
+        if (esquema is not null)
+        {
+            foreach (System.Data.DataRow fila in esquema.Rows)
+            {
+                columnas.Add(new ColumnaOrigen(
+                    fila["ColumnName"]?.ToString() ?? string.Empty,
+                    fila["DataTypeName"]?.ToString() ?? "desconocido",
+                    fila["AllowDBNull"] is true,
+                    fila["ColumnSize"] is int tamano && tamano > 0 && tamano < int.MaxValue
+                        ? tamano
+                        : null));
+            }
+
+            return columnas;
+        }
+
+        for (var i = 0; i < lector.FieldCount; i++)
+        {
+            columnas.Add(new ColumnaOrigen(lector.GetName(i), lector.GetDataTypeName(i), true));
+        }
+
+        return columnas;
     }
 }

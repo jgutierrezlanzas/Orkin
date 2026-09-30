@@ -107,7 +107,13 @@ public sealed class LectorExcel : ILectorOrigen
 
         while (filaActual is not null && !filaActual.IsEmpty())
         {
-            var fila = new Dictionary<string, object?>(columnas.Count, StringComparer.OrdinalIgnoreCase);
+            // Ordinal y no OrdinalIgnoreCase: la fila guarda las columnas QUE TRAE EL ARCHIVO, y
+            // dos que solo difieren en mayúsculas son dos columnas. Con un diccionario que no las
+            // distingue, la segunda borra a la primera y el dato se pierde sin aviso — en un Excel
+            // con "DESCRIPCION" y "Descripcion", que es exactamente lo que hacen muchos.
+            // La búsqueda sin distinguir mayúsculas la pone <see cref="Normalizacion.AplicarMapeo"/>,
+            // que sí debe perdonar las mayúsculas al comparar contra el mapeo.
+            var fila = new Dictionary<string, object?>(columnas.Count, StringComparer.Ordinal);
 
             foreach (var (indice, nombre) in columnas)
             {

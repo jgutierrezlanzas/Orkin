@@ -3,15 +3,6 @@ using Orkin.Cotizador.UI.Web.Client.Models;
 
 namespace Orkin.Cotizador.UI.Web.Client.Services;
 
-/// <summary>
-/// Acceso a los endpoints de orígenes de datos (<c>api/origenes</c>): las conexiones al ERP de
-/// los clientes y los flujos que llenan los catálogos desde ellas.
-/// <para>El servicio devuelve la <see cref="ApiResponse{T}"/> completa en los métodos que
-/// escriben, y solo los datos en los que solo leen. La diferencia es a propósito: al listar no
-/// hay nada que avisar (una lista vacía es una lista vacía), pero al guardar sí, y el código del
-/// error ("VALIDACION", "DATO_INVALIDO", "NO_ENCONTRADO") dice más que un "no se pudo".
-/// </para>
-/// </summary>
 public sealed class IntegracionService
 {
     private readonly HttpClient _http;
@@ -22,16 +13,6 @@ public sealed class IntegracionService
     }
 
     // ── Conexiones ───────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Los catálogos con cargador registrado. Se piden a la API en vez de traer una lista fija:
-    /// agregar un cargador lo hace aparecer acá solo, sin tocar la pantalla.
-    /// </summary>
-    public async Task<string[]> ObtenerCatalogosDisponiblesAsync()
-    {
-        var respuesta = await _http.GetFromJsonAsync<ApiResponse<string[]>>("api/origenes/catalogos");
-        return respuesta?.Datos ?? ["PRODUCTOS"];
-    }
 
     public async Task<List<ErpConexionModel>> ListarConexionesAsync()
     {
@@ -44,55 +25,78 @@ public sealed class IntegracionService
         var request = new
         {
             modelo.Nombre,
-            modelo.Descripcion,
             modelo.Servidor,
             modelo.Puerto,
             modelo.NombreBaseDatos,
             modelo.Esquema,
             modelo.Usuario,
             Contrasena = contrasena,
+            modelo.Descripcion,
             modelo.TiempoEsperaSegundos
         };
-
         var response = await _http.PostAsJsonAsync("api/origenes/conexiones", request);
         return await response.Content.ReadFromJsonAsync<ApiResponse<ErpConexionModel>>();
     }
 
-    /// <summary>
-    /// Actualiza la conexión. <paramref name="contrasena"/> en <c>null</c> significa "no la
-    /// cambiaron, deja la que está": mandarla vacía la borraría, que es un error distinto al que
-    /// la persona quiso pedir. Por eso la contraseña no se manda nunca implícitamente, sino solo
-    /// cuando el formulario la tiene a la vista porque alguien la escribió.
-    /// </summary>
     public async Task<ApiResponse<ErpConexionModel>?> ActualizarConexionAsync(ErpConexionModel modelo, string? contrasena)
     {
         var request = new
         {
-            modelo.Descripcion,
+            modelo.Nombre,
             modelo.Servidor,
             modelo.Puerto,
             modelo.NombreBaseDatos,
             modelo.Esquema,
             modelo.Usuario,
             Contrasena = contrasena,
+            modelo.Descripcion,
             modelo.TiempoEsperaSegundos
         };
-
         var response = await _http.PutAsJsonAsync($"api/origenes/conexiones/{modelo.Id}", request);
         return await response.Content.ReadFromJsonAsync<ApiResponse<ErpConexionModel>>();
     }
 
-    /// <summary>
-    /// Abre la conexión. La prueba fallida llega como HTTP 400 con el motivo en el mensaje, así
-    /// que además del <c>Exito</c> se lee <c>Mensaje</c> y <c>Codigo</c>.
-    /// </summary>
     public async Task<ApiResponse<ProbarConexionModel>?> ProbarConexionAsync(Guid id)
     {
         var response = await _http.PostAsync($"api/origenes/conexiones/{id}/probar", null);
         return await response.Content.ReadFromJsonAsync<ApiResponse<ProbarConexionModel>>();
     }
 
-    // ── Flujos ───────────────────────────────────────────────────────────────
+    // ── Flujos ────────────────────────────────────────────────────────────────
+
+    public async Task<string[]> ObtenerCatalogosDisponiblesAsync()
+    {
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<string[]>>("api/origenes/catalogos");
+        return respuesta?.Datos ?? ["PRODUCTOS"];
+    }
+
+    /// <summary>
+    /// Los campos que un catálogo espera del origen — para la tabla de homologación.
+    /// Se piden a la API en vez de venir en una constante: agregar un cargador
+    /// hace aparecer sus campos automáticamente.
+    /// </summary>
+    public async Task<List<CampoEsperadoModel>> ObtenerCamposEsperadosAsync(string catalogo)
+    {
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<CampoEsperadoModel>>>(
+            $"api/origenes/catalogos/{catalogo}/campos");
+        return respuesta?.Datos ?? [];
+    }
+
+    /// <summary>
+    /// Las columnas que trae la vista del ERP, para llenar la homologación con los nombres de
+    /// verdad y no con lo que se suppose que se llaman. Abre conexión al cliente: la pide quien
+    /// está configurando, nunca sola por haber escrito el origen.
+    /// </summary>
+    public async Task<ApiResponse<List<ColumnaOrigenModel>>?> ObtenerColumnasOrigenAsync(
+        Guid conexionId, string origen)
+    {
+        var response = await _http.PostAsJsonAsync("api/origenes/flujos/columnas", new
+        {
+            ErpConexionId = conexionId,
+            Origen = origen
+        });
+        return await response.Content.ReadFromJsonAsync<ApiResponse<List<ColumnaOrigenModel>>>();
+    }
 
     public async Task<List<ErpFlujoModel>> ListarFlujosAsync()
     {
@@ -111,7 +115,6 @@ public sealed class IntegracionService
             modelo.Origen,
             modelo.MapeoJson
         };
-
         var response = await _http.PostAsJsonAsync("api/origenes/flujos", request);
         return await response.Content.ReadFromJsonAsync<ApiResponse<ErpFlujoModel>>();
     }
@@ -120,12 +123,12 @@ public sealed class IntegracionService
     {
         var request = new
         {
+            modelo.Nombre,
             modelo.Descripcion,
             modelo.Catalogo,
             modelo.Origen,
             modelo.MapeoJson
         };
-
         var response = await _http.PutAsJsonAsync($"api/origenes/flujos/{modelo.Id}", request);
         return await response.Content.ReadFromJsonAsync<ApiResponse<ErpFlujoModel>>();
     }
@@ -140,67 +143,44 @@ public sealed class IntegracionService
     {
         var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<SincronizacionEjecucionModel>>>(
             $"api/origenes/flujos/{flujoId}/ejecuciones?top={top}");
-
         return respuesta?.Datos ?? [];
     }
 
-    /// <summary>
-    /// Corre el flujo ahora. No se encola ni se devuelve un id de trabajo: una sincronización de
-    /// un catálogo de un ERP de un cliente termina en segundos o en un par de minutos, y esperar
-    /// con la pantalla quieta a que termine es más honesto que mostrar un "en cola" que nadie
-    /// va a ver avanzar.
-    /// </summary>
     public async Task<ApiResponse<ResultadoCargaModel>?> EjecutarFlujoAsync(Guid flujoId)
     {
         var response = await _http.PostAsync($"api/origenes/flujos/{flujoId}/ejecutar", null);
         return await response.Content.ReadFromJsonAsync<ApiResponse<ResultadoCargaModel>>();
     }
 
-    /// <summary>
-    /// Simula la ejecución sin escribir. No refresca nada detrás: simular no cambia el estado
-    /// del flujo ni agrega una fila al historial, así que la pantalla no tiene por qué repintarse
-    /// y quien simula no debería ver moverse nada.
-    /// </summary>
     public async Task<ApiResponse<SimulacionFlujoModel>?> SimularFlujoAsync(Guid flujoId)
     {
         var response = await _http.PostAsync($"api/origenes/flujos/{flujoId}/simular", null);
         return await response.Content.ReadFromJsonAsync<ApiResponse<SimulacionFlujoModel>>();
     }
 
-    // ── Programación ─────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Programa el flujo o lo devuelve a manual. Refresca la lista porque la respuesta trae el
-    /// flujo ya con la ventana calculada, y esa ventana es lo que la pantalla muestra.
-    /// </summary>
     public async Task<ApiResponse<ErpFlujoModel>?> ConfigurarProgramacionAsync(
-        Guid flujoId,
-        string tipoDisparador,
-        int? intervaloSegundos,
-        int? maximoRegistrosPorCorrida = null,
-        short? maximoFallosConsecutivos = null)
+        Guid flujoId, string tipoDisparador, int? intervaloSegundos,
+        int? maximoRegistrosPorCorrida, short? maximoFallosConsecutivos)
     {
-        var cuerpo = new
+        var request = new
         {
-            tipoDisparador,
-            intervaloSegundos,
-            maximoRegistrosPorCorrida,
-            maximoFallosConsecutivos
+            TipoDisparador = tipoDisparador,
+            IntervaloSegundos = intervaloSegundos,
+            MaximoRegistrosPorCorrida = maximoRegistrosPorCorrida,
+            MaximoFallosConsecutivos = maximoFallosConsecutivos
         };
-
-        var response = await _http.PutAsJsonAsync($"api/origenes/flujos/{flujoId}/programacion", cuerpo);
+        var response = await _http.PutAsync($"api/origenes/flujos/{flujoId}/programacion",
+            JsonContent.Create(request));
         return await response.Content.ReadFromJsonAsync<ApiResponse<ErpFlujoModel>>();
     }
 
-    /// <summary>Pausa el flujo. El motivo es lo que va a explicar el flujo parado dentro de un mes.</summary>
     public async Task<ApiResponse<ErpFlujoModel>?> PausarFlujoAsync(Guid flujoId, string? motivo = null)
     {
-        var response = await _http.PostAsJsonAsync(
-            $"api/origenes/flujos/{flujoId}/pausar", new { motivo });
+        var request = new { Motivo = motivo };
+        var response = await _http.PostAsJsonAsync($"api/origenes/flujos/{flujoId}/pausar", request);
         return await response.Content.ReadFromJsonAsync<ApiResponse<ErpFlujoModel>>();
     }
 
-    /// <summary>Reanuda un flujo pausado, lo pausara una persona o el motor por fallos seguidos.</summary>
     public async Task<ApiResponse<ErpFlujoModel>?> ReanudarFlujoAsync(Guid flujoId)
     {
         var response = await _http.PostAsync($"api/origenes/flujos/{flujoId}/reanudar", null);

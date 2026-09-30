@@ -231,6 +231,36 @@ public sealed class IntegracionService
     }
 
     /// <summary>
+    /// Las columnas que trae el origen de un flujo. Es la otra mitad de la homologación: los
+    /// campos que el cargador espera los dice la plataforma, y las columnas que trae la vista las
+    /// dice el ERP del cliente. Con los dos lados a la vista, configurar un flujo deja de ser
+    /// adivinar y pasa a ser comparar.
+    /// <para>No deja rastro en la conexión ni en la bitácora: leer el esquema de una vista es
+    /// parte de configurarla, no una sincronización. Igual que <c>ProbarConexionAsync</c>, si
+    /// algo falla el error lo recibe quien está en la pantalla, con el mensaje del SQL Server tal
+    /// cual, porque «invalid object name» sí le dice a un administrador qué escribir.</para>
+    /// </summary>
+    public async Task<IReadOnlyList<ColumnaOrigen>> LeerColumnasOrigenAsync(
+        Guid conexionId,
+        string origen,
+        CancellationToken cancellationToken = default)
+    {
+        var conexion = await ObtenerConexionAsync(conexionId, cancellationToken)
+            ?? throw new KeyNotFoundException("La conexión no existe.");
+
+        var cadena = ConstruirCadena(conexion);
+
+        if (string.IsNullOrWhiteSpace(cadena))
+        {
+            throw new InvalidOperationException(
+                "La conexión no tiene usuario o contraseña configurados. Vuelva a editarla y guárdela de nuevo.");
+        }
+
+        var lector = new LectorSqlServer(cadena, origen, conexion.TiempoEsperaSegundos);
+        return await lector.LeerColumnasAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Arma la cadena de conexión a partir de la conexión guardada, descifrando la contraseña.
     /// <c>Application Name</c> identifica la conexión en las vistas de administración del SQL
     /// Server del cliente: si el ERPBeingxFan sees una consulta de ORKIN, se ve por qué.
@@ -506,8 +536,14 @@ public sealed class IntegracionService
 
     /// <summary>
     /// El mapeo es un JSON de objeto plano. Se valida al guardar, no al ejecutar: un error de
-    /// tipeo en una llave del mapeo se detecta mientras se configura, no cuando el ETL corre
-    /// a las tres de la mañana y deja el catálogo a medias.
+    /// tipeo en la forma del JSON se detecta mientras se configura, no cuando el ETL corre a las
+    /// tres de la mañana y deja el catálogo a medias.
+    /// <para>Lo que se comprueba es solo la <b>forma</b>: que sea un objeto y que cada valor sea
+    /// texto. Lo que el mapeo <i>significa</i> no se juzga aquí, y no por pereza: el destino de
+    /// una columna lo decide la vista del cliente, que la plataforma no puede ver al guardar.
+    ///Ni siquiera las dos columnas que solo difieren en mayúsculas —<c>DESCRIPCION</c> y
+    /// <c>Descripcion</c>— son un error: son dos columnas de una vista de SQL Server y las dos
+    /// son legítimas.</para>
     /// </summary>
     private static void ValidarMapeo(string? mapeoJson)
     {
@@ -532,6 +568,14 @@ public sealed class IntegracionService
                         $"El valor del mapeo de '{propiedad.Name}' debe ser texto (el nombre del campo destino).");
                 }
             }
+
+            // Lo que NO se valida aquí, a propósito: dos columnas que solo se diferencian en
+            // mayúsculas («DESCRIPCION» y «Descripcion») apuntando a datos distintos. Parece un
+            // error de tipeo, pero es una configuración legítima —una vista con las dos columnas
+            // es válida en SQL Server— y el motor la resuelve bien porque las claves del mapeo se
+            // comparan distinguiéndolas. Rechazarla obligaría al cliente a renombrar columnas de
+            // su ERP para acomodarse a la plataforma, que es justo lo contrario de lo que se
+            // busca: que el cliente no tenga que tocar su base.
         }
         catch (JsonException ex)
         {
@@ -717,7 +761,15 @@ public sealed class IntegracionService
         }
 
         using var documento = JsonDocument.Parse(mapeoJson);
-        var mapeo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // Las columnas de origen se guardan DISTINGUIENDO mayúsculas. Es lo que hace falta porque
+        // los ERPs que abrevian en mayúsculas traen `DESCRIPCION`, y `DESCRIPCION` y `Descripcion`
+        // son la misma palabra sin distinguir mayúsculas: en un diccionario que no las distingue,
+        // la segunda entrada borra a la primera y el `Nombre` de todas las filas llega vacío —
+        // sin un solo error, solo datos que no llegan. La búsqueda en la fila sí sigue sin
+        // distinguir mayúsculas (la fila viene así), así que un mapeo escrito en minúsculas
+        // todavía encuentra su columna.
+        var mapeo = new Dictionary<string, string>(StringComparer.Ordinal);
 
         foreach (var propiedad in documento.RootElement.EnumerateObject())
         {
