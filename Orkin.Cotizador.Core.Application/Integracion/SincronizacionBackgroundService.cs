@@ -109,6 +109,7 @@ public sealed class SincronizacionBackgroundService : BackgroundService
         using var alcance = _scopes.CreateScope();
         var integracion = alcance.ServiceProvider.GetRequiredService<IntegracionService>();
         var contexto = alcance.ServiceProvider.GetRequiredService<CotizadorDbContext>();
+        var reclamador = alcance.ServiceProvider.GetRequiredService<ReclamadorFlujos>();
 
         try
         {
@@ -137,6 +138,15 @@ public sealed class SincronizacionBackgroundService : BackgroundService
                 ex, "El flujo {FlujoId} falló en la vuelta programada: {Mensaje}", flujo.ErpFlujoId, ex.Message);
 
             await RevisarPausaAsync(contexto, flujo, cancellationToken);
+        }
+        finally
+        {
+            // El alquiler se suelta pase lo que pase, y con `CancellationToken.None` a propósito:
+            // si se cancela justo al terminar, soltar con el token del apagado sería saltarse el
+            // `finally` más interno y dejar el flujo marcado. While no se suelte, el flujo no se
+            // vuelve a reclamar —y el último en soltar es el que gana, no el que llegó más tarde—,
+            // así que la marca tiene que caerse siempre.
+            await reclamador.LiberarCorridaAsync(flujo.ErpFlujoId, flujo.MarcaAlquiler, CancellationToken.None);
         }
     }
 

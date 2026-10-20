@@ -2939,6 +2939,10 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("nvarchar(40)")
                         .HasColumnName("Catalogo");
 
+                    b.Property<DateTime?>("CorridaEnCursoUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CorridaEnCursoUtc");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2(3)")

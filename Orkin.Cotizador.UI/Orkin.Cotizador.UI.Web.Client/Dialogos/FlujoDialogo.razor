@@ -6,13 +6,13 @@
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form">
-            <MudGrid>
-                <MudItem xs="12" md="3">
+            <MudGrid Spacing="0">
+                <MudItem xs="12" md="4">
                     <MudTextField @bind-Value="Modelo.Nombre" Label="Nombre" Required="true"
                                   RequiredError="Ponga un nombre"
                                   Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="12" md="3">
+                <MudItem xs="12" md="4">
                     <SelectorLegible TItem="ErpConexionModel" TValue="Guid"
                                      Items="Conexiones" ValorDe="c => c.Id" TextoDe="c => c.Nombre"
                                      Value="Modelo.ErpConexionId"
@@ -24,7 +24,7 @@
                         <MudText Typo="Typo.caption" Class="mud-error-text">Elija la conexión: es la base de la que este flujo lee.</MudText>
                     }
                 </MudItem>
-                <MudItem xs="12" md="3">
+                <MudItem xs="12" md="4">
                     @* Value/ValueChanged en vez de @bind-Value: cambiar de catálogo tiene que
                        recargar la tabla de homologación, y eso solo se puede colgar del evento. *@
                     <MudSelect T="string" Value="Modelo.Catalogo" ValueChanged="CambiarCatalogo"
@@ -35,8 +35,8 @@
                         }
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudTextField T="string" Value="@Modelo.Origen" ValueChanged="@(v => CambiarOrigen(v))"
+                <MudItem xs="12">
+                    <MudTextField T="string" Lines="3" Value="@Modelo.Origen" ValueChanged="@(v => CambiarOrigen(v))"
                                   Label="Origen (vista, tabla o consulta)"
                                   Required="true" RequiredError="Falta el origen"
                                   Variant="Variant.Outlined" Margin="Margin.Dense"
@@ -60,11 +60,11 @@
                     <MudText Typo="Typo.caption" Class="mud-text-secondary">
                         @if (_columnas.Count == 0)
                         {
-                            @($"{_mapeo.Count} campos · sin renombrar: su vista ya trae estos nombres")
+                            @($"{_mapeo.Count} campos · sin leer la vista: cada dato usa su propio nombre")
                         }
                         else
                         {
-                            @($"{_mapeo.Count} campos · {_resueltos} resuelto{(_resueltos == 1 ? "" : "s")} · {_sinResolver} sin resolver en su vista")
+                            @($"{_mapeo.Count} campos · {_resueltos} resuelto{(_resueltos == 1 ? "" : "s")} · {_homologados} homologado{(_homologados == 1 ? "" : "s")} a mano · {_sinResolver} sin resolver en su vista")
                         }
                     </MudText>
                 }
@@ -80,7 +80,7 @@
                 @if (_columnas.Count > 0)
                 {
                     <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                        @($"{_columnas.Count} columnas leídas. Déjelo vacío si su columna se llama igual que el dato.")
+                        @($"{_columnas.Count} columnas leídas. Cada dato queda apuntando a la suya; cámbiela solo si su columna se llama de otro modo.")
                     </MudText>
                 }
             </div>
@@ -100,15 +100,17 @@
                 @if (_columnas.Count == 0)
                 {
                     <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">
-                        Si su vista ya se llama como estos datos, déjelo vacío y no escriba nada. Si su ERP
-                        los llama de otro modo, escríbalo en «Columna en su vista».
+                        Todavía no se han leído las columnas de su vista, así que no se puede mostrar qué
+                        columna está resolviendo cada dato: en blanco significa que se está usando el
+                        mismo nombre del dato. Pulse «Leer columnas de la vista» para verlas todas y
+                        Homologar a mano las que su ERP llame de otro modo.
                     </MudText>
                 }
                 else
                 {
                     <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">
-                        La columna se elige de las que trae su vista. Déjela vacía cuando el nombre ya coincide
-                        con el del dato.
+                        Cada dato queda apuntando a la columna que le corresponde. Si su ERP la llama de otro
+                        modo, elija la correcta: la homologación es lo que se va a leer en cada corrida.
                     </MudText>
                 }
 
@@ -172,19 +174,38 @@
                         @if (_columnas.Count > 0)
                         {
                             <MudTd DataLabel="Estado">
-                                @if (EstaEnLaVista(context))
+                                @* Los tres estados que importan, en el orden en que un usuario
+                                   los lee: homologado a mano, coincidence de nombre, y lo que no
+                                   está. «Ya está» no se usa para los dos primeros porque no
+                                   significa lo mismo: una coincidencia se la revisa de un vistazo
+                                   y una homologación a mano es lo que hay que volver a comprobar
+                                   cuando la vista del cliente cambia. *@
+                                @if (ColumnaResuelta(context) is null)
                                 {
-                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">Ya está</MudChip>
+                                    if (context.EsObligatorio)
+                                    {
+                                        <MudTooltip Text="Su vista no trae este dato. Las filas vendrán sin él y el cargador las rechazará.">
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Text">Falta</MudChip>
+                                        </MudTooltip>
+                                    }
+                                    else
+                                    {
+                                        <MudTooltip Text="Su vista no trae ninguna columna para este dato. Es opcional, así que la carga sigue adelante sin él.">
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="mud-text-secondary">Sin columna</MudChip>
+                                        </MudTooltip>
+                                    }
                                 }
-                                else if (context.EsObligatorio)
+                                else if (context.Homologada)
                                 {
-                                    <MudTooltip Text="Su vista no trae este dato. Las filas vendrán sin él y el cargador las rechazará.">
-                                        <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Text">Falta</MudChip>
+                                    <MudTooltip Text="Lo homologó alguien: esta columna de su vista es este dato.">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">Homologado</MudChip>
                                     </MudTooltip>
                                 }
                                 else
                                 {
-                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="mud-text-secondary">Opcional</MudChip>
+                                    <MudTooltip Text="No hizo falta homologar: su vista trae una columna con el mismo nombre.">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">Mismo nombre</MudChip>
+                                    </MudTooltip>
                                 }
                             </MudTd>
                         }
@@ -238,14 +259,30 @@
     private bool _columnasCargando;
 
     /// <summary>Una fila de la tabla de homologación: el dato que espera el cargador y la
-    /// columna del ERP que lo trae (vacía = mismo nombre).</summary>
+    /// columna del ERP que lo trae.</summary>
     private sealed class FilaMapeo
     {
         public required string Campo { get; init; }
         public required string Tipo { get; init; }
         public required bool EsObligatorio { get; init; }
         public string Descripcion { get; init; } = string.Empty;
+
+        /// <summary>
+        /// La columna que resuelve este dato. Vacía solo cuando la vista no trae nada que le
+        /// sirva; con las columnas leídas, todo dato que exista queda apuntando a la suya.
+        /// </summary>
         public string ColumnaOrigen { get; set; } = string.Empty;
+
+        /// <summary>
+        /// ¿La columna la eligió alguien, o es la que coincide con el nombre del dato?
+        /// <para>Se guardan las dos cosas porque se ven distinto, y la diferencia es justo lo que
+        /// el usuario necesita ver: una homologación explícita es una decisión tomada a ojo
+        /// sobre su vista —«este <c>DESCRIPCION</c> es mi <c>Descripcion</c>»— y por lo mismo es
+        /// la única evidencia de que alguien revisó la vista. Una coincidencia de nombre es lo que
+        /// le va a pasar a un flujo bien construido, y no debería verse igual que una decisión:
+        /// una se revisa, la otra ni existe.</para>
+        /// </summary>
+        public bool Homologada { get; set; }
     }
 
     private List<FilaMapeo> _mapeo = [];
@@ -260,14 +297,49 @@
     private int _sinResolver => _mapeo.Count(f => !EstaEnLaVista(f));
 
     /// <summary>
+    /// Cuántos datos resolvió alguien a mano, y por eso se cuentan aparte: es el número que dice
+    /// cuánta de las columnas de esta vista están elegidas en vez de coincidir por casualidad.
+    /// </summary>
+    private int _homologados => _mapeo.Count(f => f.Homologada && EstaEnLaVista(f));
+
+    /// <summary>
     /// Si el dato está resuelto: hay una columna elegida, o la vista ya trae una con el mismo
     /// nombre. La comparación es sin distinguir mayúsculas porque SQL Server no las distingue en
     /// la mayoría de las intercalaciones, y «costo» serviría igual que «CostoActual».
     /// </summary>
     private bool EstaEnLaVista(FilaMapeo fila)
+        => ColumnaResuelta(fila) is not null;
+
+    /// <summary>
+    /// La columna de la vista que resuelve este dato, o <c>null</c> si ninguna lo resuelve.
+    /// <para>La coincidencia es <b>exacta</b> primero, y las mayúsculas se perdonan solo cuando no
+    /// hay exacta y hay <b>una sola</b> candidata. No se perdonan siempre a propósito:
+    /// <c>DESCRIPCION</c> y <c>Descripcion</c> son dos columnas distintas y legítimas de una
+    /// vista de SQL Server, y acertar cuál de las dos es el dato es precisamente el error que
+    /// esta pantalla existe para evitar. Con dos candidatas no se elige ninguna: es más honesto
+    /// dejar la fila sin resolver para que la homologue quien sepa. Es la misma regla que sigue
+    /// <c>Normalizacion.BuscarColumna</c> en el momento de cargar, para que lo que se ve aquí y
+    /// lo que se lee del ERP no puedan separarse.</para>
+    /// </summary>
+    private ColumnaOrigenModel? ColumnaResuelta(FilaMapeo fila)
     {
-        var columna = string.IsNullOrWhiteSpace(fila.ColumnaOrigen) ? fila.Campo : fila.ColumnaOrigen;
-        return _columnas.Any(c => string.Equals(c.Nombre, columna, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(fila.ColumnaOrigen))
+        {
+            return _columnas.FirstOrDefault(c => string.Equals(c.Nombre, fila.ColumnaOrigen, StringComparison.Ordinal));
+        }
+
+        var exacta = _columnas.FirstOrDefault(c => string.Equals(c.Nombre, fila.Campo, StringComparison.Ordinal));
+        if (exacta is not null)
+        {
+            return exacta;
+        }
+
+        var insensibles = _columnas
+            .Where(c => string.Equals(c.Nombre, fila.Campo, StringComparison.OrdinalIgnoreCase))
+            .Take(2)
+            .ToList();
+
+        return insensibles.Count == 1 ? insensibles[0] : null;
     }
 
     protected override async Task OnInitializedAsync()
@@ -288,6 +360,23 @@
     /// saca del cargador registrado, no de una lista fija: agregar un cargador o cambiarle un
     /// campo hace que la tabla cambie sola, sin tocar esta pantalla.
     /// </summary>
+    /// <summary>
+    /// Da vuelta el mapeo guardado: de «columna del ERP» → «campo nuestro» a
+    /// «campo nuestro» → «columna del ERP», que es como lo lee la tabla.
+    /// <para>Se separa en pares con clave en la columna para que dos columnas distintas no puedan
+    /// pisarse al agrupar: dos entradas que apuntan al mismo campo solo pueden venir de un JSON
+    /// escrito a mano, y en ese caso gana la primera. Perder una de las dos es preferible a tirar
+    /// la excepción y dejar el diálogo entero sin abrir.</para>
+    /// </summary>
+    private static Dictionary<string, string> InvertirMapeo(Dictionary<string, string> mapeo)
+        => mapeo
+            .Where(par => !string.IsNullOrWhiteSpace(par.Key) && !string.IsNullOrWhiteSpace(par.Value))
+            .GroupBy(par => par.Value, StringComparer.Ordinal)
+            .ToDictionary(
+                grupo => grupo.Key,
+                grupo => grupo.First().Key,
+                StringComparer.Ordinal);
+
     private async Task CargarCampos()
     {
         _mapeo = [];
@@ -302,7 +391,16 @@
         try
         {
             var campos = await IntegracionService.ObtenerCamposEsperadosAsync(Modelo.Catalogo);
-            var guardado = LeerMapeoGuardado(Modelo.MapeoJson);
+
+            // El MapeoJson va de «columna del ERP» a «campo nuestro» —esa es su dirección en la
+            // base y en el cargador— y la tabla se construye de campos hacia columnas. Por eso
+            // hay que darlo vuelta antes de consultarlo. Sin esta vuelta la búsqueda falla justo
+            // en el caso que importa: cuando el ERP llama a la columna de otro modo, la clave
+            // guardada es `DESCRIPCION` y el campo que se busca es `Descripcion`, así que no
+            // aparece nada, el combo sale vacío y al guardar la homologación se pisa con la
+            // identidad. El nombre de la columna solo coincide con el del campo cuando no hubo
+            // renombre, y por eso el error pasaba desapercibido en los flujos que andaban bien.
+            var porCampo = InvertirMapeo(LeerMapeoGuardado(Modelo.MapeoJson));
 
             _mapeo = campos
                 .Select(c => new FilaMapeo
@@ -311,12 +409,11 @@
                     Tipo = c.Tipo,
                     EsObligatorio = c.EsObligatorio,
                     Descripcion = c.Descripcion,
-                    // Solo se pre-llenan los que el flujo ya tenía mapeados. Los demás quedan
-                    // vacíos a propósito: vacío significa «su vista ya se llama así», que es lo
-                    // que hace el cargador cuando no hay mapeo. Poner el nombre del dato ahí lo
-                    // convertiría en un mapeo explícito que se desincroniza del cargador el día
-                    // que este cambie.
-                    ColumnaOrigen = guardado.TryGetValue(c.Nombre, out var columna) ? columna : string.Empty
+                    // Solo se pre-llenan los que el flujo ya tenía homologados. Los demás se
+                    // resuelven al leer las columnas de la vista (ver RellenarCoincidencias), que
+                    // es cuando se puede saber qué trae de verdad.
+                    ColumnaOrigen = porCampo.GetValueOrDefault(c.Nombre, string.Empty),
+                    Homologada = porCampo.ContainsKey(c.Nombre)
                 })
                 .ToList();
 
@@ -371,6 +468,7 @@
             if (respuesta?.Exito == true && respuesta.Datos is { } columnas)
             {
                 _columnas = columnas;
+                RellenarCoincidencias();
                 RecalcularFaltantes();
 
                 if (!silencioso && _faltanObligatorios.Count > 0)
@@ -400,7 +498,42 @@
     private void FijarColumna(FilaMapeo fila, string? columna)
     {
         fila.ColumnaOrigen = columna ?? string.Empty;
+
+        // Lo que elige la persona es homologación, y se marca como tal aunque se haya elegido la
+        // columna que ya coincidía por nombre. Es la diferencia entre «alguien miró esta vista y
+        // decidió que esta columna es este dato» y «apareció sola»; en una homologación a mano
+        // sobre una vista con nombres distintos, eso es justo lo que hay que poder ver.
+        fila.Homologada = !string.IsNullOrWhiteSpace(fila.ColumnaOrigen);
+
         RecalcularFaltantes();
+    }
+
+    /// <summary>
+    /// Deja cada combo apuntando a la columna de la vista que le corresponde.
+    /// <para>No es decoración. El motor aplica el mapeo como proyección estricta —lo que no está
+    /// mapeado llega vacío—, así que un combo vacío y un combo que dice <c>Codigo</c> terminan en
+    /// el mismo resultado. La diferencia es que uno se ve y el otro no, y una pantalla donde la
+    /// homologación se ve es la única forma de que el usuario sepa qué se está usando y dónde se
+    /// equivocó.</para>
+    /// <para>No pisa lo que ya está elegido. Una fila que viene con columna del mapeo guardado
+    /// mantiene la suya, y el combo queda como estaba: cambiarle el valor por el automático
+    /// mientras alguien lo está mirando sería moverle el mapeo debajo de la mano.</para>
+    /// </summary>
+    private void RellenarCoincidencias()
+    {
+        foreach (var fila in _mapeo)
+        {
+            if (!string.IsNullOrWhiteSpace(fila.ColumnaOrigen))
+            {
+                continue;
+            }
+
+            var coincidencia = ColumnaResuelta(fila);
+            if (coincidencia is not null)
+            {
+                fila.ColumnaOrigen = coincidencia.Nombre;
+            }
+        }
     }
 
     /// <summary>
@@ -451,20 +584,44 @@
     /// </summary>
     private string? ConstruirMapeoJson()
     {
-        var hayRenombres = _mapeo.Any(f => !string.IsNullOrWhiteSpace(f.ColumnaOrigen));
+        var hayElecciones = _mapeo.Any(f => !string.IsNullOrWhiteSpace(f.ColumnaOrigen));
 
-        if (!hayRenombres && _columnas.Count == 0)
+        if (!hayElecciones && _columnas.Count == 0)
         {
             return null;
         }
 
-        var pares = _mapeo.ToDictionary(
-            f => string.IsNullOrWhiteSpace(f.ColumnaOrigen) ? f.Campo : f.ColumnaOrigen.Trim(),
-            f => f.Campo,
-            StringComparer.Ordinal);
+        // Se arma con el indexador y no con `ToDictionary` a propósito. Dos datos pueden quedar
+        // apuntando a la misma columna —los combos lo permiten— y `ToDictionary` tiraría una
+        // excepción sin explicar nada, dejando al usuario con un Guardar que no guarda. Aquí la
+        // última gana, y el aviso de columna repetida lo da Aceptar antes de llegar acá.
+        var pares = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var fila in _mapeo)
+        {
+            var columna = string.IsNullOrWhiteSpace(fila.ColumnaOrigen) ? fila.Campo : fila.ColumnaOrigen.Trim();
+            pares[columna] = fila.Campo;
+        }
 
         return pares.Count == 0 ? null : JsonSerializer.Serialize(pares);
     }
+
+    /// <summary>
+    /// Columnas de la vista que quedaron apuntando a más de un dato.
+    /// <para>No se avisa para que se elija: se avisa porque es una decisión que el motor no puede
+    /// tomar. Una sola columna no puede ser a la vez el costo y el margen, así que uno de los dos
+    /// datos se quedaría sin leer sin que nada lo diga: la fila entraría a medias y el motivo
+    /// estaría dos pantallas más allá, en la bitácora de una corrida que el usuario no pidió
+    /// revisar.</para>
+    /// </summary>
+    private List<string> ColumnasRepetidas()
+        => _mapeo
+            .Where(f => !string.IsNullOrWhiteSpace(f.ColumnaOrigen))
+            .GroupBy(f => f.ColumnaOrigen.Trim(), StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
 
     private async Task Aceptar()
     {
@@ -480,6 +637,17 @@
         _faltaConexion = Modelo.ErpConexionId == Guid.Empty;
         if (_faltaConexion)
         {
+            return;
+        }
+
+        var repetidas = ColumnasRepetidas();
+        if (repetidas.Count > 0)
+        {
+            Snackbar.Add(
+                $"La columna «{repetidas[0]}» está asignada a más de un dato. " +
+                "Una columna sola no puede alimentar dos datos: elija otra para alguno de los dos.",
+                Severity.Error);
+
             return;
         }
 

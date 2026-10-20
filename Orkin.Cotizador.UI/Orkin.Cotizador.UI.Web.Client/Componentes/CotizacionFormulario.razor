@@ -1,0 +1,833 @@
+@* Formulario de cotización. UNO SOLO para el alta y la edición.
+
+   Por qué existe: antes eran dos archivos y se desincronizaron. El de edición se quedó corto
+   (sin amortizables, sin modalidad, sin técnico, sin fecha estimada, sin dirección) y, peor,
+   al guardar mandaba modalidad nula y amortizables vacíos: abrir una cotización para corregirle
+   el margen y guardarla le borraba los activos y la modalidad, en silencio. Dos pantallas que
+   hay que mantener en paralelo son dos pantallas que se van a volver a separar.
+
+   Cómo se comportan por modo, y por qué:
+
+   * Cliente — solo lectura al editar. Ya viajó con ese nombre y su tipo decide el método de
+     costeo; cambiarlo sería re-etiquetar una cotización ya emitida.
+   * Tipo de cliente — idem, solo lectura al editar. Sale del catálogo o del snapshot.
+   * Todo lo demás — igual en los dos modos. Fecha, tipo de servicio, margen, modalidad,
+     técnico, fecha estimada, dirección, insumos, amortizables y cálculo.
+
+   El componente no guarda: entrega <see cref="CotizacionFormularioDatos"/> por
+   <c>OnGuardar</c> y que sea la pantalla la que decida si llama al alta o a la actualización.
+   Así el formulario no sabe de qué pantalla viene, y las dos no pueden divergir en lo que
+   guardan porque guardan exactamente el mismo objeto. *@
+@inject CotizacionService CotizacionService
+@inject CatalogoService CatalogoService
+@inject ISnackbar Snackbar
+
+<MudPaper Elevation="2" Class="pa-4 mb-6">
+    <MudText Typo="Typo.h6" Class="mb-4">Datos generales</MudText>
+
+    @* El switch va en su propia línea, arriba de la grilla: adentro de la columna de cliente,
+       según el modo apilaba dos campos o uno y desalineaba toda la fila. Así el cambio de modo
+       mueve el contenido de las casillas sin mover las casillas. En edición no aparece: el
+       cliente no se cambia. *@
+    @if (!Editando)
+    {
+        <MudSwitch @bind-Value="_clienteEsNuevo" Label="Cliente nuevo (todavía sin ficha en el catálogo)" Color="Color.Primary" Class="mb-2" />
+    }
+
+    <MudGrid>
+        <MudItem xs="12" md="4">
+            @if (Editando)
+            {
+                @* Solo lectura, con el motivo a la vista. Mostrar el campo sin explicación
+                   invites a intentar moverlo; el texto dice por qué no se puede. *@
+                <MudTextField Value="@_clienteNombreNuevo" Label="Cliente" ReadOnly="true"
+                              Variant="Variant.Outlined" Margin="Margin.Dense"
+                              HelperText="No se cambia al editar: ya viajó con ese nombre y su tipo define el costeo." />
+            }
+            else if (_clienteEsNuevo)
+            {
+                <MudTextField @bind-Value="_clienteNombreNuevo" Label="Nombre del cliente" Required="true"
+                              RequiredError="Ponga el nombre con el que se cotiza"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+            }
+            else
+            {
+                <SelectorLegible TItem="ClienteOpcion" TValue="Guid"
+                                 Items="_opciones.Clientes" ValorDe="c => c.Id" TextoDe='c => $"{c.Nombre} ({c.Codigo})"'
+                                 @bind-Value="_clienteId"
+                                 Label="Cliente"
+                                 Clearable="true" />
+            }
+        </MudItem>
+        <MudItem xs="12" md="4">
+            @if (Editando)
+            {
+                <MudTextField Value="@TipoDelClienteSeleccionado" Label="Tipo de cliente" ReadOnly="true"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+            }
+            else if (_clienteEsNuevo)
+            {
+                <SelectorLegible TItem="TipoClienteOpcionModel" TValue="byte"
+                                 Items="_opciones.TiposCliente" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
+                                 @bind-Value="_tipoClienteNuevoId"
+                                 Label="Tipo de cliente"
+                                 Clearable="true" />
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    El tipo decide el método de costeo.
+                </MudText>
+            }
+            else
+            {
+                @* El tipo del cliente del catálogo se muestra, no se elige: sale de su ficha y
+                   manda por encima de cualquier otra cosa, porque cotizarle a ACME con el margen
+                   de otro tipo es cotizar con el método de otro. *@
+                <MudTextField Value="@TipoDelClienteSeleccionado"
+                              Label="Tipo de cliente"
+                              ReadOnly="true"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+            }
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <SelectorLegible TItem="TipoServicioOpcion" TValue="Guid"
+                             Items="_opciones.TiposServicio" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
+                             @bind-Value="_tipoServicioId"
+                             Label="Tipo de servicio"
+                             Clearable="true" />
+        </MudItem>
+        <MudItem xs="12" md="4">
+            @* @bind-Date y no @bind-Value: es el parámetro nativo del picker. Value enlaza el
+               estado pero no repinta el texto inicial — la caja nacía vacía aunque el modelo ya
+               traía la fecha, y quien cotiza no debe adivinar qué fecha viajará.
+
+               Editable también al editar. Antes estaba bloqueada con el motivo "el consecutivo
+               ya la lleva", que era falso: el consecutivo (COT-2026-0004) lleva número y año,
+               no el día. Y la API siempre aceptó cambiarla. Se avisa de que el tipo de cambio se
+               recalcula a esa fecha, porque es la consecuencia real de moverla. *@
+            <MudDatePicker @bind-Date="_fecha" Label="Fecha" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           DateFormat="dd/MM/yyyy"
+                           HelperText="@(Editando ? "Al moverla se recalcula el tipo de cambio a esa fecha." : null)" />
+        </MudItem>
+        <MudItem xs="12" md="4">
+            @* Margen en porcentaje porque así piensa quien cotiza: "con el 5,5" y no "con 0,055".
+               El Excel y la base trabajan en fracción (0.055 = 5,5 %); la conversión vive en
+               MargenFraccion. La nota va dentro de la casilla: flotando abajo se separaba. *@
+            <MudNumericField T="decimal" @bind-Value="_margenPorcentaje" Label="Margen (%)"
+                             Variant="Variant.Outlined" Margin="Margin.Dense"
+                             Adornment="Adornment.End" AdornmentText="%"
+                             Step="0.5m" Min="0m" Max="100m" />
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Margen sobre el costo total.
+            </MudText>
+        </MudItem>
+
+        @* ── El bloque de tipo de cambio: se muestra solo, no se elige ────────────── *@
+        <MudItem xs="12" md="4">
+            <MudTextField Value="@TextoTipoCambio" Label="Tipo de cambio (automático)"
+                          ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          HelperText="El último valor conocido a la fecha de la cotización." />
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <SelectorLegible TItem="ModalidadOpcionModel" TValue="string"
+                             Items="_opciones.Modalidades" ValorDe="m => m.Codigo" TextoDe="m => m.Nombre"
+                             @bind-Value="_modalidadCodigo"
+                             Label="Modalidad" Clearable="true"
+                             HelperText="@(Editando ? "Se puede cambiar: antes el guardado la borraba siempre." : null)" />
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <SelectorLegible TItem="TecnicoOpcionModel" TValue="Guid?"
+                             Items="_opciones.Tecnicos" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
+                             @bind-Value="_tecnicoAsignadoId"
+                             Label="Técnico asignado" Clearable="true"
+                             HelperText="Opcional: se puede cotizar y asignar después." />
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudDatePicker @bind-Date="_fechaEstimada" Label="Fecha estimada de ejecución"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" DateFormat="dd/MM/yyyy" />
+        </MudItem>
+        <MudItem xs="12" md="12">
+            <MudTextField @bind-Value="_direccionServicio" Label="Dirección del servicio"
+                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                          HelperText="Dónde se va a realizar el trabajo." />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="2" Class="pa-4 mb-6">
+    @* El botón de agregar va al final, pegado a donde cae la fila nueva. Con la lista larga,
+       arriba obliga a scrollear hasta el título para volver a bajar: la acción queda donde su
+       efecto. *@
+    <MudText Typo="Typo.h6" Class="mb-4">Insumos</MudText>
+
+    @if (_insumos.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">
+            @(Editando ? "La cotización no tiene insumos." : "No hay insumos. Agregue al menos uno para calcular.")
+        </MudAlert>
+    }
+    else
+    {
+        <MudTable Items="_insumos" Hover="false" Dense="true">
+            <HeaderContent>
+                <MudTh>Producto</MudTh>
+                <MudTh>Cantidad</MudTh>
+                <MudTh>Costo unitario</MudTh>
+                <MudTh>Total</MudTh>
+                <MudTh />
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd Style="min-width: 250px">
+                    @* La lista de cada fila excluye lo ya elegido en las demás: así no se puede
+                       duplicar un insumo sin darse cuenta y no hace falta validarlo. El producto
+                       de ESTA fila sí va, para poder cambiarlo o ver cuál tiene.
+
+                       TextoValorActual es lo que evita ver un combo en blanco al editar: si el
+                       producto fue desactivado, sale de la lista y el valor sigue cargado, así
+                       que sin este texto la fila abriría vacía y quien guardara sin mirar no
+                       sabría qué se estaba cobrando. *@
+                    <SelectorLegible TItem="ProductoModel" TValue="Guid"
+                                     Items="@ProductosDisponibles(context)"
+                                     ValorDe="p => p.Id"
+                                     TextoDe='p => $"{p.Nombre} — {p.CostoActual:N2} C$/{p.UnidadMedidaAbreviatura}"'
+                                     @bind-Value="context.ProductoId"
+                                     TextoValorActual="@NombreProductoDe(context.ProductoId)"
+                                     Dense="true"
+                                     Clearable="true" />
+                </MudTd>
+                <MudTd>
+                    <MudNumericField T="decimal" @bind-Value="context.Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Min="0.01m" Step="1m" Style="width: 120px" />
+                </MudTd>
+                <MudTd>@ObtenerCosto(context.ProductoId).ToString("N2")</MudTd>
+                <MudTd>@((ObtenerCosto(context.ProductoId) * context.Cantidad).ToString("N2"))</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => QuitarInsumo(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+
+    <div class="d-flex justify-end mt-2">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarInsumo">Agregar insumo</MudButton>
+    </div>
+</MudPaper>
+
+@* ── Activos amortizables ──────────────────────────────────────────────────────
+   A diferencia del insumo, se descuenta por MESES dentro de la cotización: una trampa de
+   C$400 con 12 meses de vida son C$33/mes, no C$400 de golpe. *@
+<MudPaper Elevation="2" Class="pa-4 mb-6">
+    <MudText Typo="Typo.h6" Class="mb-4">Activos amortizables</MudText>
+
+    @if (_amortizables.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            Sin activos amortizables. Si el servicio usa trampas o lámparas, agrégalas: el costo
+            se prorratea por meses, no se cobra entero.
+        </MudText>
+    }
+    else
+    {
+        <MudTable Items="_amortizables" Hover="false" Dense="true">
+            <HeaderContent>
+                <MudTh>Activo</MudTh>
+                <MudTh>Precio</MudTh>
+                <MudTh>Vida útil</MudTh>
+                <MudTh>Cantidad</MudTh>
+                <MudTh>Valor mensual</MudTh>
+                <MudTh />
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd Style="min-width: 220px">
+                    <SelectorLegible TItem="ActivoAmortizableOpcionModel" TValue="Guid"
+                                     Items="@ActivosDisponibles(context)"
+                                     ValorDe="a => a.Id"
+                                     TextoDe='a => $"{a.Nombre} — {a.CostoActual:N2} C$/{a.UnidadAbreviatura}"'
+                                     @bind-Value="context.ActivoId"
+                                     TextoValorActual="@NombreActivoDe(context.ActivoId)"
+                                     Dense="true" Clearable="true" />
+                </MudTd>
+                <MudTd>@ObtenerCostoActivo(context.ActivoId).ToString("N2")</MudTd>
+                <MudTd>
+                    @* La vida útil se EDITA: el catálogo trae el típico (12 meses), pero una
+                       trampa a la intemperie dura 6 y bajo techo dura 24 — quien cotiza lo sabe.
+                       Si no se toca, se usa la del catálogo. La etiqueta dice cuál de las dos
+                       está en juego, porque un 12 que viene del catálogo y un 12 tecleado a mano
+                       se ven igual en la caja y no significan lo mismo. *@
+                    <MudNumericField T="int?" @bind-Value="context.MesesVidaUtil"
+                                     Min="1" Max="600" Placeholder="@ObtenerVidaUtil(context.ActivoId).ToString()"
+                                     Dense="true" Margin="Margin.Dense" Style="width: 100px"
+                                     HelperText="@(context.MesesVidaUtil is null ? "catálogo" : "editado")" />
+                </MudTd>
+                <MudTd>
+                    <MudNumericField T="decimal" @bind-Value="context.Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Min="0.01m" Step="1m" Style="width: 100px" />
+                </MudTd>
+                <MudTd>@ValorMensual(context).ToString("N2")</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => QuitarAmortizable(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+
+    <div class="d-flex justify-end mt-2">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarAmortizable">Agregar activo</MudButton>
+    </div>
+</MudPaper>
+
+@if (_resultado is not null)
+{
+    <MudPaper Elevation="4" Class="pa-4 mb-6">
+        <MudText Typo="Typo.h6" Class="mb-4">Resultado del cálculo</MudText>
+        <MudGrid>
+            <MudItem xs="12" md="3">
+                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                    <MudText Typo="Typo.caption">Total insumos</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Primary">@_resultado.TotalInsumos.ToString("N2")</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                    <MudText Typo="Typo.caption">Costo total</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Primary">@_resultado.CostoTotal.ToString("N2")</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                    <MudText Typo="Typo.caption">Precio C$</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Success">@_resultado.PrecioCordobas.ToString("N2")</MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudPaper Elevation="0" Class="pa-3 text-center" Style="background: #FAFAFA; border-radius: 8px;">
+                    <MudText Typo="Typo.caption">Precio US$</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Success">@_resultado.PrecioUsd.ToString("N2")</MudText>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+        <MudDivider Class="my-4" />
+        <MudGrid>
+            <MudItem xs="12" md="3">
+                <MudText Typo="Typo.body2">TC usado: <b>@_resultado.TipoCambioValor.ToString("N4")</b> (@_resultado.TipoCambioFecha.ToString("dd/MM/yyyy"))</MudText>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudText Typo="Typo.body2">Margen: <b>@((_resultado.MargenAplicado * 100).ToString("N1"))%</b></MudText>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudText Typo="Typo.body2">Semestre 1: <b>@_resultado.TotalInsumosSemestre1.ToString("N2")</b></MudText>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudText Typo="Typo.body2">Semestre 2: <b>@_resultado.TotalInsumosSemestre2.ToString("N2")</b></MudText>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+}
+
+<div class="d-flex justify-end gap-4">
+    @if (Editando)
+    {
+        @* Cancelar solo tiene sentido donde hay algo de donde volver: el detalle de la
+           cotización. En el alta, el botón de atrás del navegador ya está. *@
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+    }
+    @* Deshabilitado mientras falte el cliente —del catálogo o nuevo— o no haya insumos: las
+       validaciones de Calcular/Guardar ya avisan con mensaje, pero un botón que no se puede
+       pulsar evita el rodeo de clic-queja. *@
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="Calcular"
+               Disabled="_calculando || ValidarCliente() is not null || ValidarTipoServicio() is not null || ValidarFecha() is not null || ValidarInsumos() is not null">
+        @if (_calculando)
+        {
+            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+        }
+        else
+        {
+            <MudText>Calcular</MudText>
+        }
+    </MudButton>
+    @* Guardar exige un cálculo vigente. Editar sin calcular dejaría el formulario cambiando
+       campos que nadie miró el efecto, que es como se guarda un precio equivocado. *@
+    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="Guardar"
+               Disabled="_guardando || _resultado is null">
+        @if (_guardando)
+        {
+            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+        }
+        else
+        {
+            <MudText>@(Editando ? "Guardar cambios" : "Guardar cotización")</MudText>
+        }
+    </MudButton>
+</div>
+
+@code {
+    /// <summary>
+    /// La cotización a editar. Null = alta. Es lo único que distingue los dos modos: con esto
+    /// presente el formulario carga las líneas guardadas y deja el cliente fijo.
+    /// </summary>
+    [Parameter]
+    public CotizacionDetalleModel? Cotizacion { get; set; }
+
+    /// <summary>
+    /// Recibe todo el formulario en un solo objeto. La pantalla decide si es alta o
+    /// actualización; el componente no lo sabe ni lo necesita.
+    /// </summary>
+    [Parameter]
+    public EventCallback<CotizacionFormularioDatos> OnGuardar { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancelar { get; set; }
+
+    private bool Editando => Cotizacion is not null;
+
+    private CotizacionOpciones _opciones = new();
+    private List<ProductoModel> _productos = [];
+    private List<LineaInsumoRequest> _insumos = [];
+    private List<LineaAmortizableRequest> _amortizables = [];
+    private CotizacionCalculadaResponse? _resultado;
+    private Guid _clienteId;
+    private Guid _tipoServicioId;
+    private bool _calculando;
+    private bool _guardando;
+
+    /// <summary>
+    /// La fecha del picker, en DateTime: es el tipo nativo de MudDatePicker, y con DateOnly el
+    /// picker enlaza bien pero no pinta el valor inicial. La conversión a DateOnly —lo que habla
+    /// la API— vive en Fecha.
+    /// </summary>
+    private DateTime? _fecha = DateTime.Today;
+
+    /// <summary>La fecha como la pide la API. La validación garantiza que ya esté elegida.</summary>
+    private DateOnly Fecha => DateOnly.FromDateTime(_fecha!.Value);
+
+    /// <summary>
+    /// El margen tal como se teclea: porcentaje. El Excel original y la base trabajan en fracción
+    /// (0.055 = 5.5 %), pero "con el 5,5" es como habla quien cotiza.
+    /// </summary>
+    private decimal _margenPorcentaje = 5.5m;
+
+    private decimal MargenFraccion => _margenPorcentaje / 100m;
+
+    /// <summary>
+    /// El tipo del cliente, para mostrarlo al lado del nombre. Al editar sale del snapshot que
+    /// guardó la cotización; al dar de alta sale de la ficha, y si es cliente nuevo del tipo
+    /// que eligió quien cotiza. En los tres casos se muestra y no se elige: el tipo decide el
+    /// método de costeo y no es un dato de la cotización, es de la persona.
+    /// </summary>
+    private string TipoDelClienteSeleccionado
+        => Editando
+            ? _opciones.TiposCliente.FirstOrDefault(t => t.Id == Cotizacion!.TipoClienteId)?.Nombre ?? ""
+            : _clienteEsNuevo
+                ? _opciones.TiposCliente.FirstOrDefault(t => t.Id == _tipoClienteNuevoId)?.Nombre ?? ""
+                : _opciones.Clientes.FirstOrDefault(c => c.Id == _clienteId)?.TipoClienteNombre ?? "";
+
+    // Cliente nuevo: alguien llamó, pidió precios y todavía no tiene ficha en el catálogo.
+    // La cotización queda con el nombre tecleado y el tipo elegido, sin tocar dbo.Cliente.
+    // Al editar, este mismo campo guarda el nombre tal como quedó en el snapshot.
+    private bool _clienteEsNuevo;
+    private string _clienteNombreNuevo = string.Empty;
+    private byte _tipoClienteNuevoId;
+
+    private string? _modalidadCodigo;
+    private Guid? _tecnicoAsignadoId;
+    private DateTime? _fechaEstimada;
+    private string? _direccionServicio;
+    private TipoCambioModel? _tipoCambioVigente;
+
+    /// <summary>El tipo de cambio vigente en texto, para el campo de solo lectura.</summary>
+    private string TextoTipoCambio =>
+        _tipoCambioVigente is null
+            ? ""
+            : $"{_tipoCambioVigente.Valor:N4} — {_tipoCambioVigente.Fecha:dd/MM/yyyy}";
+
+    /// <summary>Recarga el TC cuando cambia la fecha de la cotización.</summary>
+    private async Task CargarTipoCambioAsync()
+    {
+        if (_fecha is null)
+        {
+            _tipoCambioVigente = null;
+            return;
+        }
+
+        try
+        {
+            _tipoCambioVigente = await CatalogoService.ObtenerTipoCambioVigenteAsync(Fecha);
+        }
+        catch
+        {
+            _tipoCambioVigente = null;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // El TC se carga cada vez que la pantalla se repinta con una fecha distinta, no solo al
+        // arrancar: quien cambia la fecha para ver cómo quedaba el dólar el lunes merece verlo
+        // sin esperar al cálculo.
+        await CargarTipoCambioAsync();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _opciones = await CotizacionService.ObtenerOpcionesAsync();
+        _productos = await CatalogoService.ListarProductosAsync();
+
+        if (_opciones.TiposCliente.Count > 0)
+        {
+            _tipoClienteNuevoId = _opciones.TiposCliente[0].Id;
+        }
+
+        if (Cotizacion is { } cotizacion)
+        {
+            SembrarDesde(cotizacion);
+            return;
+        }
+
+        // Modo alta: sin cliente ni servicio elegido, se ofrecen los primeros de la lista.
+        // Es un comienzo, no una imposición: los combos son Clearable y la validación avisa si
+        // quien cotiza no llegó a tocar nada.
+        if (_opciones.Clientes.Count > 0)
+        {
+            _clienteId = _opciones.Clientes[0].Id;
+        }
+
+        if (_opciones.TiposServicio.Count > 0)
+        {
+            _tipoServicioId = _opciones.TiposServicio[0].Id;
+        }
+    }
+
+    /// <summary>
+    /// Carga el formulario con lo que la cotización ya tiene. Todo campo que la pantalla
+    /// muestra y esta función no siembra abre vacío, y al guardar eso vacío se borra: por eso
+    /// esta es la lista que hay que revisar cada vez que se agrega un campo al formulario, no
+    /// un volcado opcional.
+    /// </summary>
+    private void SembrarDesde(CotizacionDetalleModel cotizacion)
+    {
+        _clienteNombreNuevo = cotizacion.ClienteNombre;
+        _tipoServicioId = cotizacion.TipoServicioId;
+        _fecha = cotizacion.Fecha.ToDateTime(TimeOnly.MinValue);
+        _margenPorcentaje = cotizacion.Margen * 100m;
+        _modalidadCodigo = string.IsNullOrWhiteSpace(cotizacion.ModalidadCodigo) ? null : cotizacion.ModalidadCodigo;
+        _tecnicoAsignadoId = cotizacion.TecnicoAsignadoId;
+        _fechaEstimada = cotizacion.FechaEstimada?.ToDateTime(TimeOnly.MinValue);
+        _direccionServicio = cotizacion.DireccionServicio;
+
+        _insumos = [.. cotizacion.Insumos.Select(i => new LineaInsumoRequest
+        {
+            ProductoId = i.ProductoId,
+            Cantidad = i.Cantidad,
+            SemestreId = i.SemestreId
+        })];
+
+        _amortizables = [.. cotizacion.Amortizables.Select(a => new LineaAmortizableRequest
+        {
+            ActivoId = a.ActivoAmortizableId,
+            Cantidad = a.Cantidad,
+            // Se siembra con el valor con el que se cotizó, no con el del catálogo. Si se
+            // sembrara con null, la pantalla mostraría "catálogo" y quien guardara sin tocar la
+            // vida útil mandaría el valor del catálogo en vez del que efectivamente se usó.
+            MesesVidaUtil = a.MesesVidaUtil
+        })];
+
+        // El resultado se arma con los totales que ya están guardados, para que al abrir para
+        // editar se vea de entrada lo que se está a punto de cambiar. Se vuelve a calcular con
+        // el botón de abajo, que es lo que escribe.
+        _resultado = new CotizacionCalculadaResponse
+        {
+            TotalInsumosSemestre1 = cotizacion.TotalInsumosSemestre1,
+            TotalInsumosSemestre2 = cotizacion.TotalInsumosSemestre2,
+            TotalInsumos = cotizacion.TotalInsumos,
+            TotalAmortizablesMensual = cotizacion.TotalAmortizablesMensual,
+            CostoTotal = cotizacion.CostoTotal,
+            PrecioCordobas = cotizacion.PrecioCordobas,
+            PrecioUsd = cotizacion.PrecioUsd,
+            MargenAplicado = cotizacion.Margen,
+            TipoCambioValor = cotizacion.TipoCambioValor,
+            TipoCambioFecha = cotizacion.TipoCambioFecha,
+            TipoCambioId = cotizacion.TipoCambioId,
+            MetodoCosteoId = cotizacion.MetodoCosteoId,
+            PorcentajePlantilla = cotizacion.PorcentajePlantilla
+        };
+    }
+
+    private void AgregarInsumo()
+    {
+        if (_productos.Count == 0) return;
+
+        // La fila arranca SIN producto, no con el primero de la lista. Con uno pre-elegido, la
+        // fila nueva hereda un texto que hay que borrar antes de poder filtrar — y quien no lo
+        // borra solo ve "un resultado" que en realidad es la selección vieja. Vacía, la primera
+        // tecla ya filtra.
+        _insumos.Add(new LineaInsumoRequest
+        {
+            Cantidad = 1
+        });
+    }
+
+    /// <summary>
+    /// Los productos que esta fila puede elegir: todos menos los que ya eligieron las demás. El
+    /// de esta fila queda, para que se pueda ver cuál tiene y cambiarlo.
+    /// </summary>
+    private IReadOnlyList<ProductoModel> ProductosDisponibles(LineaInsumoRequest fila)
+    {
+        var usados = _insumos
+            .Where(i => !ReferenceEquals(i, fila) && i.ProductoId != Guid.Empty)
+            .Select(i => i.ProductoId)
+            .ToHashSet();
+
+        return _productos.Where(p => !usados.Contains(p.Id)).ToList();
+    }
+
+    private void QuitarInsumo(LineaInsumoRequest insumo) => _insumos.Remove(insumo);
+
+    // ── Activos amortizables ─────────────────────────────────────────────────────
+
+    private void AgregarAmortizable()
+    {
+        if (_opciones.ActivosAmortizables.Count == 0) return;
+        _amortizables.Add(new LineaAmortizableRequest { Cantidad = 1 });
+    }
+
+    private void QuitarAmortizable(LineaAmortizableRequest amortizable) => _amortizables.Remove(amortizable);
+
+    /// <summary>Los activos que esta fila puede elegir: todos menos los que ya eligieron las demás.</summary>
+    private IReadOnlyList<ActivoAmortizableOpcionModel> ActivosDisponibles(LineaAmortizableRequest fila)
+    {
+        var usados = _amortizables
+            .Where(a => !ReferenceEquals(a, fila) && a.ActivoId != Guid.Empty)
+            .Select(a => a.ActivoId)
+            .ToHashSet();
+
+        return _opciones.ActivosAmortizables.Where(a => !usados.Contains(a.Id)).ToList();
+    }
+
+    private decimal ObtenerCostoActivo(Guid activoId)
+    {
+        var activo = _opciones.ActivosAmortizables.FirstOrDefault(a => a.Id == activoId);
+        return activo?.CostoActual ?? 0;
+    }
+
+    private int ObtenerVidaUtil(Guid activoId)
+    {
+        var activo = _opciones.ActivosAmortizables.FirstOrDefault(a => a.Id == activoId);
+        return activo?.MesesVidaUtil ?? 0;
+    }
+
+    /// <summary>El valor mensual de una fila de activo: costo / vida útil × cantidad.</summary>
+    private decimal ValorMensual(LineaAmortizableRequest fila)
+    {
+        var costo = ObtenerCostoActivo(fila.ActivoId);
+        var vida = fila.MesesVidaUtil ?? ObtenerVidaUtil(fila.ActivoId);
+        if (vida <= 0) return 0;
+        return costo / vida * fila.Cantidad;
+    }
+
+    private decimal ObtenerCosto(Guid productoId)
+    {
+        var producto = _productos.FirstOrDefault(p => p.Id == productoId);
+        return producto?.CostoActual ?? 0;
+    }
+
+    /// <summary>
+    /// El nombre del producto aunque ya no esté en la lista. Sirve solo para el texto cerrado
+    /// del combo de una fila cargada desde la cotización; si no hay producto con ese id, se
+    /// devuelve vacío y el combo muestra el guión de siempre: es preferible ver que falta a
+    /// inventar un nombre.
+    /// </summary>
+    private string NombreProductoDe(Guid productoId)
+    {
+        var producto = _productos.FirstOrDefault(p => p.Id == productoId);
+        return producto is null
+            ? string.Empty
+            : $"{producto.Nombre} — {producto.CostoActual:N2} C$/{producto.UnidadMedidaAbreviatura}";
+    }
+
+    /// <summary>El nombre del activo aunque ya no esté en la lista. Mismo criterio que arriba.</summary>
+    private string NombreActivoDe(Guid activoId)
+    {
+        var activo = _opciones.ActivosAmortizables.FirstOrDefault(a => a.Id == activoId);
+        return activo is null
+            ? string.Empty
+            : $"{activo.Nombre} — {activo.CostoActual:N2} C$/{activo.UnidadAbreviatura}";
+    }
+
+    /// <summary>
+    /// Valida el cliente. Al editar no hay nada que validar: no se puede cambiar, así que solo
+    /// se avisa si la cotización llegó sin nombre, que sería un dato roto de origen.
+    /// </summary>
+    private string? ValidarCliente()
+    {
+        if (Editando)
+        {
+            return string.IsNullOrWhiteSpace(_clienteNombreNuevo)
+                ? "La cotización no tiene cliente: pida que se corrija antes de editarla."
+                : null;
+        }
+
+        if (_clienteEsNuevo)
+        {
+            if (string.IsNullOrWhiteSpace(_clienteNombreNuevo))
+            {
+                return "Ponga el nombre del cliente nuevo.";
+            }
+
+            if (_tipoClienteNuevoId == 0)
+            {
+                return "Elija el tipo del cliente nuevo: es lo que decide el método de costeo.";
+            }
+        }
+        else if (_clienteId == Guid.Empty)
+        {
+            return "Seleccione un cliente.";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// El tipo de servicio es obligatorio en toda cotización. Se valida acá y no solo al
+    /// guardar, porque calcular sale bien sin él y el error aparecería tarde, cuando ya se
+    /// revisó el resultado.
+    /// </summary>
+    private string? ValidarTipoServicio()
+        => _tipoServicioId == Guid.Empty ? "Seleccione el tipo de servicio." : null;
+
+    /// <summary>La fecha es el tipo nativo del picker (DateTime?) y puede quedar en null.</summary>
+    private string? ValidarFecha()
+        => _fecha is null ? "Elija la fecha de la cotización." : null;
+
+    /// <summary>
+    /// La parte de los insumos que el botón de Calcular exige. La fila sin producto existe a
+    /// propósito —arranca vacía para que filtrar sea la primera tecla— pero no puede llegar al
+    /// cálculo: al servidor llegaría un insumo "00000000-..." y el error hablaría de un producto
+    /// inexistente en vez de de la fila que falta completar.
+    /// </summary>
+    private string? ValidarInsumos()
+    {
+        if (_insumos.Count == 0)
+        {
+            return "Agregue al menos un insumo.";
+        }
+
+        if (_insumos.Any(i => i.ProductoId == Guid.Empty))
+        {
+            return "Hay una fila de insumo sin producto: elija uno o quítela.";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Las filas de activo sin activo elegido también se cuelan al cálculo, y por la misma
+    /// razón que los insumos: la fila existe vacía para poder filtrar, pero no se puede cotizar
+    /// una trampa que nadie eligió. Sin este chequeo, el error del servidor hablaría de un
+    /// activo inexistente y no de la fila a medias.
+    /// </summary>
+    private string? ValidarAmortizables()
+        => _amortizables.Any(a => a.ActivoId == Guid.Empty)
+            ? "Hay una fila de activo sin elegir: elija uno o quítela."
+            : null;
+
+    /// <summary>
+    /// Todo lo que hay que revisar antes de calcular o de guardar, en el orden en que se le
+    /// avisa a quien cotiza: cliente, servicio, fecha, insumos, activos. Cada uno devuelve el
+    /// mensaje de lo que falta o null, y se usa el primero que no sea null.
+    /// </summary>
+    private string? ValidarTodo()
+        => ValidarCliente() ?? ValidarTipoServicio() ?? ValidarFecha() ?? ValidarInsumos() ?? ValidarAmortizables();
+
+    /// <summary>
+    /// El cliente como lo entiende la API: del catálogo con su id, o nuevo con el nombre tecleado
+    /// y el tipo que decide el costeo.
+    /// </summary>
+    private Guid? ClienteParaApi => Editando ? Cotizacion!.ClienteId : (_clienteEsNuevo ? null : _clienteId);
+
+    private byte? TipoClienteParaApi
+    {
+        get
+        {
+            if (Editando)
+            {
+                // Al editar el tipo no se elige: se reenvía el que la cotización ya tiene, que
+                // es el que produjo el precio guardado. Mandar otro sería cotizar a ACME con el
+                // método de otro tipo sin avisar.
+                return Cotizacion!.TipoClienteId;
+            }
+
+            return _clienteEsNuevo ? _tipoClienteNuevoId : null;
+        }
+    }
+
+    private async Task Calcular()
+    {
+        if (ValidarTodo() is { } falta)
+        {
+            Snackbar.Add(falta, Severity.Warning);
+            return;
+        }
+
+        _calculando = true;
+        try
+        {
+            var respuesta = await CotizacionService.CalcularAsync(
+                ClienteParaApi,
+                TipoClienteParaApi,
+                Fecha,
+                MargenFraccion,
+                _insumos,
+                _amortizables);
+
+            if (respuesta?.Exito == true && respuesta.Datos is not null)
+            {
+                _resultado = respuesta.Datos;
+            }
+            else
+            {
+                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo calcular.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _calculando = false;
+        }
+    }
+
+    private async Task Guardar()
+    {
+        if (ValidarTodo() is { } falta)
+        {
+            Snackbar.Add(falta, Severity.Warning);
+            return;
+        }
+
+        if (_resultado is null)
+        {
+            Snackbar.Add("Calcule primero.", Severity.Warning);
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            await OnGuardar.InvokeAsync(new CotizacionFormularioDatos
+            {
+                ClienteId = ClienteParaApi,
+                ClienteNombre = Editando || !_clienteEsNuevo ? null : _clienteNombreNuevo.Trim(),
+                TipoClienteId = TipoClienteParaApi,
+                TipoServicioId = _tipoServicioId,
+                Fecha = Fecha,
+                ModalidadCodigo = _modalidadCodigo,
+                TecnicoAsignadoId = _tecnicoAsignadoId,
+                FechaEstimada = _fechaEstimada is { } f ? DateOnly.FromDateTime(f) : null,
+                DireccionServicio = _direccionServicio,
+                Margen = MargenFraccion,
+                Insumos = _insumos,
+                Amortizables = _amortizables
+            });
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private Task Cancelar() => OnCancelar.InvokeAsync();
+}

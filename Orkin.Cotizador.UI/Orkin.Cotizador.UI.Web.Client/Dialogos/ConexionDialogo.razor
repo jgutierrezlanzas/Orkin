@@ -6,32 +6,32 @@
 <MudDialog>
     <DialogContent>
         <MudForm @ref="_form">
-            <MudGrid>
+            <MudGrid Spacing="1">
                 <MudItem xs="12" md="3">
                     <MudTextField @bind-Value="Modelo.Nombre" Label="Nombre" Required="true"
                                   RequiredError="Ponga un nombre que lo reconozca"
                                   Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="12" md="2">
+                <MudItem xs="12" md="3">
                     <MudTextField @bind-Value="Modelo.Servidor" Label="Servidor" Required="true"
                                   RequiredError="Falta el servidor"
                                   Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="12" md="1">
+                <MudItem xs="12" md="3">
                     <MudNumericField @bind-Value="Modelo.Puerto" Label="Puerto" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="12" md="2">
+                <MudItem xs="12" md="3">
                     <MudTextField @bind-Value="Modelo.NombreBaseDatos" Label="Base de datos" Required="true"
                                   RequiredError="Falta la base de datos"
                                   Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="12" md="1">
+                <MudItem xs="12" md="4">
                     <MudTextField @bind-Value="Modelo.Esquema" Label="Esquema" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="12" md="1">
+                <MudItem xs="12" md="4">
                     <MudTextField @bind-Value="Modelo.Usuario" Label="Usuario" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="12" md="2">
+                <MudItem xs="12" md="4">
                     @* Tipo=Password porque la contraseña del ERP de un cliente se teclea en
                        pantalla compartida más de una vez de lo que uno quisiera. *@
                     <MudTextField @bind-Value="_contrasena" Label="@EtiquetaContrasena" InputType="InputType.Password"

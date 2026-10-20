@@ -202,6 +202,24 @@ public class ErpFlujo : BaseEntity
     public DateTime? UltimoIntentoUtc { get; set; }
 
     /// <summary>
+    /// Desde cuándo hay una corrida en curso sobre este flujo. Es el alquiler que impide que dos
+    ///pahos de ejecución se pisen: el que lo toma lo escribe antes de leer el ERP y lo borra al
+    /// terminar, y tanto el reclamo del motor como la corrida a mano se niegan a arrancar si
+    /// encuentra la marca puesta.
+    /// <para><b>Por qué hace falta y no basta con <see cref="ProximaEjecucionUtc"/>:</b> la ventana
+    /// solo dice <i>cuándo le toca</i>, no <i>quién lo está haciendo</i>. Un flujo programado
+    /// cuya ventana aún no vence puede estar corriendo justo ahora, y si la corrida a mano no
+    /// respeta esa diferencia, un «Ejecutar» pulsado en el segundo justo de una corrida
+    /// programada carga el mismo catálogo dos veces a la vez, contra el mismo ERP, escribiendo
+    /// sobre las mismas filas.</para>
+    /// <para>Se toma siempre con su caducidad
+    /// (<see cref="PlanificadorSincronizacion.ToleranciaCorridaEnCurso"/>): un proceso que se muere
+    /// a media carga no puede dejar el flujo marcado para siempre, y un flujo que no vuelve nunca a
+    /// correr es un síntoma que no lleva a ninguna parte.</para>
+    /// </summary>
+    public DateTime? CorridaEnCursoUtc { get; set; }
+
+    /// <summary>
     /// El motor lo pausó tras <see cref="MaximoFallosConsecutivos"/> fallos seguidos. Mientras
     /// está en <c>true</c> el flujo no se programa ni se toca, hasta que alguien lo reanude.
     /// <para>Es un estado propio y no un <c>Estado = CON_ERROR</c> porque significan cosas

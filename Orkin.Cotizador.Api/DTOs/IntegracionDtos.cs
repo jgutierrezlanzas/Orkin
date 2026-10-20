@@ -88,7 +88,12 @@ public sealed record ErpFlujoResponse(
     DateTime? UltimoIntentoUtc,
     bool EsPausado,
     string? MotivoPausa,
-    short FallosConsecutivos);
+    short FallosConsecutivos,
+    // Desde cuándo hay una corrida en curso, o `null` si el flujo está libre. Viaja para que la
+    // pantalla pueda decir «sincronizando ahora» y no ofrezca un botón que va a ser rechazado:
+    // es la diferencia entre que el usuario entienda que tiene que esperar y que piense que la
+    // plataforma falló.
+    DateTime? CorridaEnCursoUtc);
 
 public sealed record CrearErpFlujoRequest(
     Guid ErpConexionId,

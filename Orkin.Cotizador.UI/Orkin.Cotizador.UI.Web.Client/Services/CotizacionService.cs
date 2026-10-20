@@ -80,6 +80,9 @@ public sealed class CotizacionService
     /// Crea la cotización. Con <paramref name="clienteId"/> va para un cliente del catálogo; sin
     /// él, para un cliente nuevo cuyo nombre va en <paramref name="clienteNombre"/> y cuyo tipo
     /// elige quien cotiza.
+    /// <para>Los tres últimos (técnico, fecha estimada y dirección) son opcionales y van al final
+    /// a propósito: el formulario los ofrece y esta firma los acepta sin que nadie tenga que
+    /// acordarse de pasarlos.</para>
     /// </summary>
     public async Task<ApiResponse<CotizacionListItem>?> CrearAsync(
         Guid? clienteId,
@@ -90,7 +93,10 @@ public sealed class CotizacionService
         string? modalidadCodigo,
         decimal margen,
         List<LineaInsumoRequest> insumos,
-        List<LineaAmortizableRequest>? amortizables = null)
+        List<LineaAmortizableRequest>? amortizables = null,
+        Guid? tecnicoAsignadoId = null,
+        DateOnly? fechaEstimada = null,
+        string? direccionServicio = null)
     {
         var request = new
         {
@@ -100,6 +106,9 @@ public sealed class CotizacionService
             TipoServicioId = tipoServicioId,
             Fecha = fecha,
             ModalidadCodigo = modalidadCodigo,
+            TecnicoAsignadoId = tecnicoAsignadoId,
+            FechaEstimada = fechaEstimada,
+            DireccionServicio = direccionServicio,
             Margen = margen,
             Insumos = insumos.Select(i => new
             {
@@ -131,20 +140,36 @@ public sealed class CotizacionService
 
     /// <summary>
     /// Actualiza una cotización existente (solo en BORRADOR o RECHAZADA). La API recalcula
-    /// todo: los insumos se reemplazan completos y el resultado sale del motor.
+    /// todo: las líneas se reemplazan completas y el resultado sale del motor.
+    /// <para><b>La actualización es de reemplazo, no de parche.</b> Lo que no se manda se borra:
+    /// por eso <paramref name="modalidadCodigo"/> y <paramref name="amortizables"/> son
+    /// parámetros obligatorios y no opcionales con valor por omisión. Mandarlos en null «por
+    /// convenience» dejaría el método capaz de borrar en silencio la modalidad y los activos
+    /// amortizables de una cotización, que es exactamente lo que pasó cuando este método no los
+    /// aceptaba. Que el compilador lo exija es la protección.</para>
+    /// <para>El cliente y su tipo no se mandan porque no se cambian: ya viajó con ese nombre y su
+    /// tipo decide el método de costeo.</para>
     /// </summary>
     public async Task<ApiResponse<CotizacionListItem>?> ActualizarAsync(
         Guid id,
         Guid tipoServicioId,
         DateOnly fecha,
         decimal margen,
-        List<LineaInsumoRequest> insumos)
+        List<LineaInsumoRequest> insumos,
+        List<LineaAmortizableRequest>? amortizables,
+        string? modalidadCodigo,
+        Guid? tecnicoAsignadoId = null,
+        DateOnly? fechaEstimada = null,
+        string? direccionServicio = null)
     {
         var request = new
         {
             TipoServicioId = tipoServicioId,
             Fecha = fecha,
-            ModalidadCodigo = (string?)null,
+            ModalidadCodigo = modalidadCodigo,
+            TecnicoAsignadoId = tecnicoAsignadoId,
+            FechaEstimada = fechaEstimada,
+            DireccionServicio = direccionServicio,
             Margen = margen,
             Insumos = insumos.Select(i => new
             {
@@ -152,7 +177,12 @@ public sealed class CotizacionService
                 i.Cantidad,
                 i.SemestreId
             }).ToList(),
-            Amortizables = new List<object>()
+            Amortizables = (amortizables ?? []).Select(a => new
+            {
+                a.ActivoId,
+                a.Cantidad,
+                a.MesesVidaUtil
+            }).ToList()
         };
 
         var response = await _http.PutAsJsonAsync($"api/cotizaciones/{id}", request);

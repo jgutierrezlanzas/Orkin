@@ -157,6 +157,54 @@ public sealed class PlanificadorSincronizacionTests
         Assert.Contains("reanude", motivo);
     }
 
+    // ── Alquiler de corrida ───────────────────────────────────────────────────
+
+    [Fact]
+    public void Un_flujo_sin_marca_esta_libre_para_correrlo_a_mano()
+    {
+        var flujo = new ErpFlujo { CorridaEnCursoUtc = null };
+
+        Assert.False(PlanificadorSincronizacion.TieneCorridaEnCurso(
+            flujo, Ahora, PlanificadorSincronizacion.ToleranciaCorridaEnCurso));
+    }
+
+    [Fact]
+    public void Un_flujo_con_la_marca_puesta_no_se_puede_correr_en_paralelo()
+    {
+        // Esta es la carrera que motiva el alquiler. Un flujo programado puede tener la ventana
+        // todavía en el futuro y estar corriendo ahora mismo —la corrida a mano no le adelanta la
+        // ventana porque no le tocaba—, así que la ventana no alcanza para saber si hay alguien
+        // dentro. Sin la marca, un «Ejecutar» pulsado en ese instante carga el mismo catálogo dos
+        // veces contra el mismo ERP.
+        var flujo = new ErpFlujo { CorridaEnCursoUtc = Ahora.AddSeconds(-2) };
+
+        Assert.True(PlanificadorSincronizacion.TieneCorridaEnCurso(
+            flujo, Ahora, PlanificadorSincronizacion.ToleranciaCorridaEnCurso));
+    }
+
+    [Fact]
+    public void Una_marca_caducada_libera_el_flujo_porque_la_corrida_se_dio_por_muerta()
+    {
+        // El caso contrario y el que no se puede desatender: un proceso que se muere a media carga
+        // no suelta la marca. Sin caducidad, ese flujo no volvería a correr nunca —la última
+        // corrida seguiría en pantalla y el catálogo quedaría viejo sin que nada lo delate—.
+        var tolerancia = PlanificadorSincronizacion.ToleranciaCorridaEnCurso;
+        var flujo = new ErpFlujo { CorridaEnCursoUtc = Ahora - tolerancia - TimeSpan.FromSeconds(1) };
+
+        Assert.False(PlanificadorSincronizacion.TieneCorridaEnCurso(flujo, Ahora, tolerancia));
+    }
+
+    [Fact]
+    public void La_caducidad_del_alquiler_esta_a_salvo_de_una_corrida_lenta()
+    {
+        // Una corrida de verdad puede tardar lo que tarda el ERP del cliente, y ese tiempo no lo
+        // controlamos. Con un corte corto, una lectura lenta de una vista grande perdería su
+        // alquiler a mitad y el motor se metería encima. El plazo tiene que ser holgado; lo que
+        // cuesta esperar quince minutos después de una caída es mucho menor que pisar una carga.
+        Assert.True(PlanificadorSincronizacion.ToleranciaCorridaEnCurso >= TimeSpan.FromMinutes(10),
+            "Con menos de diez minutos, una corrida lenta de verdad perdería el alquiler a mitad.");
+    }
+
     // ── Qué cuenta como cambio ────────────────────────────────────────────────
 
     [Fact]

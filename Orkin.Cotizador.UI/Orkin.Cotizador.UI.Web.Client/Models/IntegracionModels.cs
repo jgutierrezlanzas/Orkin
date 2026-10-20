@@ -118,6 +118,31 @@ public sealed class ErpFlujoModel
     public string? MotivoPausa { get; set; }
     public short FallosConsecutivos { get; set; }
 
+    /// <summary>Desde cuándo hay una corrida en curso sobre este flujo, o <c>null</c> si está libre.</summary>
+    public DateTime? CorridaEnCursoUtc { get; set; }
+
+    /// <summary>
+    /// ¿Hay alguien sincronizando este flujo ahora mismo?
+    /// <para>La ventana no contesta esto: un flujo programado con la ventana en el futuro puede
+    /// estar corriendo igual, porque a la corrida a mano no le toca moverle la ventana. Por eso la
+    /// pregunta se hace sobre la marca de la corrida, que es lo único que sí dice «alguien está
+    /// dentro».</para>
+    /// <para>La caducidad va aquí y no en la API porque es una regla de la pantalla —«no te
+    /// ofrezco un botón que va a fallar»— y no un dato: aunque la marca se quedara puesta por un
+    /// proceso muerto, a los quince minutos el botón tiene que volver a aparecer. Si no, un fallo
+    /// de una vez dejaría ese flujo sin poder ejecutarse a mano para siempre.</para>
+    /// </summary>
+    public bool EstaSincronizando =>
+        CorridaEnCursoUtc is { } inicio
+        && inicio > DateTime.UtcNow - ToleranciaCorridaEnCurso;
+
+    /// <summary>
+    /// Copia de <c>PlanificadorSincronizacion.ToleranciaCorridaEnCurso</c>. Va repetida a
+    /// propósito: el cliente es un proyecto aparte que no referencia al dominio, y un plazo de
+    /// quince minutos escrito en dos sitios no va a necesitar que se mantengan en sincronía.
+    /// </summary>
+    public static readonly TimeSpan ToleranciaCorridaEnCurso = TimeSpan.FromMinutes(15);
+
     /// <summary>
     /// ¿Está el motor pendiente sobre este flujo? Programado, con ventana y sin pausar.
     /// <para>Es lo que decide si la pantalla muestra la cuenta regresiva o el botón de

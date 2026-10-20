@@ -16,7 +16,16 @@ namespace Orkin.Cotizador.Core.Infrastructure.Integracion;
 /// La ventana siguiente que quedó escrita al reclamar. Ya es responsabilidad de esta instancia
 /// terminarla bien: si la corrida se cae a mitad, el flujo no debe quedarse vencido para siempre.
 /// </param>
-public sealed record FlujoReclamado(Guid ErpFlujoId, Guid ErpConexionId, DateTime? ProximaEjecucionUtc);
+/// <param name="MarcaAlquiler">
+/// La marca de <c>CorridaEnCursoUtc</c> que se escribió al reclamar. Hay que devolverla tal cual
+/// al soltar el alquiler: liberar «poniendo null» sin comprobarla sería capaz de borrar la marca
+/// de una corrida que se tomó después.
+/// </param>
+public sealed record FlujoReclamado(
+    Guid ErpFlujoId,
+    Guid ErpConexionId,
+    DateTime? ProximaEjecucionUtc,
+    DateTime MarcaAlquiler);
 
 /// <summary>
 /// Reclama los flujos vencidos de forma atómica.
@@ -37,6 +46,19 @@ public sealed class ReclamadorFlujos
     }
 
     /// <summary>
+    /// Recorta el instante a milisegundos, que es lo que guarda la columna
+    /// <c>datetime2(3)</c>.
+    /// <para>Sin esto la marca de la corrida en curso nunca se libera. Se escribe
+    /// <c>DateTime.UtcNow</c> (con 7 decimales de fracción de segundo) en una columna que solo
+    /// guarda 3; al soltar el alquiler se compara por igualdad exacta y nunca coincide, así que
+    /// el flujo queda tomado durante los 15 minutos completos después de cada corrida. El
+    /// síntoma es un flujo que se sincroniza cada 10 segundos y que además dice «sincronizando…»
+    /// en la pantalla, sin que haya ninguna corrida en marcha.</para>
+    /// </summary>
+    private static DateTime TruncarAMilisegundos(DateTime fecha)
+        => new(fecha.Ticks - fecha.Ticks % 10000, fecha.Kind);
+
+    /// <summary>
     /// Devuelve los flujos vencidos que esta instancia se adjudica, ya con la ventana siguiente
     /// escrita. Volver vacío es lo normal la mayor parte de las veces.
     /// </summary>
@@ -44,7 +66,8 @@ public sealed class ReclamadorFlujos
         int maximoPorVuelta,
         CancellationToken cancellationToken)
     {
-        var ahora = DateTime.UtcNow;
+        var ahora = TruncarAMilisegundos(DateTime.UtcNow);
+        var caducidad = ahora - PlanificadorSincronizacion.ToleranciaCorridaEnCurso;
 
         // Dos pasos y no uno, a propósito. Primero se leen los candidatos sin bloquear: si se
         // bloqueara todo el conjunto, una vuelta lenta frenaría a la otra instancia. Después cada
@@ -52,7 +75,8 @@ public sealed class ReclamadorFlujos
         // devuelve filas.
         var candidatos = await _contexto.ErpFlujo
             .AsNoTracking()
-            .Where(f => f.EsPausado == false
+            .Where(f => f.IsActive
+                     && f.EsPausado == false
                      // `<>` BORRADOR y no `==` ACTIVO: un flujo que falló queda en CON_ERROR y
                      // tiene que seguir siendo reintentado, o un ERP que se cae un minuto no
                      // vuelve solo. Ver EsEjecutable, que explica el mismo criterio.
@@ -87,30 +111,106 @@ public sealed class ReclamadorFlujos
             // reclamó mientras tanto, el UPDATE no hace nada. Ese es el arbitraje; sin el WHERE
             // repetido, las dos instancias se adjudicarían el mismo flujo.
             //
-            // No lleva OUTPUT: no hace falta. Lo que se necesita —Id, conexión y ventana— ya se
-            // sabe en C#, y un OUTPUT sin INTO devuelve un conjunto de resultados que
+            // La condición del alquiler va aquí y no solo en el reclamo a mano, porque son las dos
+            // puertas de entrada al mismo cuarto. Un flujo con la corrida a mano en curso sigue
+            // teniendo su ventana vencida —la corrida a mano no la movió si aún no le tocaba— y
+            // sin esta línea el motor lo reclamaría y las dos cargas escribirían las mismas filas
+            // a la vez.
+            //
+            // No lleva OUTPUT: no hace falta. Lo que se necesita —Id, conexión, ventana y marca— ya
+            // se sabe en C#, y un OUTPUT sin INTO devuelve un conjunto de resultados que
             // ExecuteNonQuery no puede digerir.
             var filas = await _contexto.Database.ExecuteSqlInterpolatedAsync($"""
                 UPDATE int.ErpFlujo WITH (UPDLOCK, READPAST)
-                SET ProximaEjecucionUtc = {ventana}
+                SET ProximaEjecucionUtc = {ventana},
+                    CorridaEnCursoUtc = {ahora}
                 WHERE Id = {candidato.Id}
                   AND ProximaEjecucionUtc <= {ahora}
                   AND EsPausado = 0
                   AND Estado <> 1
+                  AND IsActive = 1
+                  AND (CorridaEnCursoUtc IS NULL OR CorridaEnCursoUtc < {caducidad})
                 """, cancellationToken);
 
             if (filas == 1)
             {
-                reclamado.Add(new FlujoReclamado(candidato.Id, candidato.ErpConexionId, ventana));
+                reclamado.Add(new FlujoReclamado(candidato.Id, candidato.ErpConexionId, ventana, ahora));
             }
             else
             {
                 _log.LogDebug(
-                    "El flujo {FlujoId} ya lo tomó otra instancia; esta sigue de largo.",
+                    "El flujo {FlujoId} ya lo tomó otra instancia, o tiene una corrida en curso; esta sigue de largo.",
                     candidato.Id);
             }
         }
 
         return reclamado;
+    }
+
+    /// <summary>
+    /// Toma el alquiler de corrida de un flujo para correrlo a mano, sin moverle la ventana.
+    /// <para>Es el hermano de <see cref="ReclamarAsync"/> para el otro camino de entrada: correr un
+    /// flujo programado desde la pantalla. La diferencia —que aquí la ventana no se toca, porque no
+    /// le tocaba todavía— es justamente el motivo de que haga falta el alquiler: sin él, ese
+    /// «Ejecutar» y la corrida programada que se solapa se escriben encima.</para>
+    /// <para>Un flujo manual también se puede reservar, y no estorba a nadie: no tiene ventana que
+    /// mover y ningún motor lo reclama. Reservarlo evita que dos personas pulsen «Ejecutar» a la
+    /// vez sobre el mismo flujo, que es la misma carrera con menos ruido para el usuario.</para>
+    /// </summary>
+    /// <returns>
+    /// La marca de la reserva, o <c>null</c> si alguien más tiene el flujo. El valor devuelto hay
+    /// que pasarlo tal cual a <see cref="LiberarCorridaAsync"/> al terminar.
+    /// </returns>
+    public async Task<DateTime?> ReservarCorridaManualAsync(
+        Guid erpFlujoId,
+        CancellationToken cancellationToken)
+    {
+        var ahora = TruncarAMilisegundos(DateTime.UtcNow);
+        var caducidad = ahora - PlanificadorSincronizacion.ToleranciaCorridaEnCurso;
+
+        // Sin `ProximaEjecucionUtc` en el SET a propósito: la ventana no le tocaba a una corrida
+        // a mano, y adelantarla sería saltarse una vuelta de la programación. Se deja el
+        // calendario del motor exactamente como estaba.
+        var filas = await _contexto.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE int.ErpFlujo WITH (UPDLOCK, READPAST)
+            SET CorridaEnCursoUtc = {ahora}
+            WHERE Id = {erpFlujoId}
+              AND IsActive = 1
+              AND Estado <> 1
+              AND (CorridaEnCursoUtc IS NULL OR CorridaEnCursoUtc < {caducidad})
+            """, cancellationToken);
+
+        return filas == 1 ? ahora : null;
+    }
+
+    /// <summary>
+    /// Devuelve el alquiler dejando el flujo como estaba.
+    /// <para>Se comprueba la marca en el WHERE por una razón concreta: si la corrida tardó más que
+    /// <see cref="PlanificadorSincronizacion.ToleranciaCorridaEnCurso"/>, el flujo ya pudo tomarlo otro proceso, y soltar a
+    /// ciegas le borraría la marca al que está corriendo ahora —volviendo a dejarlo libre para un
+    /// tercero, y perdiendo la única señal de que hay una carga en marcha. Con la marca en el
+    /// WHERE, un liberate que llega tarde no hace nada, que es justo lo que corresponde.</para>
+    /// <para>No propaga fallos: liberar el alquiler es housekeeping, y que falle no debe convertir
+    /// una carga exitosa en un error. La marca se caduca sola.</para>
+    /// </summary>
+    public async Task LiberarCorridaAsync(
+        Guid erpFlujoId,
+        DateTime marcaAlquiler,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _contexto.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE int.ErpFlujo
+                SET CorridaEnCursoUtc = NULL
+                WHERE Id = {erpFlujoId}
+                  AND CorridaEnCursoUtc = {marcaAlquiler}
+                """, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex, "No se pudo liberar el alquiler de corrida del flujo {FlujoId}; se caducará solo.", erpFlujoId);
+        }
     }
 }

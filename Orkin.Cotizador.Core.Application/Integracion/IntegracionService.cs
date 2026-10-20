@@ -6,6 +6,7 @@ using Orkin.Cotizador.Core.Domain.Carga;
 using Orkin.Cotizador.Core.Domain.Comun;
 using Orkin.Cotizador.Core.Domain.Entidades;
 using Orkin.Cotizador.Core.Infrastructure.Carga;
+using Orkin.Cotizador.Core.Infrastructure.Integracion;
 using Orkin.Cotizador.Core.Infrastructure.Persistence;
 
 namespace Orkin.Cotizador.Core.Application.Integracion;
@@ -37,17 +38,20 @@ public sealed class IntegracionService
     private readonly CifradorSecreto _cifrador;
     private readonly ProcesoCargaService _proceso;
     private readonly IContextoUsuario _usuario;
+    private readonly ReclamadorFlujos _reclamador;
 
     public IntegracionService(
         CotizadorDbContext contexto,
         CifradorSecreto cifrador,
         ProcesoCargaService proceso,
-        IContextoUsuario usuario)
+        IContextoUsuario usuario,
+        ReclamadorFlujos reclamador)
     {
         _contexto = contexto;
         _cifrador = cifrador;
         _proceso = proceso;
         _usuario = usuario;
+        _reclamador = reclamador;
     }
 
     // ── Conexiones ────────────────────────────────────────────────────────────
@@ -295,9 +299,15 @@ public sealed class IntegracionService
 
     // ── Flujos ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Solo los flujos vigentes. Un flujo dado de baja queda en la tabla —con su historial de
+    /// corridas, que es la parte que después se quiere auditar— pero no debe aparecer en la lista
+    /// como si se pudiera ejecutar, ni ofrecer un botón de «Ejecutar» que lo reviva.
+    /// </summary>
     public Task<List<ErpFlujo>> ListarFlujosAsync(CancellationToken cancellationToken = default)
         => _contexto.ErpFlujo
             .AsNoTracking()
+            .Where(f => f.IsActive)
             .OrderBy(f => f.Nombre)
             .ToListAsync(cancellationToken);
 
@@ -323,6 +333,22 @@ public sealed class IntegracionService
         if (await _contexto.ErpFlujo.AnyAsync(f => f.ErpConexionId == erpConexionId && f.Nombre == nombre, cancellationToken))
         {
             throw new InvalidOperationException($"Esa conexión ya tiene un flujo llamado '{nombre}'.");
+        }
+
+        // Un catálogo por conexión, un solo flujo que lo escriba. Las filas se identifican por
+        // (ErpConexionId, CodigoExterno) —el índice único vive en la fila del catálogo, no en el
+        // flujo—, así que dos flujos vivos sobre el mismo catálogo no cargan «dos conjuntos de
+        // datos»: escriben exactamente las mismas filas y se pisan entre sí, corrida tras corrida,
+        // alternando valores y llenando la bitácora de cambios que en realidad son dos fuentes
+        // peleándose. Se rechaza al crear en vez de avisar porque el síntoma (números que cambian
+        // solos) no lleva a nadie a esta causa.
+        if (await _contexto.ErpFlujo.AnyAsync(
+                f => f.IsActive && f.ErpConexionId == erpConexionId && f.Catalogo == catalogo.Trim().ToUpperInvariant(),
+                cancellationToken))
+        {
+            throw new InvalidOperationException(
+                $"Esa conexión ya tiene un flujo activo para el catálogo '{catalogo.Trim().ToUpperInvariant()}'. " +
+                "Pausa o da de baja el existente antes de crear otro para el mismo catálogo.");
         }
 
         // El catálogo se valida AL CREAR el flujo y no al ejecutarlo: un flujo para un catálogo
@@ -513,10 +539,26 @@ public sealed class IntegracionService
         ArgumentException.ThrowIfNullOrWhiteSpace(catalogo);
         ArgumentException.ThrowIfNullOrWhiteSpace(origen);
 
+        // Misma regla que al crear: un flujo vigente no puede pasar a escribir un catálogo que
+        // ya tiene otro flujo vigente en la misma conexión. El flujo dado de baja (IsActive = 0)
+        // sí puede quedarse apuntando a su catálogo: no escribe nada, es historia.
+        var catalogoNormalizado = catalogo.Trim().ToUpperInvariant();
+        if (entidad.IsActive && await _contexto.ErpFlujo.AnyAsync(
+                f => f.IsActive
+                    && f.Id != id
+                    && f.ErpConexionId == entidad.ErpConexionId
+                    && f.Catalogo == catalogoNormalizado,
+                cancellationToken))
+        {
+            throw new InvalidOperationException(
+                $"Esa conexión ya tiene otro flujo activo para el catálogo '{catalogoNormalizado}'. " +
+                "Pausa o da de baja ese flujo antes de guardar este cambio.");
+        }
+
         ValidarMapeo(mapeoJson);
 
         entidad.Descripcion = descripcion?.Trim();
-        entidad.Catalogo = catalogo.Trim().ToUpperInvariant();
+        entidad.Catalogo = catalogoNormalizado;
         entidad.Origen = origen.Trim();
         entidad.MapeoJson = string.IsNullOrWhiteSpace(mapeoJson) ? null : mapeoJson.Trim();
 
@@ -596,7 +638,51 @@ public sealed class IntegracionService
     public async Task<ResultadoCarga> EjecutarFlujoAsync(
         Guid erpFlujoId,
         CancellationToken cancellationToken = default)
-        => await CorrerFlujoAsync(erpFlujoId, esSimulacion: false, registrarSiempre: true, cancellationToken);
+    {
+        // Un flujo dado de baja no se ejecuta. No es una formalidad: el botón de la pantalla
+        // desapareció con el filtro de la lista, pero la URL queda, y un flujo dado de baja
+        // apuntando a una vista que el cliente ya dropeó revienta con un error de SQL Server que
+        // no explica nada («error inesperado»). Un flujo vigente es un requisito de correrlo, y
+        // se comprueba en el servicio para que valga venga de donde venga la llamada.
+        //
+        // Sin seguimiento, y no por descuido: la reserva de más abajo es un UPDATE que mueve el
+        // `rowversion` de la fila, y si esta lectura dejara la entidad en el ChangeTracker,
+        // `CorrerFlujoAsync` recuperaría esa misma instancia viejo en vez de releer, y su
+        // `SaveChanges` fallaría siempre por concurrencia con la reserva que él mismo acaba de
+        // hacer. El motor no sufre de esto porque reclama en un ámbito y corre en otro.
+        var existe = await _contexto.ErpFlujo
+            .AsNoTracking()
+            .Where(f => f.Id == erpFlujoId)
+            .Select(f => new { f.IsActive })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new KeyNotFoundException("El flujo no existe.");
+
+        if (!existe.IsActive)
+        {
+            throw new InvalidOperationException("El flujo está dado de baja; hay que crearlo de nuevo para volver a correrlo.");
+        }
+
+        // El alquiler. Sin él, este «Ejecutar» puede pisarse con la corrida programada que el
+        // motor está haciendo en este mismo instante sobre el mismo flujo: dos lecturas del mismo
+        // ERP y dos escrituras sobre las mismas filas del catálogo al mismo tiempo.
+        var marca = await _reclamador.ReservarCorridaManualAsync(erpFlujoId, cancellationToken);
+
+        if (marca is null)
+        {
+            throw new InvalidOperationException(
+                "Este flujo ya se está sincronizando en este momento. " +
+                "Espera a que termine la corrida en curso e inténtalo de nuevo.");
+        }
+
+        try
+        {
+            return await CorrerFlujoAsync(erpFlujoId, esSimulacion: false, registrarSiempre: true, cancellationToken);
+        }
+        finally
+        {
+            await _reclamador.LiberarCorridaAsync(erpFlujoId, marca.Value, CancellationToken.None);
+        }
+    }
 
     /// <summary>
     /// Corre el flujo como lo haría el motor de programación, sin que nadie lo haya pedido: la

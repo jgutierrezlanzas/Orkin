@@ -552,7 +552,8 @@ public sealed class OrigenesController : ControllerBase
         f.UltimoIntentoUtc,
         f.EsPausado,
         f.MotivoPausa,
-        f.FallosConsecutivos);
+        f.FallosConsecutivos,
+        f.CorridaEnCursoUtc);
 
     private static SincronizacionEjecucionResponse AResponse(SincronizacionEjecucion e) => new(
         e.Id,

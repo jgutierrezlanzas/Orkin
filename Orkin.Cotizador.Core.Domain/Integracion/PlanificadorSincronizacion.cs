@@ -3,8 +3,8 @@ using Orkin.Cotizador.Core.Domain.Entidades;
 namespace Orkin.Cotizador.Core.Domain.Integracion;
 
 /// <summary>
-/// Las tres decisiones que el motor de programación toma sobre un flujo: cuándo le toca de nuevo,
-/// si hay que pausarlo, y si su corrida merece fila en la bitácora.
+/// Las decisiones que el motor de programación toma sobre un flujo: cuándo le toca de nuevo, si
+/// hay que pausarlo, si su corrida merece fila en la bitácora, y si ya hay alguien corriéndolo.
 /// <para>Están en una clase estática y sin base de datos a propósito. Son reglas, no I/O, y lo
 /// difícil de este motor no es que ejecute la carga —eso ya lo sabe hacer
 /// <c>ProcesoCargaService</c>— sino que no repita trabajo ni golpee de más el ERP de un cliente.
@@ -13,6 +13,19 @@ namespace Orkin.Cotizador.Core.Domain.Integracion;
 /// </summary>
 public static class PlanificadorSincronizacion
 {
+    /// <summary>
+    /// Cuánto puede seguir marcada una corrida antes de que el alquiler se considere caducado y
+    /// otro proceso pueda tomárselo.
+    /// <para>Es una red de seguridad, no una reserva de tiempo: una corrida dura lo que dura la
+    /// lectura del ERP del cliente, y ese tiempo no lo controlamos. Si el proceso se muere a media
+    /// carga —un despliegue, un <c>kill</c>— la marca se queda puesta y, sin caducidad, el flujo no
+    /// volvería a correr nunca. Nadie se enteraría: la última corrida exitosa seguiría en pantalla
+    /// y el catálogo se quedaría viejo para siempre.</para>
+    /// <para>Por eso es holgada a propósito. Preferible que un flujo espere quince minutos tras
+    /// una caída a que dos corridas se pisen: la primera deja rastro visible —un fallo en la
+    /// bitácora— y el motor se recupera solo; la segunda no deja nada.</para>
+    /// </summary>
+    public static readonly TimeSpan ToleranciaCorridaEnCurso = TimeSpan.FromMinutes(15);
     /// <summary>
     /// Instante en que el flujo vuelve a correr.
     /// <para>Se cuenta desde <paramref name="ahora"/> y no desde la hora a la que venció: un motor
@@ -52,6 +65,27 @@ public static class PlanificadorSincronizacion
            && flujo.Estado != IntegracionCatalogos.EstadoFlujoBorrador
            && flujo.IntervaloSegundos is not null
            && flujo.TipoDisparador != IntegracionCatalogos.TipoDisparadorManual;
+
+    /// <summary>
+    /// ¿Hay una corrida en curso sobre este flujo?
+    /// <para>Es la misma pregunta que responden los dos <c>UPDATE</c> que escriben el alquiler —el
+    /// reclamo del motor y la reserva de la corrida a mano—, escrita una vez aquí para que las tres
+    /// copias no puedan separarse. La condición del SQL y esta función tienen que decir
+    /// exactamente lo mismo: si el SQL es más laxo, dos corridas se pisan; si es más estricto, un
+    /// flujo queda marcado para siempre.</para>
+    /// <para>La caducidad es lo que hace que la marca sea un alquiler y no una lápida. Un proceso
+    /// que se muere a media carga no suelta la marca, y sin caducidad ese flujo no volvería a
+    /// correr nunca: la última corrida seguiría en pantalla y el catálogo se quedaría viejo sin
+    /// que nada lo delate. Pasado el plazo se la da por muerta y el flujo vuelve a estar
+    /// disponible.</para>
+    /// <para>No se pregunta si el flujo está dado de baja. La baja no limpia la marca a propósito:
+    /// si alguien dio de baja un flujo que se estaba sincronizando, esa sincronización termina
+    /// igual —ya había empezado a leer el ERP— y lo que debe impedir la baja es empezar de nuevo,
+    /// no dejar una corrida a medias.</para>
+    /// </summary>
+    public static bool TieneCorridaEnCurso(ErpFlujo flujo, DateTime ahora, TimeSpan tolerancia)
+        => flujo.CorridaEnCursoUtc is not null
+           && flujo.CorridaEnCursoUtc.Value > ahora - tolerancia;
 
     /// <summary>
     /// ¿Se alcanzó el corte de fallos y hay que pausar?

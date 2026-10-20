@@ -1081,6 +1081,10 @@ public class CotizadorDbContext : DbContext
             .HasDefaultValue(IntegracionCatalogos.MaximoFallosConsecutivosPorDefecto);
         flujo.Property(f => f.ProximaEjecucionUtc).HasColumnName("ProximaEjecucionUtc").HasColumnType("datetime2(3)");
         flujo.Property(f => f.UltimoIntentoUtc).HasColumnName("UltimoIntentoUtc").HasColumnType("datetime2(3)");
+        // El alquiler de corrida. No lleva índice propio: se lee y se escribe siempre con el Id
+        // del flujo al lado, que ya es la clave primaria, así que un índice aquí solo agregaría
+        // estructura a algo que nadie consulta suelto.
+        flujo.Property(f => f.CorridaEnCursoUtc).HasColumnName("CorridaEnCursoUtc").HasColumnType("datetime2(3)");
         flujo.Property(f => f.EsPausado).HasColumnName("EsPausado").HasDefaultValue(false);
         flujo.Property(f => f.MotivoPausa).HasColumnName("MotivoPausa").HasMaxLength(500);
         flujo.Property(f => f.ModoExtraccion).HasColumnName("ModoExtraccion").IsRequired();

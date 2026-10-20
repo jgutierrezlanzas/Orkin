@@ -27,6 +27,7 @@
                  SearchFunc="BuscarAsync"
                  ToStringFunc="TextoDelValor"
                  Label="@Label"
+                 HelperText="@HelperText"
                  Variant="Variant"
                  Margin="Margin"
                  Dense="Dense"
@@ -64,6 +65,14 @@
 
     [Parameter]
     public string? Label { get; set; }
+
+    /// <summary>
+    /// Explicación bajo el combo, como el <c>HelperText</c> de cualquier campo de MudBlazor.
+    /// Existe para que los combos también puedan decir por qué un campo está bloqueado o vacío:
+    /// sin él, quien no entiende la regla solo ve una caja sin explicación. Null = sin texto.
+    /// </summary>
+    [Parameter]
+    public string? HelperText { get; set; }
 
     [Parameter]
     public Variant Variant { get; set; } = Variant.Outlined;

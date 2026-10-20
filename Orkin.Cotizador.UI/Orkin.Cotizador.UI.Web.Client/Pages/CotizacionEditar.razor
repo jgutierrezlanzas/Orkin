@@ -3,9 +3,18 @@
 @layout MainLayout
 @using Microsoft.AspNetCore.Components.Authorization
 @inject CotizacionService CotizacionService
-@inject CatalogoService CatalogoService
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
+
+@* Pantalla de edición. El formulario es el mismo componente del alta, en modo edición: aquí
+   solo se trae la cotización, se pasa al componente y se decide qué hacer al guardar.
+   Lo que antes pasaba acá y ya no pasa:
+     * un formulario reducido, sin amortizables ni modalidad ni técnico ni fechas ni dirección;
+     * la fecha bloqueada con el motivo equivocado ("el consecutivo ya la lleva" — el
+       consecutivo lleva número y año, no el día);
+     * el guardado mandando modalidad nula y amortizables vacíos, que borraba lo que ya estaba.
+   Todo eso ahora está en un solo sitio, y por eso las dos pantallas ya pueden volver a
+   separarse sin que nadie lo note. *@
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
     @if (_cargando)
@@ -23,95 +32,7 @@
             <MudChip T="string" Size="Size.Small" Color="@Color.Warning">Recalculada al guardar</MudChip>
         </div>
 
-        @* El cliente y su tipo no se cambian al editar: la API no los acepta, porque la
-           cotización ya viajó con ese nombre y cambiarlo sería re-atascar un snapshot. *@
-        <MudPaper Elevation="2" Class="pa-4 mb-6">
-            <MudGrid>
-                <MudItem xs="12" md="4">
-                    <MudTextField Value="@_cotizacion.ClienteNombre" Label="Cliente" ReadOnly="true"
-                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <MudTextField @bind-Value="_fecha" Label="Fecha" ReadOnly="true"
-                                  Variant="Variant.Outlined" Margin="Margin.Dense"
-                                  HelperText="La fecha no se cambia al editar: el consecutivo ya la lleva." />
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    @* El margen sí se cambia: "me equivoqué en el margen" es el caso de uso
-                       número uno de la edición. En porcentaje, como en la pantalla nueva. *@
-                    <MudNumericField T="decimal" @bind-Value="_margenPorcentaje" Label="Margen (%)"
-                                     Variant="Variant.Outlined" Margin="Margin.Dense"
-                                     Adornment="Adornment.End" AdornmentText="%"
-                                     Step="0.5m" Min="0m" Max="100m" />
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Margen sobre el costo total.</MudText>
-                </MudItem>
-                <MudItem xs="12" md="4">
-                    <SelectorLegible TItem="TipoServicioOpcion" TValue="Guid"
-                                     Items="_tiposServicio" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
-                                     @bind-Value="_tipoServicioId"
-                                     Label="Tipo de servicio" Clearable="true" />
-                </MudItem>
-            </MudGrid>
-        </MudPaper>
-
-        <MudPaper Elevation="2" Class="pa-4 mb-6">
-            <MudText Typo="Typo.h6" Class="mb-4">Insumos</MudText>
-
-            @if (_insumos.Count == 0)
-            {
-                <MudAlert Severity="Severity.Info">La cotización no tiene insumos.</MudAlert>
-            }
-            else
-            {
-                <MudTable Items="_insumos" Hover="false" Dense="true">
-                    <HeaderContent>
-                        <MudTh>Producto</MudTh>
-                        <MudTh>Cantidad</MudTh>
-                        <MudTh>Costo unitario</MudTh>
-                        <MudTh>Total</MudTh>
-                        <MudTh />
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd Style="min-width: 250px">
-                            <SelectorLegible TItem="ProductoModel" TValue="Guid"
-                                             Items="@ProductosDisponibles(context)"
-                                             ValorDe="p => p.Id"
-                                             TextoDe='p => $"{p.Nombre} — {p.CostoActual:N2} C$/{p.UnidadMedidaAbreviatura}"'
-                                             @bind-Value="context.ProductoId"
-                                             Dense="true" Clearable="true" />
-                        </MudTd>
-                        <MudTd>
-                            <MudNumericField T="decimal" @bind-Value="context.Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Min="0.01m" Step="1m" Style="width: 120px" />
-                        </MudTd>
-                        <MudTd>@ObtenerCosto(context.ProductoId).ToString("N2")</MudTd>
-                        <MudTd>@((ObtenerCosto(context.ProductoId) * context.Cantidad).ToString("N2"))</MudTd>
-                        <MudTd>
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => QuitarInsumo(context))" />
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
-            }
-
-            <div class="d-flex justify-end mt-2">
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarInsumo">Agregar insumo</MudButton>
-            </div>
-        </MudPaper>
-
-        <div class="d-flex justify-end gap-4">
-            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="@(() => Navigation.NavigateTo($"/cotizaciones/{Id}"))">
-                Cancelar
-            </MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="Guardar" Disabled="_guardando">
-                @if (_guardando)
-                {
-                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
-                }
-                else
-                {
-                    <MudText>Guardar cambios</MudText>
-                }
-            </MudButton>
-        </div>
+        <CotizacionFormulario Cotizacion="_cotizacion" OnGuardar="Guardar" OnCancelar="Cancelar" />
     }
 </MudContainer>
 
@@ -120,38 +41,18 @@
     public Guid Id { get; set; }
 
     private CotizacionDetalleModel? _cotizacion;
-    private List<TipoServicioOpcion> _tiposServicio = [];
-    private List<ProductoModel> _productos = [];
-    private List<LineaInsumoRequest> _insumos = [];
-    private Guid _tipoServicioId;
-    private DateTime? _fecha;
-    private decimal _margenPorcentaje;
-    private bool _cargando;
-    private bool _guardando;
+    private bool _cargando = true;
 
-    private decimal MargenFraccion => _margenPorcentaje / 100m;
-
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        // OnParametersSet y no OnInitialized: esta pantalla es reentrante (si quien edita abre
+        // otra cotización sin pasar por el listado, Blazor reutiliza la instancia y OnInitialized
+        // no vuelve a correr). Con OnInitialized, editar A y luego editar B en la misma sesión
+        // dejaría la pantalla mostrando A con el título de B.
         _cargando = true;
         try
         {
             _cotizacion = await CotizacionService.ObtenerDetalleAsync(Id);
-            _tiposServicio = (await CotizacionService.ObtenerOpcionesAsync()).TiposServicio;
-            _productos = await CatalogoService.ListarProductosAsync();
-
-            if (_cotizacion is not null)
-            {
-                _tipoServicioId = _cotizacion.TipoServicioId;
-                _fecha = _cotizacion.Fecha.ToDateTime(TimeOnly.MinValue);
-                _margenPorcentaje = _cotizacion.Margen * 100m;
-                _insumos = [.. _cotizacion.Insumos.Select(i => new LineaInsumoRequest
-                {
-                    ProductoId = i.ProductoId,
-                    Cantidad = i.Cantidad,
-                    SemestreId = i.SemestreId
-                })];
-            }
         }
         finally
         {
@@ -159,63 +60,36 @@
         }
     }
 
-    private IReadOnlyList<ProductoModel> ProductosDisponibles(LineaInsumoRequest fila)
+    /// <summary>
+    /// Traduce el formulario a una llamada de actualización. El cliente no va: no se cambia, y
+    /// mandarlo sería inviting a algo que la API no hace.
+    /// </summary>
+    private async Task Guardar(CotizacionFormularioDatos datos)
     {
-        var usados = _insumos
-            .Where(i => !ReferenceEquals(i, fila) && i.ProductoId != Guid.Empty)
-            .Select(i => i.ProductoId)
-            .ToHashSet();
+        var numero = _cotizacion?.Numero;
 
-        return _productos.Where(p => !usados.Contains(p.Id)).ToList();
-    }
+        var respuesta = await CotizacionService.ActualizarAsync(
+            Id,
+            datos.TipoServicioId,
+            datos.Fecha,
+            datos.Margen,
+            datos.Insumos,
+            datos.Amortizables,
+            datos.ModalidadCodigo,
+            datos.TecnicoAsignadoId,
+            datos.FechaEstimada,
+            datos.DireccionServicio);
 
-    private void AgregarInsumo()
-    {
-        if (_productos.Count == 0) return;
-        _insumos.Add(new LineaInsumoRequest { Cantidad = 1 });
-    }
-
-    private void QuitarInsumo(LineaInsumoRequest insumo) => _insumos.Remove(insumo);
-
-    private decimal ObtenerCosto(Guid productoId)
-    {
-        var producto = _productos.FirstOrDefault(p => p.Id == productoId);
-        return producto?.CostoActual ?? 0;
-    }
-
-    private async Task Guardar()
-    {
-        if (_insumos.Any(i => i.ProductoId == Guid.Empty))
+        if (respuesta?.Exito == true)
         {
-            Snackbar.Add("Hay una fila de insumo sin producto: elija uno o quítela.", Severity.Warning);
-            return;
+            Snackbar.Add($"{numero}: cambios guardados y recalculados.", Severity.Success);
+            Navigation.NavigateTo($"/cotizaciones/{Id}");
         }
-
-        if (_insumos.Count == 0)
+        else
         {
-            Snackbar.Add("La cotización necesita al menos un insumo.", Severity.Warning);
-            return;
-        }
-
-        _guardando = true;
-        try
-        {
-            var fecha = DateOnly.FromDateTime(_fecha ?? DateTime.Today);
-            var respuesta = await CotizacionService.ActualizarAsync(Id, _tipoServicioId, fecha, MargenFraccion, _insumos);
-
-            if (respuesta?.Exito == true)
-            {
-                Snackbar.Add($"{_cotizacion?.Numero}: cambios guardados y recalculados.", Severity.Success);
-                Navigation.NavigateTo($"/cotizaciones/{Id}");
-            }
-            else
-            {
-                Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
-            }
-        }
-        finally
-        {
-            _guardando = false;
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
         }
     }
+
+    private void Cancelar() => Navigation.NavigateTo($"/cotizaciones/{Id}");
 }

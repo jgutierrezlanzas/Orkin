@@ -152,7 +152,19 @@
                         }
                     </MudTd>
                     <MudTd DataLabel="Programación">
-                        @if (context.EsPausado)
+                        @* La corrida en curso va antes que todo lo demás de la columna, incluso
+                           antes que «Pausado»: un flujo pausado al que alguien le pulsó Ejecutar se
+                           está sincronizando igual, y lo que el usuario necesita ver es que ahora
+                           hay una carga en marcha, no por qué el motor no la está haciendo. *@
+                        @if (context.EstaSincronizando)
+                        {
+                            <MudTooltip Text="Hay una sincronización en curso. Espera a que termine para ejecutarla a mano.">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">
+                                    Sincronizando…
+                                </MudChip>
+                            </MudTooltip>
+                        }
+                        else if (context.EsPausado)
                         {
                             <MudTooltip Text="@($"Pausado. {context.MotivoPausa}")">
                                 <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Pausado</MudChip>
@@ -223,7 +235,15 @@
                             <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Primary" Size="Size.Small" OnClick="@(() => SimularFlujo(context))" Disabled="_simulandoFlujoId == context.Id" />
                         </MudTooltip>
                         <MudTooltip Text="Cargar el catálogo desde el origen ahora">
-                            <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Color="Color.Primary" Size="Size.Small" OnClick="@(() => EjecutarFlujo(context))" Disabled="_ejecutandoFlujoId == context.Id" />
+                            @* El botón se apaga, y no solo después de un error, cuando ya hay una
+                               corrida en curso. La corrida manual y la programada se pelean por
+                               el mismo catálogo, así que ofrecer el botón y dejar que el servidor
+                               lo rechace convierte un «todavía no» en un «falló». Y la simulación
+                               sí se puede dejar: no escribe nada, se puede correr en paralelo con
+                               una carga real sin que las dos se estorben. *@
+                            <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => EjecutarFlujo(context))"
+                                           Disabled="_ejecutandoFlujoId == context.Id || context.EstaSincronizando" />
                         </MudTooltip>
                         <MudTooltip Text="Ver el historial de corridas">
                             <MudIconButton Icon="@Icons.Material.Filled.History" Color="Color.Primary" Size="Size.Small" OnClick="@(() => CargarHistorial(context))" />

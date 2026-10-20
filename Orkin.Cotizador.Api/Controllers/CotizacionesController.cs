@@ -235,12 +235,31 @@ public sealed class CotizacionesController : ControllerBase
             .Select(d => new DetalleInsumoResponse(d.ProductoId, d.Cantidad, d.SemestreId))
             .ToListAsync(cancellationToken);
 
+        // Los activos amortizables vuelven tambien. El formulario de edicion los muestra y los
+        // vuelve a mandar al guardar; sin ellos aqui, abrir una cotizacion para corregirle el
+        // margen aparecia con la tabla de amortizables vacia, y al guardar se guardaba vacia de
+        // verdad: los activos no solo se veian mal, se perdian.
+        var amortizables = await _contexto.DetalleAmortizable
+            .AsNoTracking()
+            .Where(d => d.CotizacionId == id)
+            .OrderBy(d => d.Orden)
+            .Select(d => new DetalleAmortizableResponse(
+                d.ActivoAmortizableId,
+                d.Cantidad,
+                d.MesesVidaUtil,
+                d.PrecioUnitario,
+                d.ValorMensual,
+                d.ActivoNombre ?? string.Empty,
+                d.UnidadMedidaTexto ?? string.Empty))
+            .ToListAsync(cancellationToken);
+
         var response = new CotizacionDetalleResponse(
             entidad.Id,
             entidad.Numero,
             entidad.Anio,
             entidad.ClienteId,
             entidad.ClienteNombre,
+            entidad.TipoClienteId,
             entidad.TipoServicioId,
             entidad.TipoServicio.Nombre,
             entidad.Fecha,
@@ -261,7 +280,11 @@ public sealed class CotizacionesController : ControllerBase
             entidad.MetodoCosteoId,
             entidad.PorcentajePlantilla,
             entidad.CreatedAt,
-            insumos);
+            insumos,
+            amortizables,
+            entidad.TecnicoAsignadoId,
+            entidad.FechaEstimada,
+            entidad.DireccionServicio);
 
         return ApiResponse<CotizacionDetalleResponse>.Ok(response).AHttp();
     }
@@ -356,6 +379,30 @@ public sealed class CotizacionesController : ControllerBase
                 modalidadId = modalidad.Id;
             }
 
+        // El técnico se valida contra el mismo catálogo que se le ofrece en el combo, no se
+        // guarda a ciegas: un id que nadie más puede volver a sacar de la pantalla es un dato que
+        // ya no se podría corregir. Notas sobre este campo:
+        //
+        // * Es opcional a propósito. Una cotización se puede hacer sin técnico asignado —se
+        //   cotiza primero y se asigna después— y eso no es un dato incompleto.
+        // * Se puede cambiar y también dejar en blanco. Quien lo quita está diciendo que la
+        //   cotización no tiene técnico, y eso se guarda como null, que es distinto de
+        //   «no se tocó el campo».
+        Guid? tecnicoAsignadoId = null;
+        if (request.TecnicoAsignadoId is { } idTecnico)
+        {
+            var existeTecnico = await _contexto.Usuario
+                .AsNoTracking()
+                .AnyAsync(u => u.Id == idTecnico && u.EsActivo, cancellationToken);
+
+            if (!existeTecnico)
+            {
+                throw new InvalidOperationException("El técnico no existe o está inactivo.");
+            }
+
+            tecnicoAsignadoId = idTecnico;
+        }
+
             var estadoBorrador = await _contexto.EstadoCotizacionCatalogo
                 .AsNoTracking()
                 .FirstOrDefaultAsync(e => e.Codigo == "BORRADOR", cancellationToken)
@@ -392,6 +439,9 @@ public sealed class CotizacionesController : ControllerBase
                 TipoServicioId = request.TipoServicioId,
                 Fecha = request.Fecha,
                 ModalidadId = modalidadId,
+                TecnicoAsignadoId = tecnicoAsignadoId,
+                FechaEstimada = request.FechaEstimada,
+                DireccionServicio = request.DireccionServicio,
                 MargenAplicado = request.Margen,
                 EstadoId = estadoBorrador.Id,
                 TipoConsecutivoId = tipoConsecutivo?.Id,
@@ -440,6 +490,8 @@ public sealed class CotizacionesController : ControllerBase
                     });
                 }
             }
+
+            await GuardarAmortizablesAsync(cotizacion.Id, request.Amortizables, cancellationToken);
 
             await _contexto.SaveChangesAsync(cancellationToken);
 
@@ -509,6 +561,30 @@ public sealed class CotizacionesController : ControllerBase
             modalidadId = modalidad.Id;
         }
 
+        // El técnico se valida contra el mismo catálogo que se le ofrece en el combo, no se
+        // guarda a ciegas: un id que nadie más puede volver a sacar de la pantalla es un dato que
+        // ya no se podría corregir. Notas sobre este campo:
+        //
+        // * Es opcional a propósito. Una cotización se puede hacer sin técnico asignado —se
+        //   cotiza primero y se asigna después— y eso no es un dato incompleto.
+        // * Se puede cambiar y también dejar en blanco. Quien lo quita está diciendo que la
+        //   cotización no tiene técnico, y eso se guarda como null, que es distinto de
+        //   «no se tocó el campo».
+        Guid? tecnicoAsignadoId = null;
+        if (request.TecnicoAsignadoId is { } idTecnico)
+        {
+            var existeTecnico = await _contexto.Usuario
+                .AsNoTracking()
+                .AnyAsync(u => u.Id == idTecnico && u.EsActivo, cancellationToken);
+
+            if (!existeTecnico)
+            {
+                throw new InvalidOperationException("El técnico no existe o está inactivo.");
+            }
+
+            tecnicoAsignadoId = idTecnico;
+        }
+
         // Recalcular. Para un cliente del catálogo el tipo sale de su ficha; para un cliente
         // nuevo sale del snapshot con el que se cotizó, porque no hay ficha de donde sacarlo.
         var amortizablesAct = request.Amortizables is { Count: > 0 }
@@ -529,6 +605,9 @@ public sealed class CotizacionesController : ControllerBase
         cotizacion.TipoServicioId = request.TipoServicioId;
         cotizacion.Fecha = request.Fecha;
         cotizacion.ModalidadId = modalidadId;
+        cotizacion.TecnicoAsignadoId = tecnicoAsignadoId;
+        cotizacion.FechaEstimada = request.FechaEstimada;
+        cotizacion.DireccionServicio = request.DireccionServicio;
         cotizacion.MargenAplicado = request.Margen;
         cotizacion.TotalInsumosSemestre1 = resultado.TotalInsumosSemestre1;
         cotizacion.TotalInsumosSemestre2 = resultado.TotalInsumosSemestre2;
@@ -569,6 +648,11 @@ public sealed class CotizacionesController : ControllerBase
             }
         }
 
+        // Las de amortizables se reemplazan igual que las de insumos: la cotización guardada es
+        // la que se está viendo, no la suma de la anterior y la nueva.
+        _contexto.DetalleAmortizable.RemoveRange(_contexto.DetalleAmortizable.Where(d => d.CotizacionId == id));
+        await GuardarAmortizablesAsync(id, request.Amortizables, cancellationToken);
+
         await _contexto.SaveChangesAsync(cancellationToken);
 
         var response = new CotizacionResponse(
@@ -599,6 +683,73 @@ public sealed class CotizacionesController : ControllerBase
             cotizacion.CreatedAt);
 
         return ApiResponse<CotizacionResponse>.Ok(response).AHttp();
+    }
+
+    /// <summary>
+    /// Escribe las líneas de activos amortizables de la cotización. La usan tanto el alta como
+    /// la edición, y lo hacen con <b>la misma regla que usa el motor</b>: la vida útil de la
+    /// línea si viene, la del catálogo si no, y el valor mensual con esa misma vida útil.
+    /// <para>Que sea el mismo cálculo y no uno parecido es lo importante. Si este lado se
+    /// resolviera por su cuenta, la fila guardada podría decir 6 meses donde el motor usó 12, y
+    /// el PDF —que lee las filas, no el total— saldría con un valor mensual que no cuadra con lo
+    /// que el cliente pagó.</para>
+    /// <para>Lo que se guarda es un <b>snapshot</b>: el nombre y el precio del momento de cotizar,
+    /// no una referencia viva. Si mañana sube el precio de la trampa, esta cotización conserva el
+    /// que se le cotizó.</para>
+    /// </summary>
+    private async Task GuardarAmortizablesAsync(
+        Guid cotizacionId,
+        IReadOnlyList<CotizacionAmortizableRequest>? amortizables,
+        CancellationToken cancellationToken)
+    {
+        if (amortizables is not { Count: > 0 })
+        {
+            return;
+        }
+
+        short orden = 1;
+
+        foreach (var linea in amortizables)
+        {
+            var activo = await _contexto.ActivoAmortizable
+                .AsNoTracking()
+                .Include(a => a.UnidadMedida)
+                .FirstOrDefaultAsync(a => a.Id == linea.ActivoId, cancellationToken);
+
+            if (activo is null)
+            {
+                continue;
+            }
+
+            // Idéntica regla al motor: la vida útil de la cotización pisa la del catálogo, y si no
+            // viene (o viene en cero, que es lo que traía el Excel) se usa la del catálogo.
+            var vidaUtil = linea.MesesVidaUtil is > 0 ? linea.MesesVidaUtil.Value : activo.MesesVidaUtil;
+
+            if (vidaUtil <= 0)
+            {
+                // Sin vida útil no hay valor mensual, y la tabla lo prohíbe (CK > 0). Es un error
+                // de datos en el catálogo, no de quien cotiza: se salta la línea en vez de tumbar
+                // la cotización completa por una trampa mal dada de alta.
+                continue;
+            }
+
+            var total = activo.CostoActual * linea.Cantidad;
+
+            _contexto.DetalleAmortizable.Add(new Orkin.Cotizador.Core.Domain.Entidades.DetalleAmortizable
+            {
+                Id = Guid.NewGuid(),
+                CotizacionId = cotizacionId,
+                ActivoAmortizableId = activo.Id,
+                Cantidad = linea.Cantidad,
+                PrecioUnitario = activo.CostoActual,
+                MesesVidaUtil = vidaUtil,
+                Total = total,
+                ValorMensual = total / vidaUtil,
+                UnidadMedidaTexto = activo.UnidadMedida?.Abreviatura ?? string.Empty,
+                ActivoNombre = activo.Nombre,
+                Orden = orden++
+            });
+        }
     }
 
     /// <summary>
@@ -680,6 +831,23 @@ public sealed record DetalleInsumoResponse(
     decimal Cantidad,
     byte? SemestreId);
 
+/// <summary>Linea de activo amortizable de una cotizacion existente.</summary>
+/// <para><c>MesesVidaUtil</c> es la vida util <b>efectivamente usada</b> en esta cotizacion: si
+/// quien cotizo la escribio a mano sale esa, y si la dejo vacia sale la del catalogo. La columna
+/// es obligatoria y jamas puede ser cero, asi que no se conserva la distincion entre «venia del
+/// catalogo» y «la escribi aqui»; lo que se guarda y se devuelve es el numero con el que se
+/// cotizo, que es lo que hace falta para que el formulario de edicion recargue la fila con el
+/// mismo valor y el PDF no difiera del total.</para>
+/// </summary>
+public sealed record DetalleAmortizableResponse(
+    Guid ActivoAmortizableId,
+    decimal Cantidad,
+    int? MesesVidaUtil,
+    decimal PrecioUnitario,
+    decimal ValorMensual,
+    string ActivoNombre,
+    string UnidadMedidaTexto);
+
 /// <summary>
 /// Una cotización con sus líneas de insumo. El listado usa <c>CotizacionResponse</c> (sin
 /// insumos, que es todo lo que hace falta para la tabla); el detalle y la edición usan esta,
@@ -691,6 +859,7 @@ public sealed record CotizacionDetalleResponse(
     int Anio,
     Guid? ClienteId,
     string ClienteNombre,
+    byte TipoClienteId,
     Guid TipoServicioId,
     string TipoServicioNombre,
     DateOnly Fecha,
@@ -711,7 +880,11 @@ public sealed record CotizacionDetalleResponse(
     byte MetodoCosteoId,
     decimal? PorcentajePlantilla,
     DateTime CreatedAt,
-    IReadOnlyList<DetalleInsumoResponse> Insumos);
+    IReadOnlyList<DetalleInsumoResponse> Insumos,
+    IReadOnlyList<DetalleAmortizableResponse> Amortizables,
+    Guid? TecnicoAsignadoId,
+    DateOnly? FechaEstimada,
+    string? DireccionServicio);
 
 /// <summary>Respuesta paginada genérica.</summary>
 public sealed record PaginatedResponse<T>(
