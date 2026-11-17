@@ -526,8 +526,23 @@ docker compose down   # detiene SQL Server y la API (los datos persisten en el v
 ```powershell
 docker compose logs -f api      # ver el log de la API en vivo
 docker compose up -d --build    # reconstruir la API después de un cambio en el código
-docker compose exec db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'OrkinDev_2026' -C -Q 'SELECT 1'  # probar la base
+docker compose exec db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$env:MSSQL_SA_PASSWORD" -C -Q 'SELECT 1'  # probar la base (lee .env.Development)
 ```
+
+> **Configuración y secretos.** Todos los valores ajustables (cadena de conexión a
+> `SINCOERPORKIN`, clave de firma JWT, CORS, flags de siembra, contraseña del admin y del
+> SQL local) viven en `.env.Development`, que **no se versiona**. La plantilla versionada
+> es `.env.Development.example`: copiarla como `.env.Development` y completar los valores.
+> Ni `docker-compose.yml` ni los `appsettings` tienen secretos escritos: Compose inyecta el
+> archivo con `env_file` y la API lo carga con `ConfiguracionBootstrap`.
+>
+> Cuando se configuren los despliegues, **cada clave de la plantilla se registra como un
+> secret de GitHub con el mismo nombre** (los dobles guiones bajos son la convención de
+> .NET para secciones: `Database__ConnectionString` → `Database:ConnectionString`). En el
+> workflow, esos secrets se inyectan como variables de ambiente; una variable de ambiente
+> real siempre gana sobre el `.env`, así que no hace falta editar archivos ni recompilar
+> para rotar un valor. No renombrar las claves: es el contrato entre la app, Docker y
+> GitHub Actions.
 
 ### 4.5 Tests
 
