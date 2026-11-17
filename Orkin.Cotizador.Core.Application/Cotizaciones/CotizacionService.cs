@@ -119,15 +119,23 @@ public sealed class CotizacionService
                 // La vida útil de la cotización pisa la del catálogo: el catálogo trae el valor
                 // típico (12 meses), pero una trampa a la intemperie dura 6 y la misma bajo
                 // techo dura 24 — quien cotiza lo sabe. Si la cotización no trae el dato, se
-                // usa el del catálogo.
+                // usa el del catálogo. Si el catálogo tampoco lo trae (D-04), el cálculo falla
+                // con mensaje claro en vez de dividir entre cero.
                 var vidaUtil = mesesVidaUtil is > 0 ? mesesVidaUtil.Value : activo.MesesVidaUtil;
+                if (vidaUtil is null or <= 0)
+                {
+                    throw new CalculoInvalidoException(
+                        $"El activo \"{activo.Nombre}\" no tiene meses de vida útil. " +
+                        "Ingréselos en la línea del activo dentro de la cotización.",
+                        "vida útil no definida");
+                }
 
                 lineasAmortizables.Add(new LineaAmortizable(
                     activo.Nombre,
                     activo.UnidadMedida?.Abreviatura ?? string.Empty,
                     cantidad,
                     activo.CostoActual,
-                    vidaUtil));
+                    vidaUtil.Value));
             }
         }
 

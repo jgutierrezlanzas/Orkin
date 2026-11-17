@@ -1,3 +1,4 @@
+using Orkin.Cotizador.Core.Domain.Catalogos;
 using Orkin.Cotizador.Core.Domain.Comun;
 
 namespace Orkin.Cotizador.Core.Domain.Entidades;
@@ -111,6 +112,27 @@ public class ErpConexion : BaseEntity
 
     /// <summary>Estado (BORRADOR/ACTIVA/CON_ERROR), reflejo de <c>int.EstadoConexionCatalogo</c>.</summary>
     public byte Estado { get; set; } = IntegracionCatalogos.EstadoConexionBorrador;
+}
+
+/// <summary>
+/// Mapeo configurable entre la categoría de cliente que traiga el ERP (ej. <c>C01</c>, <c>C02</c>,
+/// <c>C03</c> de Softland) y el <c>dbo.TipoClienteCatalogo</c> de la plataforma
+/// (<c>RESIDENCIAL</c> / <c>EMPRESARIAL</c>). El usuario lo configura por conexión: cada cliente
+/// puede tener su propia codificación.
+/// </summary>
+public class ErpMapeoTipoCliente : BaseEntity
+{
+    public Guid ErpConexionId { get; set; }
+
+    public ErpConexion? ErpConexion { get; set; }
+
+    /// <summary>Código de categoría que viene del ERP (ej. <c>C01</c>).</summary>
+    public string CodigoCategoriaErp { get; set; } = null!;
+
+    /// <summary>FK → <c>dbo.TipoClienteCatalogo</c>.</summary>
+    public byte TipoClienteCatalogoId { get; set; }
+
+    public TipoClienteCatalogo? TipoClienteCatalogo { get; set; }
 }
 
 /// <summary>

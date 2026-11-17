@@ -193,7 +193,7 @@ public sealed class ActivoAmortizableOpcionModel
     public string Codigo { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
     public decimal CostoActual { get; set; }
-    public int MesesVidaUtil { get; set; }
+    public int? MesesVidaUtil { get; set; }
     public string UnidadAbreviatura { get; set; } = string.Empty;
 }
 

@@ -11,6 +11,18 @@ public sealed class UnidadMedidaModel
     public bool EsActivo { get; set; }
 }
 
+public sealed class TecnicoModel
+{
+    public Guid Id { get; set; }
+    public string Codigo { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public string? Telefono { get; set; }
+    public string? Correo { get; set; }
+    public string? Cargo { get; set; }
+    public int Orden { get; set; }
+    public bool EsActivo { get; set; }
+}
+
 public sealed class CategoriaProductoModel
 {
     public Guid Id { get; set; }

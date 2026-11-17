@@ -51,13 +51,11 @@ services:
       - ASPNETCORE_URLS=http://+:8080
 
       # ── Base de datos ───────────────────────────────────────────────────────
-      # Dentro de la red de Docker, SQL Server es "db" (el nombre del servicio),
-      # no "localhost". Encrypt=False porque el certificado autofirmado de SQL Server
-      # en el contenedor no pasa la validación TLS del runtime de Linux.
-      #
-      # La base se llama "Orkin", sin el sufijo del módulo. La plataforma va a tener más
-      # módulos que el cotizador, y el nombre de la base no es el lugar donde se decide eso.
-      - Database__ConnectionString=Server=db,1433;Database=Orkin;User Id=sa;Password=OrkinDev_2026;TrustServerCertificate=True;Encrypt=False
+      # La plataforma web usará la base del sistema legacy (SINCOERPORKIN) en el servidor
+      # de desarrollo/pruebas. La base local "Orkin" del contenedor db se mantiene levantada
+      # como respaldo de desarrollo, pero la API apunta a SINCOERPORKIN.
+      # Encrypt=False porque el certificado del servidor SQL no pasa la validación TLS.
+      - Database__ConnectionString=Server=10.40.50.1,1433;Database=SINCOERPORKIN;User Id=Desarrollo;Password=Desarrollo;TrustServerCertificate=True;Encrypt=False
       - Database__AplicarMigracionesAlArrancar=true
 
       # ── Seguridad (solo desarrollo; en producción van en un gestor) ─────────

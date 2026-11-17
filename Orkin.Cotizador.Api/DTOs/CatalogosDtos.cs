@@ -26,6 +26,35 @@ public sealed record ActualizarUnidadMedidaRequest(
     int Orden,
     bool EsActivo);
 
+/// <summary>Respuesta de un técnico del catálogo compartido.</summary>
+public sealed record TecnicoResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    string? Telefono,
+    string? Correo,
+    string? Cargo,
+    int Orden,
+    bool EsActivo);
+
+/// <summary>Solicitud para crear un técnico manual.</summary>
+public sealed record CrearTecnicoRequest(
+    string Codigo,
+    string Nombre,
+    string? Telefono,
+    string? Correo,
+    string? Cargo,
+    int Orden);
+
+/// <summary>Solicitud para actualizar un técnico.</summary>
+public sealed record ActualizarTecnicoRequest(
+    string Nombre,
+    string? Telefono,
+    string? Correo,
+    string? Cargo,
+    int Orden,
+    bool EsActivo);
+
 /// <summary>Respuesta de una categoría de producto.</summary>
 public sealed record CategoriaProductoResponse(
     Guid Id,
@@ -197,4 +226,199 @@ public sealed record ActualizarTipoCambioRequest(
     DateOnly Fecha,
     decimal Valor,
     byte FuenteId,
+    bool EsActivo);
+
+/// <summary>Respuesta de una frecuencia de servicio.</summary>
+public sealed record FrecuenciaResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    int? NumeroServicios,
+    bool Activo,
+    int Orden,
+    bool EsActivo);
+
+public sealed record CrearFrecuenciaRequest(
+    string Codigo,
+    string Nombre,
+    int? NumeroServicios,
+    bool Activo,
+    int Orden);
+
+public sealed record ActualizarFrecuenciaRequest(
+    string Nombre,
+    int? NumeroServicios,
+    bool Activo,
+    int Orden,
+    bool EsActivo);
+
+/// <summary>Respuesta de una locación de cliente.</summary>
+public sealed record LocacionResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    string? ClienteCodigo,
+    string? Departamento,
+    string? Municipio,
+    string? ZonaBarrio,
+    string? Contacto1,
+    string? Contacto2,
+    string? Contacto3,
+    string? Telefono,
+    string? TelefonoConvencional,
+    string? Correo1,
+    string? Correo2,
+    string? Correo3,
+    decimal? Distancia,
+    decimal? Latitud,
+    decimal? Longitud,
+    bool Activo,
+    bool Notificar,
+    int Orden,
+    bool EsActivo);
+
+public sealed record CrearLocacionRequest(
+    string Codigo,
+    string Nombre,
+    string? ClienteCodigo,
+    string? Departamento,
+    string? Municipio,
+    string? ZonaBarrio,
+    string? Contacto1,
+    string? Contacto2,
+    string? Contacto3,
+    string? Telefono,
+    string? TelefonoConvencional,
+    string? Correo1,
+    string? Correo2,
+    string? Correo3,
+    decimal? Distancia,
+    decimal? Latitud,
+    decimal? Longitud,
+    bool Activo,
+    bool Notificar,
+    int Orden);
+
+public sealed record ActualizarLocacionRequest(
+    string Nombre,
+    string? ClienteCodigo,
+    string? Departamento,
+    string? Municipio,
+    string? ZonaBarrio,
+    string? Contacto1,
+    string? Contacto2,
+    string? Contacto3,
+    string? Telefono,
+    string? TelefonoConvencional,
+    string? Correo1,
+    string? Correo2,
+    string? Correo3,
+    decimal? Distancia,
+    decimal? Latitud,
+    decimal? Longitud,
+    bool Activo,
+    bool Notificar,
+    int Orden,
+    bool EsActivo);
+
+/// <summary>Respuesta de un método de aplicación.</summary>
+public sealed record MetodoAplicacionResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    bool Activo,
+    int Orden,
+    bool EsActivo);
+
+public sealed record CrearMetodoAplicacionRequest(
+    string Codigo,
+    string Nombre,
+    bool Activo,
+    int Orden);
+
+public sealed record ActualizarMetodoAplicacionRequest(
+    string Nombre,
+    bool Activo,
+    int Orden,
+    bool EsActivo);
+
+/// <summary>Respuesta de un tipo de plaga.</summary>
+public sealed record TipoPlagaResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    bool Activo,
+    int Orden,
+    bool EsActivo);
+
+public sealed record CrearTipoPlagaRequest(
+    string Codigo,
+    string Nombre,
+    bool Activo,
+    int Orden);
+
+public sealed record ActualizarTipoPlagaRequest(
+    string Nombre,
+    bool Activo,
+    int Orden,
+    bool EsActivo);
+
+/// <summary>Respuesta de un tipo de ubicación.</summary>
+public sealed record TipoUbicacionResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    bool Activo,
+    int Orden,
+    bool EsActivo);
+
+public sealed record CrearTipoUbicacionRequest(
+    string Codigo,
+    string Nombre,
+    bool Activo,
+    int Orden);
+
+public sealed record ActualizarTipoUbicacionRequest(
+    string Nombre,
+    bool Activo,
+    int Orden,
+    bool EsActivo);
+
+/// <summary>Respuesta de un vehículo.</summary>
+public sealed record VehiculoResponse(
+    Guid Id,
+    string Codigo,
+    string Nombre,
+    string? Placa,
+    string? Circulacion,
+    string? TipoVehiculo,
+    decimal? Eficiencia,
+    bool Gps,
+    DateOnly? FechaGps,
+    bool Activo,
+    int Orden,
+    bool EsActivo);
+
+public sealed record CrearVehiculoRequest(
+    string Codigo,
+    string Nombre,
+    string? Placa,
+    string? Circulacion,
+    string? TipoVehiculo,
+    decimal? Eficiencia,
+    bool Gps,
+    DateOnly? FechaGps,
+    bool Activo,
+    int Orden);
+
+public sealed record ActualizarVehiculoRequest(
+    string Nombre,
+    string? Placa,
+    string? Circulacion,
+    string? TipoVehiculo,
+    decimal? Eficiencia,
+    bool Gps,
+    DateOnly? FechaGps,
+    bool Activo,
+    int Orden,
     bool EsActivo);

@@ -31,6 +31,10 @@
         "CATALOGOS.ORIGENES",
         "APROBACIONES.VER",
         "APROBACIONES.DECIDIR",
+        "PLANTILLAS.VER",
+        "PLANTILLAS.EDITAR",
+        "PLANTILLAS.COPIAR",
+        "PLANTILLAS.ELIMINAR",
         "ADMIN.USUARIOS",
         "ADMIN.ROLES",
         "ADMIN.PARAMETROS",
@@ -64,6 +68,10 @@
         "CATALOGOS.ORIGENES",
         "APROBACIONES.VER",
         "APROBACIONES.DECIDIR",
+        "PLANTILLAS.VER",
+        "PLANTILLAS.EDITAR",
+        "PLANTILLAS.COPIAR",
+        "PLANTILLAS.ELIMINAR",
         "AUDITORIA.VER"
       ]
     },
@@ -85,7 +93,8 @@
         "CLIENTES.VER",
         "CLIENTES.CREAR",
         "CLIENTES.EDITAR",
-        "CATALOGOS.VER"
+        "CATALOGOS.VER",
+        "PLANTILLAS.VER"
       ]
     }
   ]

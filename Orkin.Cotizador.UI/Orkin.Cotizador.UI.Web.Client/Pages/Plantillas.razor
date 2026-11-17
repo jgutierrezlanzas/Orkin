@@ -1,0 +1,244 @@
+@page "/plantillas"
+@attribute [Authorize("PLANTILLAS.VER")]
+@layout MainLayout
+@inject PlantillaService ServicioPlantillas
+@inject CatalogoService Catalogos
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Color="Color.Primary">Plantillas</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Operación · plantillas de orden de trabajo</MudText>
+        </div>
+        @if (_puedeEditar)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Nueva">Nueva plantilla</MudButton>
+        }
+    </div>
+
+    <MudPaper Class="pa-4 mb-4" Elevation="1" Outlined="true">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="_texto" Label="Buscar por código o nombre" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudSelect T="Guid?" @bind-Value="_clienteId" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
+                    @foreach (var cliente in _clientes)
+                    {
+                        <MudSelectItem T="Guid?" Value="@cliente.Id">@cliente.Nombre</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudSelect T="Guid?" @bind-Value="_tecnicoId" Label="Técnico" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
+                    @foreach (var tecnico in _tecnicos)
+                    {
+                        <MudSelectItem T="Guid?" Value="@tecnico.Id">@tecnico.Nombre</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="2" Class="d-flex align-center">
+                <MudCheckBox @bind-Value="_soloActivas" Label="Solo activas" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="12" Class="d-flex justify-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search" OnClick="Cargar">Buscar</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudTable Items="_plantillas" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+              RowClassFunc="@((p, i) => p.EsActivo ? string.Empty : "mud-text-secondary")">
+        <HeaderContent>
+            <MudTh>Código</MudTh>
+            <MudTh>Nombre</MudTh>
+            <MudTh>Cliente</MudTh>
+            <MudTh>Técnico</MudTh>
+            <MudTh>Productos</MudTh>
+            <MudTh>Servicios</MudTh>
+            <MudTh>Activa</MudTh>
+            <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Código">@context.Codigo</MudTd>
+            <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+            <MudTd DataLabel="Cliente">@context.ClienteNombre</MudTd>
+            <MudTd DataLabel="Técnico">@context.TecnicoNombre</MudTd>
+            <MudTd DataLabel="Productos">@context.Detalles.Count</MudTd>
+            <MudTd DataLabel="Servicios">@context.Servicios.Count</MudTd>
+            <MudTd DataLabel="Activa">
+                <MudIcon Icon="@(context.EsActivo ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)"
+                         Color="@(context.EsActivo ? Color.Success : Color.Default)" />
+            </MudTd>
+            <MudTd>
+                @if (_puedeEditar)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                                   OnClick="@(() => Editar(context))" aria-label="Editar" />
+                }
+                @if (_puedeCopiar)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" Color="Color.Secondary"
+                                   OnClick="@(() => Copiar(context))" aria-label="Copiar" />
+                }
+                @if (_puedeEliminar && context.EsActivo)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Archive" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => DarDeBaja(context))" aria-label="Dar de baja" />
+                }
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Filas por página" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<PlantillaModel> _plantillas = [];
+    private List<ClienteModel> _clientes = [];
+    private List<TecnicoModel> _tecnicos = [];
+    private string? _texto;
+    private Guid? _clienteId;
+    private Guid? _tecnicoId;
+    private bool _soloActivas = true;
+    private bool _cargando;
+    private bool _puedeEditar;
+    private bool _puedeCopiar;
+    private bool _puedeEliminar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+        _puedeEditar = estado.User.HasClaim("orkin:permiso", "PLANTILLAS.EDITAR");
+        _puedeCopiar = estado.User.HasClaim("orkin:permiso", "PLANTILLAS.COPIAR");
+        _puedeEliminar = estado.User.HasClaim("orkin:permiso", "PLANTILLAS.ELIMINAR");
+
+        await Task.WhenAll(
+            Cargar(() => Catalogos.ListarClientesAsync(), lista => _clientes = lista),
+            Cargar(() => Catalogos.ListarTecnicosAsync(), lista => _tecnicos = lista),
+            Cargar());
+    }
+
+    private static async Task Cargar<T>(Func<Task<List<T>>> obtener, Action<List<T>> asignar)
+        => asignar(await obtener());
+
+    private async Task Cargar()
+    {
+        _cargando = true;
+        try
+        {
+            _plantillas = await ServicioPlantillas.ListarAsync(_texto, _clienteId, _tecnicoId, _soloActivas);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudieron cargar las plantillas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private Task Nueva() => AbrirDialogo(new PlantillaModel(), esEdicion: false);
+
+    private Task Editar(PlantillaModel plantilla) => AbrirDialogo(Clonar(plantilla), esEdicion: true);
+
+    private static PlantillaModel Clonar(PlantillaModel p) => new()
+    {
+        Id = p.Id,
+        Codigo = p.Codigo,
+        Nombre = p.Nombre,
+        ClienteId = p.ClienteId,
+        ClienteNombre = p.ClienteNombre,
+        LocacionCodigo = p.LocacionCodigo,
+        Direccion = p.Direccion,
+        TecnicoId = p.TecnicoId,
+        TecnicoNombre = p.TecnicoNombre,
+        Contacto = p.Contacto,
+        Telefono = p.Telefono,
+        VehiculoCodigo = p.VehiculoCodigo,
+        DescripcionTrabajo = p.DescripcionTrabajo,
+        Notas = p.Notas,
+        EsActivo = p.EsActivo,
+        Detalles = [.. p.Detalles],
+        Servicios = [.. p.Servicios],
+        Equipos = [.. p.Equipos]
+    };
+
+    private async Task AbrirDialogo(PlantillaModel modelo, bool esEdicion)
+    {
+        var parametros = new DialogParameters<PlantillaDialogo>
+        {
+            { d => d.Modelo, modelo }
+        };
+        var opciones = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = true
+        };
+        var titulo = esEdicion ? $"Editar — {modelo.Nombre}" : "Nueva plantilla";
+        var dialogo = await DialogService.ShowAsync<PlantillaDialogo>(titulo, parametros, opciones);
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not PlantillaModel editado)
+        {
+            return;
+        }
+
+        var respuesta = await ServicioPlantillas.GuardarAsync(editado, esEdicion);
+        if (respuesta?.Exito == true)
+        {
+            Snackbar.Add("Plantilla guardada correctamente.", Severity.Success);
+            await Cargar();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar la plantilla.", Severity.Error);
+        }
+    }
+
+    private async Task Copiar(PlantillaModel plantilla)
+    {
+        var respuesta = await ServicioPlantillas.CopiarAsync(plantilla.Id, null, null);
+        if (respuesta?.Exito == true)
+        {
+            Snackbar.Add("Plantilla copiada correctamente.", Severity.Success);
+            await Cargar();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo copiar la plantilla.", Severity.Error);
+        }
+    }
+
+    private async Task DarDeBaja(PlantillaModel plantilla)
+    {
+        var dialogo = await DialogService.ShowAsync<ConfirmarDialogo>(
+            "Dar de baja plantilla", new DialogParameters<ConfirmarDialogo>
+            {
+                { d => d.Titulo, $"Dar de baja «{plantilla.Nombre}»" },
+                { d => d.Mensaje, "La plantilla y sus líneas se conservan, pero dejan de aparecer." }
+            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not true)
+        {
+            return;
+        }
+
+        if (await ServicioPlantillas.DarDeBajaAsync(plantilla.Id))
+        {
+            Snackbar.Add("Plantilla dada de baja.", Severity.Success);
+            await Cargar();
+        }
+        else
+        {
+            Snackbar.Add("No se pudo dar de baja la plantilla.", Severity.Error);
+        }
+    }
+}

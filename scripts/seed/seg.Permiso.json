@@ -27,6 +27,11 @@
     { "Codigo": "APROBACIONES.VER", "Nombre": "Ver aprobaciones", "ModuloId": "APROBACIONES", "Orden": 1 },
     { "Codigo": "APROBACIONES.DECIDIR", "Nombre": "Decidir aprobaciones", "Descripcion": "Aprobar o rechazar. Se separa de APROBACIONES.VER para que nadie pueda aprobar su propia solicitud: el servicio valida que el aprobador no sea el autor.", "ModuloId": "APROBACIONES", "Orden": 2 },
 
+    { "Codigo": "PLANTILLAS.VER", "Nombre": "Ver plantillas", "Descripcion": "Ver el listado y el detalle de las plantillas de orden de trabajo.", "ModuloId": "PLANTILLAS", "Orden": 1 },
+    { "Codigo": "PLANTILLAS.EDITAR", "Nombre": "Editar plantillas", "Descripcion": "Alta y edicion de plantillas, incluidas sus lineas de producto, servicio y equipo.", "ModuloId": "PLANTILLAS", "Orden": 2 },
+    { "Codigo": "PLANTILLAS.COPIAR", "Nombre": "Copiar plantillas", "Descripcion": "Duplicar una plantilla con todas sus lineas.", "ModuloId": "PLANTILLAS", "Orden": 3 },
+    { "Codigo": "PLANTILLAS.ELIMINAR", "Nombre": "Dar de baja plantillas", "Descripcion": "Baja logica; la plantilla y sus lineas se conservan en la base.", "ModuloId": "PLANTILLAS", "Orden": 4 },
+
     { "Codigo": "ADMIN.USUARIOS", "Nombre": "Administrar usuarios", "ModuloId": "ADMIN", "Orden": 1 },
     { "Codigo": "ADMIN.ROLES", "Nombre": "Administrar roles y permisos", "ModuloId": "ADMIN", "Orden": 2 },
     { "Codigo": "ADMIN.PARAMETROS", "Nombre": "Administrar parametros", "Descripcion": "Mover umbrales de aprobacion, dias de vigencia, textos del PDF. Es el permiso mas sensible del sistema.", "ModuloId": "ADMIN", "Orden": 3 },

@@ -81,7 +81,12 @@ public sealed class CargadorTiposCambio : ICargadorCatalogo
         foreach (var fila in filas)
         {
             var mapeada = Normalizacion.AplicarMapeo(fila, configuracion.MapeoColumnas);
-            var codigo = Normalizacion.AString(mapeada.GetValueOrDefault("Fecha"));
+            var valorFecha = mapeada.GetValueOrDefault("Fecha");
+            // El ERP puede traer la fecha como DateTime/DateTime2/DateOnly. Normalizamos a
+            // string ISO aquí para que el resto del cargador trabaje con texto estable.
+            var codigo = valorFecha is DateTime dt
+                ? dt.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                : Normalizacion.AString(valorFecha);
             if (codigo is not null)
             {
                 codigosExternos.Add(codigo);
@@ -92,23 +97,22 @@ public sealed class CargadorTiposCambio : ICargadorCatalogo
             }
         }
 
-        // Las filas de esta conexión, por fecha ISO.
-        var existentes = await _contexto.TipoCambio
-            .Where(t => t.ErpConexionId == configuracion.ErpConexionId
-                     && t.CodigoExterno != null
-                     && codigosExternos.Contains(t.CodigoExterno))
-            .ToDictionaryAsync(t => t.CodigoExterno!, StringComparer.Ordinal, cancellationToken);
+        // Las filas de esta conexión, por fecha ISO. Se filtran en memoria para evitar que
+        // EF Core genere SQL problemático con Contains sobre una lista de strings.
+        var existentes = (await _contexto.TipoCambio
+                .Where(t => t.ErpConexionId == configuracion.ErpConexionId && t.CodigoExterno != null)
+                .ToListAsync(cancellationToken))
+            .Where(t => codigosExternos.Contains(t.CodigoExterno!))
+            .ToDictionary(t => t.CodigoExterno!, StringComparer.Ordinal);
 
         // Huérfanas: filas sembradas a mano con la misma (fecha, fuente) — sin conexión. Sin
         // adoptarlas, UX_TipoCambio_Fecha_Fuente rechazaría el insert con un error que no dice
-        // de dónde viene el conflicto. Se compara DateOnly directo y no Fecha.ToString():
-        // convertir fechas dentro de la consulta no es traducible a SQL y el lote completo
-        // rebotaría con un error de LINQ.
-        var huerfanas = await _contexto.TipoCambio
-            .Where(t => t.ErpConexionId == null
-                     && t.FuenteId == fuenteId
-                     && fechas.Contains(t.Fecha))
-            .ToDictionaryAsync(t => t.Fecha.ToString("yyyy-MM-dd"), StringComparer.Ordinal, cancellationToken);
+        // de dónde viene el conflicto.
+        var huerfanas = (await _contexto.TipoCambio
+                .Where(t => t.ErpConexionId == null && t.FuenteId == fuenteId)
+                .ToListAsync(cancellationToken))
+            .Where(t => fechas.Contains(t.Fecha))
+            .ToDictionary(t => t.Fecha.ToString("yyyy-MM-dd"), StringComparer.Ordinal);
 
         var numeroFila = 1;
         var simulados = new List<CambioSimulado>();
@@ -120,8 +124,11 @@ public sealed class CargadorTiposCambio : ICargadorCatalogo
             {
                 var mapeada = Normalizacion.AplicarMapeo(fila, configuracion.MapeoColumnas);
 
-                var fechaTexto = Normalizacion.AString(mapeada.GetValueOrDefault("Fecha"))
-                    ?? throw new FormatException("El campo 'Fecha' es obligatorio (YYYY-MM-DD).");
+                var valorFecha = mapeada.GetValueOrDefault("Fecha");
+                var fechaTexto = valorFecha is DateTime dtFecha
+                    ? dtFecha.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                    : Normalizacion.AString(valorFecha)
+                        ?? throw new FormatException("El campo 'Fecha' es obligatorio (YYYY-MM-DD).");
 
                 if (!DateOnly.TryParse(fechaTexto, out var fecha))
                 {

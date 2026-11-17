@@ -51,6 +51,7 @@ public class Program
 
         builder.Services.AddScoped<AuthService>();
         builder.Services.AddScoped<CatalogoService>();
+        builder.Services.AddScoped<PlantillaService>();
         builder.Services.AddScoped<CotizacionService>();
         builder.Services.AddScoped<IntegracionService>();
         builder.Services.AddScoped<AdminService>();

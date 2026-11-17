@@ -31,19 +31,24 @@
                 {
                     <MudNavLink Href="/cotizaciones" Icon="@Icons.Material.Filled.RequestQuote">Cotizaciones</MudNavLink>
                 }
-                @if (TienePermiso("CLIENTES.VER"))
-                {
-                    <MudNavLink Href="/clientes" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
-                }
-
                 @if (_permisosCatalogos.Count > 0)
                 {
-                    <MudNavGroup Title="Catálogos" Icon="@Icons.Material.Filled.List" Expanded="true">
+                    @* Un solo grupo de catálogos para toda la plataforma: los mismos datos
+                       los usa el cotizador y los módulos que vienen del legacy. El origen es
+                       Softland/SINCOERPORKIN; no se crea un catálogo por módulo. *@
+                    <MudNavGroup Title="Catálogos compartidos" Icon="@Icons.Material.Filled.List" Expanded="true">
+                        <MudText Typo="Typo.caption" Class="px-4 mud-text-secondary">Origen: Softland / SINCOERPORKIN</MudText>
+
+                        @if (TienePermiso("CLIENTES.VER"))
+                        {
+                            <MudNavLink Href="/clientes" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
+                        }
                         @if (TienePermiso("CATALOGOS.VER"))
                         {
                             <MudNavLink Href="/catalogos/unidades-medida" Icon="@Icons.Material.Filled.Straighten">Unidades de medida</MudNavLink>
                             <MudNavLink Href="/catalogos/categorias-producto" Icon="@Icons.Material.Filled.Category">Categorías de producto</MudNavLink>
                             <MudNavLink Href="/catalogos/tipos-servicio" Icon="@Icons.Material.Filled.CleaningServices">Tipos de servicio</MudNavLink>
+                            <MudNavLink Href="/catalogos/tecnicos" Icon="@Icons.Material.Filled.Person">Técnicos</MudNavLink>
                             <MudNavLink Href="/catalogos/productos" Icon="@Icons.Material.Filled.Inventory">Productos</MudNavLink>
                             <MudNavLink Href="/catalogos/tipos-cambio" Icon="@Icons.Material.Filled.CurrencyExchange">Tipos de cambio</MudNavLink>
                         }
@@ -58,6 +63,17 @@
                             <MudDivider Class="my-1" />
                             <MudNavLink Href="/catalogos/origenes" Icon="@Icons.Material.Filled.Storage">Orígenes de datos</MudNavLink>
                         }
+                    </MudNavGroup>
+                }
+
+                @* Operación: las capacidades que vienen del legacy (plantillas, visitas,
+                   órdenes, requisas, inventario, reportes). Solo se agrega un link cuando la
+                   página existe; hoy es Plantillas. Ningún catálogo se repite en este grupo:
+                   los catálogos viven en "Catálogos compartidos" (D-21). *@
+                @if (TienePermiso("PLANTILLAS.VER"))
+                {
+                    <MudNavGroup Title="Operación" Icon="@Icons.Material.Filled.Build" Expanded="true">
+                        <MudNavLink Href="/plantillas" Icon="@Icons.Material.Filled.Description">Plantillas</MudNavLink>
                     </MudNavGroup>
                 }
 
@@ -149,6 +165,13 @@
         foreach (var d in denegados)
         {
             _permisos.Add($"{d}__DENEGADO");
+        }
+
+        // Clientes también es un catálogo compartido: se agrupa con el resto aunque su permiso
+        // sea propio. Sin esto, un rol que solo puede ver clientes no vería el grupo en el sidebar.
+        if (TienePermiso("CLIENTES.VER"))
+        {
+            _permisosCatalogos.Add("CLIENTES.VER");
         }
 
         if (TienePermiso("CATALOGOS.VER"))

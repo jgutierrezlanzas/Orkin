@@ -148,8 +148,12 @@ public class ActivoAmortizable : BaseEntity
 
     public decimal CostoActual { get; set; }
 
-    /// <summary>⚠️ <b>H-04</b>: obligatorio y <c>&gt; 0</c>. Bloquea la carga hasta resolver <b>D-04</b>.</summary>
-    public int MesesVidaUtil { get; set; }
+    /// <summary>
+    /// Vida útil típica del activo, en meses. Puede venir vacío del ERP (D-04 resuelto: se
+    /// mantiene manual en la cotización). Si el catálogo no lo trae, quien cotiza debe
+    /// ingresar la vida útil por línea; el motor rechaza el cálculo si queda en cero.
+    /// </summary>
+    public int? MesesVidaUtil { get; set; }
 
     /// <summary>Valor residual. Lo normal es 0, pero se guarda porque el ERP puede traerlo.</summary>
     public decimal ValorResidual { get; set; }
@@ -212,3 +216,7 @@ public class TipoCambio : BaseEntity
     public byte[]? HashContenido { get; set; }
     public DateTime? UltimaSyncUtc { get; set; }
 }
+
+// D-20: aquí NO se definen frecuencias, locaciones, métodos de aplicación, tipos de
+// plaga, tipos de ubicación ni vehículos. Ya existen en SOFTLAND/FUMIPLAGA o en las
+// vistas vv* de SINCOERPORKIN; el cotizador no los necesita como tablas propias.

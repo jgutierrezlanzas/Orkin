@@ -45,8 +45,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TipoServicioService>();
         services.AddScoped<ProductoService>();
         services.AddScoped<ClienteService>();
+        services.AddScoped<TecnicoService>();
         services.AddScoped<TipoCambioService>();
         services.AddScoped<CotizacionService>();
+        services.AddScoped<Plantillas.PlantillaService>();
 
         // Proceso de carga desde origen externo (Fase 2.5): un cargador por catálogo. El de
         // clientes va con el de productos porque el cliente de ORKIN también vive en su ERP, y
@@ -61,6 +63,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorTiposCambio>();
         services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorActivosAmortizables>();
         services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorTecnicos>();
+
+        // D-20: no se registran cargadores para catálogos que ya viven en SOFTLAND/FUMIPLAGA
+        // o en las vistas vv* de SINCOERPORKIN (frecuencias, locaciones, métodos, plagas,
+        // ubicaciones, vehículos). Se consumen desde su origen cuando un módulo los necesite.
 
         // Integración con el ERP del cliente (Fase 12): conexiones, flujos y sus corridas.
         services.AddScoped<Integracion.IntegracionService>();

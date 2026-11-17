@@ -30,7 +30,7 @@ public sealed class CargadorActivosAmortizables : ICargadorCatalogo
         new("Codigo", "texto", true, "El código del activo en el ERP del cliente"),
         new("Nombre", "texto", true, "El nombre del activo (trampa, lámpara, cebadero...)"),
         new("CostoActual", "número", true, "El costo del activo. Acepta decimales."),
-        new("MesesVidaUtil", "entero", true, "Vida útil en meses. Debe ser mayor que cero — es lo que permite calcular el valor mensual."),
+        new("MesesVidaUtil", "entero", false, "Vida útil en meses. El ERP de ORKIN no la trae; si viene vacío, se define manual en cada cotización."),
         new("UnidadMedidaCodigo", "texto", true, "El código de la unidad en la plataforma (UND, PAR...)."),
         new("CategoriaCodigo", "texto", false, "El código de la categoría del activo."),
         new("ValorResidual", "número", false, "Valor residual al final de la vida útil. Normalmente 0."),
@@ -107,12 +107,12 @@ public sealed class CargadorActivosAmortizables : ICargadorCatalogo
 
                 var costo = Normalizacion.ADecimal(mapeada.GetValueOrDefault("CostoActual"), "CostoActual");
 
-                var vidaUtil = Normalizacion.AEnteroOpcional(mapeada.GetValueOrDefault("MesesVidaUtil"))
-                    ?? throw new FormatException("El campo 'MesesVidaUtil' es obligatorio (H-04: sin vida útil, el amortizable aporta nada a la cotización).");
-
-                if (vidaUtil <= 0)
+                var vidaUtil = Normalizacion.AEnteroOpcional(mapeada.GetValueOrDefault("MesesVidaUtil"));
+                if (vidaUtil is <= 0)
                 {
-                    throw new FormatException($"La vida útil debe ser mayor que cero (llegó {vidaUtil}).");
+                    // El ERP de ORKIN no trae vida útil. No rechazamos el activo: quien cotiza
+                    // la define como override por línea en la cotización (D-04).
+                    vidaUtil = null;
                 }
 
                 var unidadCodigo = Normalizacion.AString(mapeada.GetValueOrDefault("UnidadMedidaCodigo"))

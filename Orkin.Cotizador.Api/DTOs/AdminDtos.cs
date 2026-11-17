@@ -65,10 +65,10 @@ public sealed record ActivoAmortizableOption(
     string Codigo,
     string Nombre,
     decimal CostoActual,
-    int MesesVidaUtil,
+    int? MesesVidaUtil,
     string UnidadAbreviatura);
 
-/// <summary>Opción para dropdown de técnicos. Por ahora salen de los usuarios activos.</summary>
+/// <summary>Opción para dropdown de técnicos. Salen del catálogo compartido cargado desde el ERP.</summary>
 public sealed record TecnicoOption(
     Guid Id,
     string Nombre);

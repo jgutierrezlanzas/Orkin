@@ -10,7 +10,7 @@
 | Producto | Aplicación web de cotización (y posterior suite de módulos operativos) |
 | Módulo inicial | **Cotizador** (reemplaza el Excel `.xlsm` del día a día) |
 | Stack | **.NET 10 (`net10.0`)** · Blazor WebAssembly · **MudBlazor 9** · ASP.NET Core Web API · EF Core 10 |
-| Base de datos | **SQL Server** (confirmado) |
+| Base de datos | **SQL Server** — base de la plataforma: `SINCOERPORKIN` en `10.40.50.1` (legacy convertido en BD principal). Origen de catálogos: las mismas vistas `vv*` de `SINCOERPORKIN` |
 | Seguridad / autenticación | **Propia** — ASP.NET Core Identity + JWT. No depende de ningún otro proyecto |
 | Referencia de estructura | `D:\repos\MerakodeSoft\Mikaela.Prestamos` (solo patrón técnico: solución, convenciones, DI, despliegue) |
 | Diseño de UI aprobado | **`Cotizador Web — Prototipo D (sidebar + Cotizaciones).html`** |
@@ -724,8 +724,8 @@ graph LR
 | 0.5 | `Api`: `Program.cs`, Swagger, `GlobalExceptionMiddleware`, `ApiResponse<T>`, `HealthController` | `/swagger` y `/health` verdes | ✅ |
 | 0.6 | `UI.Shared` + `UI.Web` + `UI.Web.Client`: layout base, tema MudBlazor, `Home` de humo | App carga y muestra el sidebar | ✅ |
 | 0.7 | Migración inicial de EF Core + `DbInitializer` (catálogos, admin, roles, permisos, consecutivos) | BD creada con `dotnet ef` | ✅ |
-| 0.8 | `docker-compose.yml` (SQL Server), `dev-start.ps1`, `test.ps1` | `dev-start` levanta todo | ✅ |
-| 0.9 | `nuget.config`, `.gitignore`, `.dockerignore`, `Dockerfile` × 2, `docker-compose.prod.yml` | Base de despliegue | ⬜ |
+| 0.8 | `docker-compose.yml` (API + SQL Server local de respaldo), `dev-start.ps1`, `test.ps1` | API apunta a `SINCOERPORKIN` en `10.40.50.1`; contenedor `orkin-db` sigue disponible como respaldo de desarrollo | ✅ |
+| 0.9 | `nuget.config`, `.gitignore`, `.dockerignore`, `Dockerfile` × 2, `docker-compose.prod.yml` | Base de despliegue | 🟡 (apunta a `SINCOERPORKIN`; producción por definir) |
 | 0.10 | Git init + estructura de ramas (`main` / `staging`) + `.github/workflows` esqueleto | Repo listo | ⬜ |
 | 0.11 | `Orkin.Cotizador.Tests` con tests del motor de cálculo | `dotnet run` (MTP) verde | ✅ |
 | 0.12 | Tema MudBlazor: paleta corporativa ORKIN (rojo `#E31837`) + `MainLayout` + `NavMenu` con grupos | Sidebar fiel a la marca | ✅ |
@@ -770,6 +770,12 @@ graph LR
 > catálogos se llenan; el CRUD manual que ya existe es para **correcciones y ajustes** después de
 > la carga, no el camino principal.
 >
+> **Nuevo insumo (2026-11-16):** se encontró el script de la base de datos del sistema legacy
+> WinForm (`scripts/script-BD-LegacyOkinWInForm.sql`). Contiene vistas (`vv*`) que leen de
+> `FUMIPLAGA.FMP.*` y `FUMIPLAGA.ERPADMIN.*` — el ERP administrativo (Softland/Exactus) que
+> actualmente alimenta a ORKIN. Esas mismas vistas son el punto de partida natural para los
+> flujos ETL del cotizador web. Ver §6.3 para el mapeo propuesto.
+>
 > **Consecutivos (ADR-019):** el sistema solo numera lo que **nace en la plataforma** —hoy, la
 > cotización—. Los códigos de clientes, productos y activos vienen del origen externo con su
 > propio identificador y **no se renumeran**. Consecutivos para catálogos solo aplicarían si se
@@ -782,10 +788,10 @@ graph LR
 | # | Tarea | Detalle | Estado |
 |---|---|---|---|
 | 2.1 | CRUD **Productos** (`Producto`, `UnidadMedida`, `CategoriaProducto`) — *para correcciones* | 164 filas de `Tabla1912` + 113 de `Tabla10` | ✅ API+UI |
-| 2.2 | CRUD **Activos amortizables** con `VidaUtilMeses` **obligatoria** — *para correcciones* | 19 filas de `Tabla9` | ⬜ (entidad existe) |
+| 2.2 | CRUD **Activos amortizables** — *para correcciones* | 19 filas de `Tabla9` | 🟡 Entidad + API opciones listas; `MesesVidaUtil` del catálogo ya es nullable porque el ERP no lo trae (D-04 resuelto). UI de mantenimiento ⬜ |
 | 2.3 | CRUD **Tipos de servicio** — *para correcciones* | 11 filas de `TablaServicios` | ✅ API+UI |
 | 2.4 | CRUD **Tipo de cambio** (alta manual + histórico) — *para correcciones* | 1 643 filas de `Tabla2` | ✅ API+UI |
-| 2.5 | **Proceso de carga desde origen externo**: lector genérico (Excel · SQL · API) + transformación campo a campo + *upsert* idempotente por `CodigoExterno` + reporte de rechazos. **Es el camino principal.** | Los catálogos se llenan desde el sistema del cliente | ⬜ **Siguiente paso** |
+| 2.5 | **Proceso de carga desde origen externo**: lector genérico (Excel · SQL · API) + transformación campo a campo + *upsert* idempotente por `CodigoExterno` + reporte de rechazos. **Es el camino principal.** | Los catálogos se llenan desde el sistema del cliente | ✅ Conexión ERP `SINCOERPORKIN` creada y probada; flujos `UNIDADES_MEDIDA`, `CATEGORIAS_PRODUCTO`, `PRODUCTOS`, `ACTIVOS_AMORTIZABLES`, `TIPOS_SERVICIO`, `CLIENTES` ejecutados con éxito. `int.ErpMapeoTipoCliente` para mapeo configurable de categorías de cliente |
 | 2.5a | Lector **Excel** (`.xlsx`): `CargarOrigenExcelService` — primera implementación del lector | Para el arranque inicial de ORKIN | ⬜ |
 | 2.5b | Lector **SQL Server**: `CargarOrigenSqlService` — segunda implementación del lector | Para clientes con base de datos | ⬜ |
 | 2.6 | **Depuración H-10**: consolidar duplicados que lleguen del origen | Lista de decisiones con el cliente | ⬜ |
@@ -793,6 +799,76 @@ graph LR
 | 2.8 | **H-05**: validación que impide cotizar con producto sin precio | Bloqueo con mensaje claro | ⬜ |
 | 2.9 | `ParametroGeneral` (umbrales, flags, textos, identidad de empresa) | CRUD de parámetros | ⬜ |
 | 2.10 | `Consecutivo` + `ConsecutivoService` (plantilla configurable) | Numeración automática de lo que nace en la plataforma | ✅ |
+
+---
+
+### 6.3 Análisis del script legacy WinForm y mapeo a los flujos ETL
+
+> Archivo analizado: `scripts/script-BD-LegacyOkinWInForm.sql` (191 k caracteres, UTF-16).
+> Base original: `SINCOERPORKIN`. ERP administrativo al que consulta: `FUMIPLAGA` (esquemas `FMP`
+> para operación y `ERPADMIN` para usuarios). Se identificó como el Softland/Exactus que hoy
+> alimenta a ORKIN.
+
+#### Qué contiene el script
+
+| Tipo | Cantidad | Relevancia para el cotizador web |
+|---|---|---|
+| Tablas | 33 | La mayoría son operativas (órdenes de trabajo, requisas, documentos de inventario, plantillas, calendario, programación de visitas). Para el cotizador **no se usan todavía**; son el backlog de los módulos operativos de la Fase 11. |
+| Vistas (`vv*`) | 16 | **Son el origen de datos.** Leen del ERP y ya normalizan nombres, filtros activos y joins. Son el punto de partida ideal para los flujos ETL. |
+| Procedimientos almacenados | 39 | Procesos de negocio del legacy: generación de órdenes, requisas, documentos de inventario, notificaciones, reportes gerenciales. **Backlog de Fase 11**, no del cotizador. |
+| Seguridad propia (`Seguridad_*`) | 5 tablas | El legacy tenía su propio login. El cotizador web ya usa ASP.NET Core Identity (D-02); estas tablas **solo sirven de referencia** para no perder permisos/roles. |
+
+#### Vistas del legacy que alimentan catálogos del cotizador
+
+| Vista legacy | Origen ERP | Mapea a catálogo(s) web | Qué trae | Notas / decisión pendiente |
+|---|---|---|---|---|
+| `vvArticulos` | `FUMIPLAGA.FMP.ARTICULO` + `CLASIFICACION` + `ARTICULO_CUENTA` | `dbo.Producto`, `dbo.CategoriaProducto`, `dbo.UnidadMedida`, `dbo.ActivoAmortizable` | **201 filas** (188 productos + 13 amortizables). Código `CODIGO_ARTICULO`, descripción, clasificación, unidades, `COSTO_PROM_LOC` (confirmado como costo real), flag `AMORTIZABLE` (`SI`/`NO`), activo | **El campo real es `AMORTIZABLE`, no `U_AMORTIZABLE` como decía el script.** Se usa `UNIDAD_VENTA` tal cual la trae el ERP (`UND`, `MLTS`, `GRS`, `BOLSA`, `LBS`, `PAR`). Vida útil no viene del ERP; se mantiene manual/override en cotización (D-04). |
+| `vvClientes` | `FUMIPLAGA.FMP.CLIENTE` + `CATEGORIA_CLIENTE` + `CENTRO_COSTO` | `dbo.Cliente`, `dbo.TipoClienteCatalogo` | **935 filas**: `C01`=96, `C02`=349, `C03`=490. Código, nombre, categoría, centro de costo, activo | `CAT_CLIENTE` (`C01`/`C02`/`C03`) se mapea a `TipoClienteCatalogo` mediante `int.ErpMapeoTipoCliente`, configurable por conexión. Fallback por defecto: `C01`/`C02` → `EMPRESARIAL`, `C03` → `RESIDENCIAL`. |
+| `vvTipoServicios` | `FUMIPLAGA.FMP.U_TIPOSERVICIOS` | `dbo.TipoServicio` | **43 filas**: código, descripción, tipo de actividad, activo | Los 11 tipos del Excel son un subconjunto; conviene validar cuáles se usan en cotizaciones. |
+| `vvTecnicos` | `FUMIPLAGA.FMP.U_TECNICOS` | `dbo.Tecnico` (futuro) / `seg.Usuario` (hoy) | **14 filas**: código, nombre completo, iniciales, rol, correo, cédula, activo | Hoy `Cotizacion.TecnicoAsignadoId` apunta a `seg.Usuario`. Se puede sincronizar técnicos como usuarios o como catálogo aparte. |
+| `vvBodegas` | `FUMIPLAGA.FMP.BODEGA` | — | Bodegas, tipo, dirección, activo | Para el módulo de inventario/requisas (Fase 11), no para cotizar. |
+| `vvDosificacion`, `vvFrecuencia`, `vvMetodosAplicacion`, `vvTipodeEquipos`, `vvTipodePlagas`, `vvTipodeUbicaciones`, `vvTipodeDocumentos`, `vvTipodeDocumentosFirma`, `vvVehiculos` | Tablas `U_*` de Softland | — | Catálogos operativos para órdenes de trabajo | Backlog de Fase 11. |
+| `vvLocacionesClientes` | `FUMIPLAGA.FMP.U_LOCACIONES` | `dbo.Cliente` (direcciones) | Sucursales/locaciones del cliente con contactos, correos, coordenadas GPS | Backlog del módulo de clientes; hoy `Cotizacion.DireccionServicio` es libre. |
+| `vvUsuarios` | `FUMIPLAGA.ERPADMIN.USUARIO` | `seg.Usuario` | Usuarios del ERP administrativo | Posible sincronización de usuarios, pero el cotizador web ya tiene su propio Identity. |
+
+#### Propuesta: primeros flujos ETL concretos (Fase 2 / Fase 12)
+
+Flujos creados y ejecutados contra `SINCOERPORKIN`:
+
+| # | Flujo | Origen | Filas cargadas |
+|---|---|---|---|
+| 1 | **Unidades de medida** | `SELECT DISTINCT UNIDAD_VENTA FROM vvArticulos` | 7 en `dbo.UnidadMedida` (`UND`, `MLTS`, `GRS`, `BOLSA`, `LBS`, `PAR`, `TAR`) |
+| 2 | **Categorías de producto** | `SELECT DISTINCT CLASIFICACION, DESCRIPCION FROM vvArticulos` | 18 en `dbo.CategoriaProducto` |
+| 3 | **Productos** | `vvArticulos WHERE AMORTIZABLE = 'NO'` | 188 en `dbo.Producto` |
+| 4 | **Activos amortizables** | `vvArticulos WHERE AMORTIZABLE = 'SI'` | 13 en `dbo.ActivoAmortizable` |
+| 5 | **Tipos de servicio** | `vvTipoServicios` | 43 en `dbo.TipoServicio` |
+| 6 | **Clientes** | `vvClientes` | 935 en `dbo.Cliente` |
+
+Detalles:
+- Unidades de medida se cargan **tal cual** las trae el ERP (`UND`, `MLTS`, `GRS`, `BOLSA`, `LBS`, `PAR`).
+- `MesesVidaUtil` de activos queda `null` en el catálogo; se define como override en la cotización (D-04).
+- `CAT_CLIENTE` (`C01`/`C02`/`C03`) se mapea a `TipoClienteCatalogo` mediante `int.ErpMapeoTipoCliente`.
+
+#### Tablas del legacy que son backlog de Fase 11 (módulos operativos)
+
+- `Orden_Trabajo`, `Orden_Trabajo_Detalle`, `Orden_Trabajo_Equipos`, `Orden_Trabajo_Servicio`, `Orden_Trabajo_Tecnicos`
+- `Requisa`, `Requisa_Detalle`, `Requisa_Tecnicos`
+- `Documento_Inv`, `Documento_Inv_linea`
+- `Plantilla_*`, `Plantilla_Calendario`
+- `ProgramacionVisitaConfirmadas`, `ProgramacionVisitaDetalleConfirmada`
+- `NotificacionesEnviadas`, `NotificarProgramacionVisitaTemporal`
+- `Meta_Maximo_Permitido_Costo` (+ histórico), `Orden_Autorizacion`, `Orden_AutorizacionToken`
+
+> **Conclusión:** el script legacy no solo confirma que el ERP es SQL Server (Softland/Exactus),
+> sino que ya entrega vistas limpias (`vv*`) que podemos usar como origen de los flujos ETL. La
+> conexión real a `10.40.50.1` con el usuario `Desarrollo` ya fue validada: bases `FUMIPLAGA` y
+> `SINCOERPORKIN` online, y los conteos coinciden con el análisis. El bloqueante D-04 (vida útil
+> de activos) se resolvió haciendo `ActivoAmortizable.MesesVidaUtil` nullable y permitiendo el
+> override en la cotización. **Decisión de arquitectura (2026-11-16):** la nueva plataforma usará
+> `SINCOERPORKIN` como base de datos principal; las tablas del cotizador ya se crearon allí
+> mediante migraciones. El trabajo de migrar catálogos se reduce a crear flujos con las vistas
+> `vv*`, en el orden de dependencia de §1.2. El resto del script es el mapa de los módulos
+> operativos que vendrán después del cotizador.
 
 ---
 
@@ -823,17 +899,17 @@ graph LR
 | 4.1 | Entidades de cotización + `CotizacionService` (crear, editar, versionar, anular) | `Cotizacion`, `DetalleInsumo`, `DetalleAmortizable` | ✅ (crear/editar; versionar/anular: ⬜) |
 | 4.2 | `CRUD Clientes` (residencial / empresarial) + ficha e historial | Pestaña de clientes del prototipo | ✅ (ficha/historial: ⬜) |
 | 4.3 | `Pages/Cotizaciones` — filtros + tabla con **N°, Cliente, Servicio, Fecha, Estado, Precios** | Listado funcional | ✅ |
-| 4.4 | `Pages/CotizacionNueva` — formulario con header y datos generales | Formulario funcional | ✅ Cliente nuevo sin ficha, tipo de cliente siempre visible (de la ficha o elegido), margen en % (la fracción queda interna), fecha por defecto hoy y visible al cargar, alineado en columnas iguales |
-| 4.5 | Bloque **Insumos consumibles** + búsqueda de producto | Tabla con agregar/quitar | ✅ (interín: select por fila. Según Plantilla D: botón "buscar y agregar" que abre un **modal de búsqueda con filtros** para elegir producto; el botón de agregar va al pie, donde cae la fila nueva) |
-| 4.6 | Bloque **Activos amortizables** (Activo, Precio, Cant., Vida útil, Valor mensual) | | ⬜ |
+| 4.4 | `Pages/CotizacionNueva` y `Pages/CotizacionEditar` — **mismo formulario compartido** `CotizacionFormulario` | Formulario funcional en alta y edición | ✅ Alta y edición usan el mismo componente. Cliente nuevo sin ficha, tipo de cliente siempre visible, margen en % (fracción interna), fecha editable incluso al editar (corregido: el consecutivo no la fija), modalidad, técnico, fecha estimada, dirección, insumos y amortizables en ambos modos |
+| 4.5 | Bloque **Insumos consumibles** + búsqueda de producto | Tabla con agregar/quitar | ✅ Select por fila con `SelectorLegible`; al editar se pasa `TextoValorActual` para que no se vea vacío si el producto fue desactivado. Plantilla D: modal de búsqueda con filtros ⬜ |
+| 4.6 | Bloque **Activos amortizables** (Activo, Precio, Cant., Vida útil, Valor mensual) | | ✅ En el formulario compartido; se persisten en `dbo.DetalleAmortizable` y no se borran al editar. Al editar se puede cambiar la vida útil por cotización y agregar/quitar activos |
 | 4.7 | Bloque **Margen y tipo de cambio** con TC y recálculo | En el formulario | ✅ |
-| 4.8 | Barra inferior con total en vivo `C$ X ≈ $ Y` + `Enviar a aprobación` | | 🟡 (botón Calcular, no en vivo) |
+| 4.8 | Barra inferior con total en vivo `C$ X ≈ $ Y` + `Enviar a aprobación` | | 🟡 (botón Calcular, no por tecla) |
 | 4.9 | `ResumenDialog` — desglose de insumos + amortizables + margen + total | | ⬜ |
 | 4.10 | Modal **Anular** con confirmación | | ⬜ Junto con **editar** y **nueva versión** para cotizaciones no aprobadas: el ciclo de vida de una cotización todavía no se opera desde la UI |
 | 4.11 | **Versionado**: editar una cotización aprobada crea `Version+1` | | ⬜ |
 | 4.12 | **Cálculo en vivo** de totales al cambiar cantidades/margen | UX fluida | 🟡 (botón, no por tecla) |
 | 4.13 | **Flujo empresarial por semestre** en el formulario (dos bloques) | Según D-03 | 🔴 |
-| 4.14 | `Pages/CotizacionDetalle` — solo lectura con resultados | | ✅ (versiones/historial: ⬜) |
+| 4.14 | `Pages/CotizacionDetalle` y `Pages/CotizacionEditar` — lectura y edición con el mismo formulario | | ✅ Editar carga todos los campos (cliente fijo, fecha editable, modalidad, técnico, fecha estimada, dirección, insumos, amortizables, totales). Fix de pérdida de datos: ya no se borran modalidad ni amortizables al guardar (versiones/historial: ⬜) |
 | 4.15 | Paginación y filtros en servidor del historial | | ✅ |
 | 4.16 | Exportar a **Excel** (`.xlsx`) del histórico filtrado | | ⬜ |
 | 4.17 | Estados y badges: chips de color por estado | | ✅ |
@@ -1090,7 +1166,7 @@ Una tarea se marca ✅ solo si cumple **todo** lo siguiente:
 | 1 | Autenticación, roles y permisos | 🟡 En curso (1.2, 1.3, 1.5, 1.8 ✅; 1.7 ⬜) |
 | 2 | Catálogos y migración desde el Excel | 🟡 En curso (2.1, 2.3, 2.4, 2.10 ✅; **2.5 siguiente**) |
 | 3 | Motor de cálculo | ✅ Completado (3.6, 3.9 ⬜) |
-| 4 | Cotizador (API + UI) | 🟡 En curso (flujo básico end-to-end ✅, cotización para cliente nuevo sin ficha ✅, margen en %/fecha por defecto/combos con búsqueda y X ✅; versionar/anular ⬜) |
+| 4 | Cotizador (API + UI) | 🟡 En curso (flujo básico end-to-end ✅, cliente nuevo sin ficha ✅, margen %/fecha por defecto ✅, insumos ✅, **activos amortizables ✅**, **formulario de edición homologado con el de alta ✅**; versionar/anular/resumen ⬜) |
 | 5 | PDF y envío al cliente | ⬜ Pendiente |
 | 6 | Flujo de aprobación | ⬜ Pendiente |
 | 7 | Auditoría | ⬜ Pendiente |
@@ -1098,7 +1174,7 @@ Una tarea se marca ✅ solo si cumple **todo** lo siguiente:
 | 9 | Endurecimiento, despliegue y migración del Excel | ⬜ Pendiente |
 | 10 | Campo: responsive web + PWA | ⬜ Pendiente |
 | 11 | Módulos operativos (calendario, órdenes, facturación) | ⬜ Pendiente |
-| 12 | 🔌 Integración con ERP del cliente | 🟡 En curso (12.1–12.11, 12.14, 12.17 ✅ — **los seis catálogos cargan del ERP**; 12.12–12.13, 12.15–12.16, 12.18 ⬜) |
+| 12 | 🔌 Integración con ERP del cliente | 🟡 En curso (12.1–12.11, 12.14 ✅ — **los seis catálogos cargan del ERP**; análisis del script legacy con vistas `vv*` para Softland en §6.3; 12.12–12.13, 12.15–12.17, 12.18 ⬜) |
 
 ```
 ╔══════════════════════════════════════════════════════════╗

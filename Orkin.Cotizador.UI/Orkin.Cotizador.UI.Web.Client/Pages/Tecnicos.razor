@@ -1,0 +1,122 @@
+@page "/catalogos/tecnicos"
+@attribute [Authorize("CATALOGOS.VER")]
+@layout MainLayout
+@inject CatalogoService CatalogoService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Color="Color.Primary">Técnicos</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Catálogo compartido · origen: Softland / SINCOERPORKIN</MudText>
+        </div>
+        @if (_puedeEditar)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="Nuevo">Nuevo técnico</MudButton>
+        }
+    </div>
+
+    <MudTable Items="_tecnicos" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Código</MudTh>
+            <MudTh>Nombre</MudTh>
+            <MudTh>Cargo</MudTh>
+            <MudTh>Teléfono</MudTh>
+            <MudTh>Correo</MudTh>
+            <MudTh>Orden</MudTh>
+            <MudTh>Activo</MudTh>
+            @if (_puedeEditar)
+            {
+                <MudTh>Acciones</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Código">@context.Codigo</MudTd>
+            <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+            <MudTd DataLabel="Cargo">@context.Cargo</MudTd>
+            <MudTd DataLabel="Teléfono">@context.Telefono</MudTd>
+            <MudTd DataLabel="Correo">@context.Correo</MudTd>
+            <MudTd DataLabel="Orden">@context.Orden</MudTd>
+            <MudTd DataLabel="Activo">
+                <MudIcon Icon="@(context.EsActivo ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" />
+            </MudTd>
+            @if (_puedeEditar)
+            {
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Editar(context))" />
+                </MudTd>
+            }
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Filas por página" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<TecnicoModel> _tecnicos = [];
+    private bool _cargando;
+    private bool _puedeEditar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cargando = true;
+        try
+        {
+            var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+            _puedeEditar = estado.User.HasClaim("orkin:permiso", "CATALOGOS.EDITAR");
+            _tecnicos = await CatalogoService.ListarTecnicosAsync();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private Task Nuevo() => AbrirDialogo(new TecnicoModel());
+
+    private Task Editar(TecnicoModel tecnico) => AbrirDialogo(new TecnicoModel
+    {
+        Id = tecnico.Id,
+        Codigo = tecnico.Codigo,
+        Nombre = tecnico.Nombre,
+        Cargo = tecnico.Cargo,
+        Telefono = tecnico.Telefono,
+        Correo = tecnico.Correo,
+        Orden = tecnico.Orden,
+        EsActivo = tecnico.EsActivo
+    });
+
+    private async Task AbrirDialogo(TecnicoModel modelo)
+    {
+        var parametros = new DialogParameters<TecnicoDialogo>
+        {
+            { d => d.Modelo, modelo }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<TecnicoDialogo>(
+            modelo.Id == Guid.Empty ? "Nuevo técnico" : $"Editar — {modelo.Nombre}", parametros, opciones);
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not TecnicoModel editado)
+        {
+            return;
+        }
+
+        var respuesta = modelo.Id == Guid.Empty
+            ? await CatalogoService.CrearTecnicoAsync(editado)
+            : await CatalogoService.ActualizarTecnicoAsync(editado);
+
+        if (respuesta?.Exito == true)
+        {
+            Snackbar.Add("Guardado correctamente.", Severity.Success);
+            _tecnicos = await CatalogoService.ListarTecnicosAsync();
+        }
+        else
+        {
+            Snackbar.Add(respuesta?.Mensaje ?? "No se pudo guardar.", Severity.Error);
+        }
+    }
+}

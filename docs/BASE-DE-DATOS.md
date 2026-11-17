@@ -3,8 +3,9 @@
 > **Motor:** SQL Server 2022+ (Developer Edition en desarrollo).
 > **Runtime:** .NET 10 (`net10.0`) · EF Core 10.0.12 · `Microsoft.EntityFrameworkCore.SqlServer`.
 > **ORM:** EF Core 10 · Code First + migraciones (`dotnet ef`), nunca `EnsureCreated`.
-> **Estado:** 🔵 En revisión — pendiente de validación del cliente.
-> **Fecha:** 2026-09-27
+> **Base de datos de la plataforma:** `SINCOERPORKIN` en `10.40.50.1` (legacy convertido en BD principal).
+> **Estado:** 🟡 En revisión — migrado a `SINCOERPORKIN`, pendiente flujos ETL.
+> **Fecha:** 2026-09-27 · **Actualizado:** 2026-11-16
 
 Este documento es la **especificación de la base de datos**. El código de las entidades y del
 `DbContext` se generará a partir de aquí (tarea 0.4 y 0.7 del README).
@@ -720,9 +721,11 @@ CHECK (LEN(LTRIM(RTRIM(Nombre))) > 0)
 
 ### 6.5 `dbo.ActivoAmortizable`
 
-> Origen: `Tabla475` (19, residencial), `Tabla47` (13, empresarial), `Tabla9` (19).
-> **H-04:** en el Excel la vida útil es `0` o inconsistente (las 13 filas de `Tabla47` traen
-> `Meses = 0`, lo que hace que el `IFERROR` devuelva `""` y el activo **aporte 0 al precio**).
+> Origen: `Tabla475` (19, residencial), `Tabla47` (13, empresarial), `Tabla9` (19) y el ERP
+> (`vvArticulos` con `AMORTIZABLE = 'SI'`).
+> **H-04 / D-04:** en el Excel la vida útil es `0` o inconsistente. El ERP de ORKIN tampoco la
+> trae, así que `MesesVidaUtil` es **nullable** en el catálogo; la vida útil efectiva se define
+> como override en cada línea de la cotización y se valida > 0 en `DetalleAmortizable`.
 
 | Columna | Tipo | Null | Default | Notas |
 |---|---|---|---|---|
@@ -733,7 +736,7 @@ CHECK (LEN(LTRIM(RTRIM(Nombre))) > 0)
 | `CategoriaId` | `uniqueidentifier` | Sí | — | FK → `CategoriaProducto` |
 | `UnidadMedidaId` | `uniqueidentifier` | No | — | |
 | `PrecioUnitarioActual` | `decimal(18,6)` | No | `0` | Costo del equipo |
-| `VidaUtilMeses` | `int` | **No** | — | ⚠️ **Obligatoria y > 0.** Corrige H-04. Bloquea la Fase 3 (depende de **D-04**) |
+| `MesesVidaUtil` | `int` | **Sí** | `NULL` | Vida útil típica en meses. Puede venir vacío del ERP (D-04); el override real está en `DetalleAmortizable`. El `CHECK` sigue rechazando `0` y negativos. |
 | `EsInstalacionPermanente` | `bit` | No | `1` | Si es `0`, se trata como insumo y no se amortiza |
 | `Marca` | `nvarchar(120)` | Sí | — | |
 | `OrigenDato` / `ErpConexionId` / `CodigoExterno` / `HashContenido` / `UltimaSyncUtc` | | | | Igual que en `Producto` |
@@ -742,11 +745,11 @@ CHECK (LEN(LTRIM(RTRIM(Nombre))) > 0)
 **`CHECK`**
 ```sql
 CHECK (PrecioUnitarioActual >= 0)
-CHECK (VidaUtilMeses > 0)          -- ← la corrección de H-04, a nivel de base de datos
-CHECK (EsInstalacionPermanente = 0 OR VidaUtilMeses > 0)
+CHECK (MesesVidaUtil IS NULL OR MesesVidaUtil > 0)  -- ← rechaza 0/negativos, permite NULL (D-04)
+CHECK (EsInstalacionPermanente = 0 OR MesesVidaUtil IS NULL OR MesesVidaUtil > 0)
 ```
 
-**Índices:** `UX_ActivoAmortizable_Codigo`, `IX_ActivoAmortizable_Nombre` (`INCLUDE (PrecioUnitarioActual, VidaUtilMeses, IsActive)`),
+**Índices:** `UX_ActivoAmortizable_Codigo`, `IX_ActivoAmortizable_Nombre` (`INCLUDE (PrecioUnitarioActual, MesesVidaUtil, IsActive)`),
 `UX_ActivoAmortizable_ErpCodigoExterno` (filtrada), `IX_ActivoAmortizable_ErpPendientes`.
 
 ---
@@ -2149,7 +2152,7 @@ GO
 | Regla | Cómo se garantiza |
 |---|---|
 | El margen es una fracción válida | `CHECK (MargenAplicado >= 0 AND MargenAplicado <= 1)` |
-| Un amortizable siempre tiene vida útil > 0 | `CHECK (MesesVidaUtil > 0)` en catálogo **y** en detalle |
+| Un amortizable en una cotización siempre tiene vida útil > 0 | `CHECK (MesesVidaUtil > 0)` en `DetalleAmortizable`. En `ActivoAmortizable` permite `NULL` porque el ERP de ORKIN no lo trae (D-04). |
 | La cantidad y los montos no son negativos | `CHECK` en cada tabla de detalle |
 | Un tipo de cambio siempre es positivo | `CHECK (Valor > 0)` |
 | Un producto tiene un solo precio vigente | Índice único filtrado `WHERE VigenteHasta IS NULL` |
@@ -2228,7 +2231,7 @@ internal sealed class CotizadorDbContext : DbContext
 |---|---|---|---|
 | `dbo.Producto` | `Tabla1` (103) + `Tabla16` (78) + `Tabla1912` (164) + `Tabla10` (113) | ~380 | ⚠️ **H-10**: hay solapamiento. Consolidar a una sola lista (tarea 2.6) |
 | `dbo.PrecioProducto` | `Columna Costo` de los productos | ~380 | Primera fila con `OrigenDato = EXCEL` |
-| `dbo.ActivoAmortizable` | `Tabla475` (19) + `Tabla47` (13) + `Tabla9` (19) | ~19 | ⚠️ **H-04**: `VidaUtilMeses` viene con `0`. Se carga **pendiente** hasta D-04 |
+| `dbo.ActivoAmortizable` | `Tabla475` (19) + `Tabla47` (13) + `Tabla9` (19) + `vvArticulos` (13) | ~19 + 13 del ERP | **H-04 / D-04 resuelto:** `MesesVidaUtil` es nullable en el catálogo porque el ERP no lo trae; el override real está en `DetalleAmortizable`. |
 | `dbo.PrecioActivo` | `Precio` de los activos | ~19 | |
 | `dbo.TipoServicio` | Hoja oculta `Tipos de servicios` / `TablaServicios` | 11 | El margen no existe en el Excel → **D-04** |
 | `dbo.TipoServicioMargen` | 5.5 (residencial) y 8 (empresarial) del Excel | 2 | Provisional, `OrigenDato = EXCEL`, hasta D-04 |
@@ -2250,7 +2253,7 @@ internal sealed class CotizadorDbContext : DbContext
 | **D-15** | ¿El ERP es el de **ORKIN** (maestro de productos y precios) o el de **cada cliente de ORKIN** (inventario de equipos instalados)? | `int.ErpConexion.Ambito` y el orden de la Fase 12. **El esquema ya soporta ambos.** **Recomendación:** empezar por el ERP de ORKIN, porque el de un cliente de ORKIN no tiene los precios ni el maestro de productos de ORKIN |
 | **D-19** *(resuelta)* | ~~¿La web escribe de vuelta en el ERP del cliente?~~ **No.** Solo lectura | **Resuelta (2026-09-27):** `ErpConexion.EsSoloLectura` con `CHECK (= 1)`, sin `int.OutboxMensaje` (§7.16), `IErpConector` sin métodos de escritura |
 | **D-20** *(nueva)* | Si algún día se quiere generar una **orden de compra** en el ERP del cliente: ¿el DBA autoriza que escribamos, o se resuelve con exportación de archivo? | No bloquea nada. La orden de compra está **fuera de alcance**; solo cambia la decisión cuando se retome |
-| **D-04** | Margen real por tipo de servicio y vida útil real de los 19 activos | `CHECK (VidaUtilMeses > 0)` hace **imposible** cargar los activos sin este dato → bloquea 2.2 y Fase 3 |
+| **D-04** *(resuelta)* | ~~Vida útil real de los activos amortizables~~ | **Resuelto (2026-11-16):** `ActivoAmortizable.MesesVidaUtil` es nullable; el ERP no lo trae y se define como override en la cotización. El margen por tipo de servicio sigue pendiente de validación con el cliente. |
 | **D-05** | Umbrales de aprobación (margen mínimo, monto máximo) | Los parámetros de `dbo.ParametroGeneral` y el `Nivel` de `CotizacionAprobacion` |
 | **D-06** | De dónde sale el tipo de cambio hacia adelante | `dbo.TipoCambio.Fuente` y el `BackgroundService` |
 | **D-07** | Proveedor de correo | `dbo.NotificacionEnviada.IdExterno` |

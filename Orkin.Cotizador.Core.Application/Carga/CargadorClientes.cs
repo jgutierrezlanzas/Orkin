@@ -32,7 +32,7 @@ public sealed class CargadorClientes : ICargadorCatalogo
     [
         new("Codigo", "texto", true, "El código del cliente en el ERP del cliente"),
         new("Nombre", "texto", true, "El nombre del cliente"),
-        new("TipoClienteCodigo", "texto", true, "EMPRESARIAL o RESIDENCIAL. Decide el método de costeo de sus cotizaciones."),
+        new("TipoClienteCodigo", "texto", true, "Código del tipo/categoría de cliente que trae el ERP (ej. C01, C02, C03 de Softland). Se mapea a RESIDENCIAL/EMPRESARIAL mediante int.ErpMapeoTipoCliente."),
         new("RazonSocial", "texto", false, "Solo en clientes empresariales."),
         new("CedulaORuc", "texto", false, "Cédula o RUC del cliente."),
         new("IdentificacionFiscal", "texto", false, "RT/NIT si el ERP lo trae."),
@@ -67,6 +67,39 @@ public sealed class CargadorClientes : ICargadorCatalogo
             .AsNoTracking()
             .Where(t => t.EsActivo)
             .ToDictionaryAsync(t => t.Codigo, t => t.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
+
+        // Mapeo configurable de categoría de cliente del ERP → tipo de cliente de la plataforma.
+        // Si no hay fila configurada, se usa una regla por defecto razonable para Softland/Exactus.
+        var mapeoPorConexion = await _contexto.ErpMapeoTipoCliente
+            .AsNoTracking()
+            .Where(m => m.ErpConexionId == configuracion.ErpConexionId && m.IsActive)
+            .ToDictionaryAsync(m => m.CodigoCategoriaErp, m => m.TipoClienteCatalogoId, StringComparer.OrdinalIgnoreCase, cancellationToken);
+
+        byte? ResolverTipoCliente(string codigoCategoria)
+        {
+            // Si la vista ya trae el tipo de cliente de la plataforma (EMPRESARIAL/RESIDENCIAL),
+            // se usa directamente. Esto mantiene compatibilidad con orígenes que ya normalizan.
+            if (tipos.TryGetValue(codigoCategoria, out var tipoIdDirecto))
+            {
+                return tipoIdDirecto;
+            }
+
+            // Si hay un mapeo configurado para esta conexión, gana sobre el fallback.
+            if (mapeoPorConexion.TryGetValue(codigoCategoria, out var tipoIdMapeado))
+            {
+                return tipoIdMapeado;
+            }
+
+            // Fallback por defecto para ORKIN (Softland). El usuario lo puede sobrescribir
+            // creando filas en int.ErpMapeoTipoCliente desde Administración.
+            return codigoCategoria.ToUpperInvariant() switch
+            {
+                "C01" => tipos.GetValueOrDefault("EMPRESARIAL"),
+                "C02" => tipos.GetValueOrDefault("EMPRESARIAL"),
+                "C03" => tipos.GetValueOrDefault("RESIDENCIAL"),
+                _ => null
+            };
+        }
 
         // El origen del dato se resuelve por código y no por id fijo, como el origen del precio
         // en productos: el id depende del orden de la semilla.
@@ -125,16 +158,21 @@ public sealed class CargadorClientes : ICargadorCatalogo
                 var nombre = Normalizacion.AString(mapeada.GetValueOrDefault("Nombre"))
                     ?? throw new FormatException("El campo 'Nombre' es obligatorio.");
 
-                // El tipo de cliente decide el método de costeo (RN-04 / RN-07). Si la vista no
-                // lo trae, quedarse callado y poner uno por defecto es cotizarle a alguien con
-                // el margen de otro tipo de cliente: mejor que la fila se rechace y se vea.
-                var tipoCodigo = Normalizacion.AString(mapeada.GetValueOrDefault("TipoClienteCodigo"))
-                    ?? throw new FormatException("El campo 'TipoClienteCodigo' es obligatorio (EMPRESARIAL o RESIDENCIAL).");
+                // El tipo de cliente decide el método de costeo (RN-04 / RN-07). La vista trae
+                // el código de categoría del ERP (ej. C01/C02/C03), no el tipo de la plataforma;
+                // se resuelve mediante int.ErpMapeoTipoCliente o el fallback por defecto.
+                var categoriaErp = Normalizacion.AString(mapeada.GetValueOrDefault("TipoClienteCodigo"))
+                    ?? throw new FormatException("El campo 'TipoClienteCodigo' es obligatorio (código de categoría del ERP).");
 
-                if (!tipos.TryGetValue(tipoCodigo, out var tipoId))
+                var tipoId = ResolverTipoCliente(categoriaErp);
+                if (tipoId is null)
                 {
-                    throw new FormatException($"El tipo de cliente '{tipoCodigo}' no existe. Debe ser EMPRESARIAL o RESIDENCIAL.");
+                    throw new FormatException(
+                        $"La categoría de cliente '{categoriaErp}' no tiene mapeo configurado. " +
+                        "Cree el mapeo en Administración > Integración > Mapeo de tipos de cliente.");
                 }
+
+                var tipoIdValor = tipoId.Value;
 
                 var razonSocial = Normalizacion.AString(mapeada.GetValueOrDefault("RazonSocial"));
                 var cedulaRuc = Normalizacion.AString(mapeada.GetValueOrDefault("CedulaORuc"));
@@ -178,8 +216,8 @@ public sealed class CargadorClientes : ICargadorCatalogo
                             cambios.Add(new CampoSimulado("Nombre", existente.Nombre, nombre));
                         if (existente.RazonSocial != razonSocial)
                             cambios.Add(new CampoSimulado("Razón social", existente.RazonSocial, razonSocial));
-                        if (existente.TipoClienteId != tipoId)
-                            cambios.Add(new CampoSimulado("Tipo de cliente", await NombreTipoAsync(tipoId, cancellationToken), await NombreTipoAsync(existente.TipoClienteId, cancellationToken)));
+                        if (existente.TipoClienteId != tipoIdValor)
+                            cambios.Add(new CampoSimulado("Tipo de cliente", await NombreTipoAsync(tipoIdValor, cancellationToken), await NombreTipoAsync(existente.TipoClienteId, cancellationToken)));
                         if (existente.CedulaORuc != cedulaRuc)
                             cambios.Add(new CampoSimulado("Cédula/RUC", existente.CedulaORuc, cedulaRuc));
                         if (existente.IdentificacionFiscal != identFiscal)
@@ -204,7 +242,7 @@ public sealed class CargadorClientes : ICargadorCatalogo
                         {
                             existente.Nombre = nombre;
                             existente.RazonSocial = razonSocial;
-                            existente.TipoClienteId = tipoId;
+                            existente.TipoClienteId = tipoIdValor;
                             existente.CedulaORuc = cedulaRuc;
                             existente.IdentificacionFiscal = identFiscal;
                             existente.Direccion = direccion;
@@ -241,8 +279,8 @@ public sealed class CargadorClientes : ICargadorCatalogo
 
                         if (huerfana.Nombre != nombre)
                             cambiosAdopcion.Add(new CampoSimulado("Nombre", huerfana.Nombre, nombre));
-                        if (huerfana.TipoClienteId != tipoId)
-                            cambiosAdopcion.Add(new CampoSimulado("Tipo de cliente", await NombreTipoAsync(tipoId, cancellationToken), await NombreTipoAsync(huerfana.TipoClienteId, cancellationToken)));
+                        if (huerfana.TipoClienteId != tipoIdValor)
+                            cambiosAdopcion.Add(new CampoSimulado("Tipo de cliente", await NombreTipoAsync(tipoIdValor, cancellationToken), await NombreTipoAsync(huerfana.TipoClienteId, cancellationToken)));
                         if (huerfana.Correo != correo)
                             cambiosAdopcion.Add(new CampoSimulado("Correo", huerfana.Correo, correo));
 
@@ -256,7 +294,7 @@ public sealed class CargadorClientes : ICargadorCatalogo
                         huerfana.OrigenDatoId = origenDatoId;
                         huerfana.Nombre = nombre;
                         huerfana.RazonSocial = razonSocial;
-                        huerfana.TipoClienteId = tipoId;
+                        huerfana.TipoClienteId = tipoIdValor;
                         huerfana.CedulaORuc = cedulaRuc;
                         huerfana.IdentificacionFiscal = identFiscal;
                         huerfana.Direccion = direccion;
@@ -285,7 +323,7 @@ public sealed class CargadorClientes : ICargadorCatalogo
                         Codigo = codigo,
                         Nombre = nombre,
                         RazonSocial = razonSocial,
-                        TipoClienteId = tipoId,
+                        TipoClienteId = tipoIdValor,
                         CedulaORuc = cedulaRuc,
                         IdentificacionFiscal = identFiscal,
                         Direccion = direccion,

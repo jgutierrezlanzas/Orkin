@@ -40,6 +40,10 @@ public class CotizadorDbContext : DbContext
     public DbSet<DetalleInsumo> DetalleInsumo => Set<DetalleInsumo>();
     public DbSet<DetalleAmortizable> DetalleAmortizable => Set<DetalleAmortizable>();
     public DbSet<CotizacionAprobacion> CotizacionAprobacion => Set<CotizacionAprobacion>();
+    public DbSet<Plantilla> Plantilla => Set<Plantilla>();
+    public DbSet<PlantillaDetalle> PlantillaDetalle => Set<PlantillaDetalle>();
+    public DbSet<PlantillaServicio> PlantillaServicio => Set<PlantillaServicio>();
+    public DbSet<PlantillaEquipo> PlantillaEquipo => Set<PlantillaEquipo>();
     public DbSet<ParametroGeneral> ParametroGeneral => Set<ParametroGeneral>();
     public DbSet<Consecutivo> Consecutivo => Set<Consecutivo>();
     public DbSet<NotificacionEnviada> NotificacionEnviada => Set<NotificacionEnviada>();
@@ -56,6 +60,10 @@ public class CotizadorDbContext : DbContext
     public DbSet<TipoClienteCatalogo> TipoClienteCatalogo => Set<TipoClienteCatalogo>();
 
     public DbSet<Tecnico> Tecnico => Set<Tecnico>();
+
+    // D-20: frecuencias, locaciones, métodos de aplicación, plagas, ubicaciones y vehículos
+    // NO se modelan acá: ya existen en SOFTLAND/FUMIPLAGA o en SINCOERPORKIN.vv*.
+
     public DbSet<EstadoCotizacionCatalogo> EstadoCotizacionCatalogo => Set<EstadoCotizacionCatalogo>();
     public DbSet<SemestreCatalogo> SemestreCatalogo => Set<SemestreCatalogo>();
     public DbSet<ModalidadCatalogo> ModalidadCatalogo => Set<ModalidadCatalogo>();
@@ -95,6 +103,7 @@ public class CotizadorDbContext : DbContext
 
     // ── int · Integración con el ERP del cliente (Fase 12) ─────────────────────
     public DbSet<ErpConexion> ErpConexion => Set<ErpConexion>();
+    public DbSet<ErpMapeoTipoCliente> ErpMapeoTipoCliente => Set<ErpMapeoTipoCliente>();
     public DbSet<ErpFlujo> ErpFlujo => Set<ErpFlujo>();
     public DbSet<SincronizacionEjecucion> SincronizacionEjecucion => Set<SincronizacionEjecucion>();
 
@@ -694,8 +703,9 @@ public class CotizadorDbContext : DbContext
         activo.Property(a => a.CostoActual).HasColumnName("CostoActual").HasPrecision(18, 6).IsRequired();
         activo.Property(a => a.ValorResidual).HasColumnName("ValorResidual").HasPrecision(18, 6);
         activo.Property(a => a.Cantidad).HasColumnName("Cantidad").HasPrecision(18, 4).HasDefaultValue(1m);
-        // H-04: sin este CHECK, una vida útil en 0 dejaba el valor mensual en 0 en silencio.
-        activo.Property(a => a.MesesVidaUtil).HasColumnName("MesesVidaUtil").IsRequired();
+        // H-04: el CHECK sigue rechazando 0 y negativos. La columna es nullable porque el ERP
+        // de ORKIN no trae vida útil: se define como override en cada cotización (D-04).
+        activo.Property(a => a.MesesVidaUtil).HasColumnName("MesesVidaUtil");
         ConfigurarFkOrigen(activo, "OrigenPrecioId", "OrigenPrecio", typeof(OrigenPrecioCatalogo));
         activo.HasIndex(a => a.Codigo).IsUnique().HasDatabaseName("UX_ActivoAmortizable_Codigo");
         ConfigurarIndicesProcedencia(activo, "UX_ActivoAmortizable_ErpCodigoExterno", "IX_ActivoAmortizable_ErpPendientes");
@@ -879,6 +889,77 @@ public class CotizadorDbContext : DbContext
             .HasFilter("[TokenHash] IS NOT NULL");
         aprobacion.HasOne(a => a.Cotizacion).WithMany(c => c.Aprobaciones).HasForeignKey(a => a.CotizacionId).OnDelete(DeleteBehavior.Cascade);
         aprobacion.HasOne(a => a.Estado).WithMany().HasForeignKey(a => a.EstadoId).OnDelete(DeleteBehavior.Restrict);
+
+        // ── dbo.Plantilla y sus tres hijas (Fase 2) ───────────────────────────────
+        // D-20: las columnas que en el legacy apuntaban a vv* (locación, vehículo, plaga,
+        // lugar a tratar, dosificación, método, frecuencia, equipo) se guardan como código
+        // texto. Solo se declaran FK a catálogos que sí viven en la plataforma.
+        var plantilla = modelBuilder.Entity<Plantilla>();
+        ConfigurarBase(plantilla);
+        plantilla.ToTable("Plantilla", Esquemas.Negocio);
+        plantilla.Property(p => p.Codigo).HasColumnName("Codigo").HasMaxLength(30).IsRequired();
+        plantilla.Property(p => p.Nombre).HasColumnName("Nombre").HasMaxLength(150).IsRequired();
+        plantilla.Property(p => p.LocacionCodigo).HasColumnName("LocacionCodigo").HasMaxLength(50);
+        plantilla.Property(p => p.Direccion).HasColumnName("Direccion").HasMaxLength(300);
+        plantilla.Property(p => p.Contacto).HasColumnName("Contacto").HasMaxLength(150);
+        plantilla.Property(p => p.Telefono).HasColumnName("Telefono").HasMaxLength(30);
+        plantilla.Property(p => p.VehiculoCodigo).HasColumnName("VehiculoCodigo").HasMaxLength(50);
+        plantilla.Property(p => p.DescripcionTrabajo).HasColumnName("DescripcionTrabajo").HasMaxLength(1000);
+        plantilla.Property(p => p.Notas).HasColumnName("Notas").HasMaxLength(2000);
+        plantilla.HasIndex(p => p.Codigo).IsUnique().HasDatabaseName("UX_Plantilla_Codigo");
+        plantilla.HasOne(p => p.Cliente).WithMany().HasForeignKey(p => p.ClienteId).OnDelete(DeleteBehavior.Restrict);
+        plantilla.HasOne(p => p.Tecnico).WithMany().HasForeignKey(p => p.TecnicoId).OnDelete(DeleteBehavior.Restrict);
+
+        var plantillaDetalle = modelBuilder.Entity<PlantillaDetalle>();
+        ConfigurarBase(plantillaDetalle, conIsActive: false);
+        plantillaDetalle.ToTable("PlantillaDetalle", Esquemas.Negocio, t =>
+        {
+            t.HasCheckConstraint("CK_PlantillaDetalle_Consecutivo", "[Consecutivo] >= 1");
+            t.HasCheckConstraint("CK_PlantillaDetalle_Cantidad", "[Cantidad] >= 0");
+            t.HasCheckConstraint("CK_PlantillaDetalle_CostoTotal", "[CostoTotal] >= 0");
+            t.HasCheckConstraint("CK_PlantillaDetalle_MaximoPermitido", "[MaximoPermitido] >= 0");
+        });
+        plantillaDetalle.Property(d => d.Consecutivo).HasColumnName("Consecutivo");
+        plantillaDetalle.Property(d => d.DescripcionArticulo).HasColumnName("DescripcionArticulo").HasMaxLength(250);
+        plantillaDetalle.Property(d => d.TipoPlagaCodigo).HasColumnName("TipoPlagaCodigo").HasMaxLength(50);
+        plantillaDetalle.Property(d => d.LugarTratarCodigo).HasColumnName("LugarTratarCodigo").HasMaxLength(50);
+        plantillaDetalle.Property(d => d.Area).HasColumnName("Area").HasMaxLength(150);
+        plantillaDetalle.Property(d => d.Concentracion).HasColumnName("Concentracion").HasMaxLength(100);
+        plantillaDetalle.Property(d => d.DosificacionCodigo).HasColumnName("DosificacionCodigo").HasMaxLength(50);
+        plantillaDetalle.Property(d => d.MetodoAplicacionCodigo).HasColumnName("MetodoAplicacionCodigo").HasMaxLength(50);
+        plantillaDetalle.Property(d => d.Cantidad).HasColumnName("Cantidad").HasPrecision(18, 4);
+        plantillaDetalle.Property(d => d.CostoUnitario).HasColumnName("CostoUnitario").HasPrecision(18, 6);
+        plantillaDetalle.Property(d => d.CostoTotal).HasColumnName("CostoTotal").HasPrecision(18, 6);
+        plantillaDetalle.Property(d => d.MaximoPermitido).HasColumnName("MaximoPermitido").HasPrecision(18, 4);
+        plantillaDetalle.HasIndex(d => new { d.PlantillaId, d.Consecutivo }).IsUnique()
+            .HasDatabaseName("UX_PlantillaDetalle_Plantilla_Consecutivo");
+        plantillaDetalle.HasOne(d => d.Plantilla).WithMany(p => p.Detalles)
+            .HasForeignKey(d => d.PlantillaId).OnDelete(DeleteBehavior.Cascade);
+        plantillaDetalle.HasOne(d => d.Producto).WithMany().HasForeignKey(d => d.ProductoId).OnDelete(DeleteBehavior.Restrict);
+        plantillaDetalle.HasOne(d => d.UnidadMedida).WithMany().HasForeignKey(d => d.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
+
+        var plantillaServicio = modelBuilder.Entity<PlantillaServicio>();
+        ConfigurarBase(plantillaServicio, conIsActive: false);
+        plantillaServicio.ToTable("PlantillaServicio", Esquemas.Negocio,
+            t => t.HasCheckConstraint("CK_PlantillaServicio_Consecutivo", "[Consecutivo] >= 1"));
+        plantillaServicio.Property(s => s.Consecutivo).HasColumnName("Consecutivo");
+        plantillaServicio.Property(s => s.FrecuenciaCodigo).HasColumnName("FrecuenciaCodigo").HasMaxLength(50);
+        plantillaServicio.HasIndex(s => new { s.PlantillaId, s.Consecutivo }).IsUnique()
+            .HasDatabaseName("UX_PlantillaServicio_Plantilla_Consecutivo");
+        plantillaServicio.HasOne(s => s.Plantilla).WithMany(p => p.Servicios)
+            .HasForeignKey(s => s.PlantillaId).OnDelete(DeleteBehavior.Cascade);
+        plantillaServicio.HasOne(s => s.TipoServicio).WithMany().HasForeignKey(s => s.TipoServicioId).OnDelete(DeleteBehavior.Restrict);
+
+        var plantillaEquipo = modelBuilder.Entity<PlantillaEquipo>();
+        ConfigurarBase(plantillaEquipo, conIsActive: false);
+        plantillaEquipo.ToTable("PlantillaEquipo", Esquemas.Negocio,
+            t => t.HasCheckConstraint("CK_PlantillaEquipo_Consecutivo", "[Consecutivo] >= 1"));
+        plantillaEquipo.Property(e => e.Consecutivo).HasColumnName("Consecutivo");
+        plantillaEquipo.Property(e => e.EquipoCodigo).HasColumnName("EquipoCodigo").HasMaxLength(50);
+        plantillaEquipo.HasIndex(e => new { e.PlantillaId, e.Consecutivo }).IsUnique()
+            .HasDatabaseName("UX_PlantillaEquipo_Plantilla_Consecutivo");
+        plantillaEquipo.HasOne(e => e.Plantilla).WithMany(p => p.Equipos)
+            .HasForeignKey(e => e.PlantillaId).OnDelete(DeleteBehavior.Cascade);
     }
 
     // ═════════════════════════════════════════════════════════════════════════════
@@ -930,6 +1011,10 @@ public class CotizadorDbContext : DbContext
         tipoServicio.Property(t => t.EsSembrado).HasColumnName("EsSembrado").HasDefaultValue(true);
         tipoServicio.HasIndex(t => t.Codigo).IsUnique().HasDatabaseName("UX_TipoServicio_Codigo");
         tipoServicio.HasOne(t => t.UnidadMedida).WithMany().HasForeignKey(t => t.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
+
+        // D-20: acá NO se configuran frecuencias, locaciones, métodos de aplicación,
+        // tipos de plaga, tipos de ubicación ni vehículos. Ya existen en el ERP y se
+        // consumen desde su origen; crear tablas propias sería duplicar catálogos.
 
         // ── dbo.TipoServicioMargen ───────────────────────────────────────────────
         // El margen vive con vigencia, y como fracción. H-02 / RN-10.
@@ -1050,6 +1135,18 @@ public class CotizadorDbContext : DbContext
         conexion.Property(c => c.UltimoError).HasColumnName("UltimoError").HasMaxLength(2000);
         conexion.Property(c => c.UltimoErrorUtc).HasColumnName("UltimoErrorUtc").HasColumnType("datetime2(3)");
         conexion.HasIndex(c => c.Nombre).IsUnique().HasDatabaseName("UX_ErpConexion_Nombre");
+
+        // ── int.ErpMapeoTipoCliente ──────────────────────────────────────────────
+        var mapeoTipoCliente = modelBuilder.Entity<ErpMapeoTipoCliente>();
+        ConfigurarBase(mapeoTipoCliente);
+        mapeoTipoCliente.ToTable("ErpMapeoTipoCliente", Esquemas.Integracion);
+        mapeoTipoCliente.Property(m => m.ErpConexionId).HasColumnName("ErpConexionId").IsRequired();
+        mapeoTipoCliente.Property(m => m.CodigoCategoriaErp).HasColumnName("CodigoCategoriaErp").HasMaxLength(40).IsRequired();
+        mapeoTipoCliente.Property(m => m.TipoClienteCatalogoId).HasColumnName("TipoClienteCatalogoId").IsRequired();
+        mapeoTipoCliente.HasIndex(m => new { m.ErpConexionId, m.CodigoCategoriaErp }).IsUnique()
+            .HasDatabaseName("UX_ErpMapeoTipoCliente_ConexionCategoria");
+        mapeoTipoCliente.HasOne(m => m.ErpConexion).WithMany().HasForeignKey(m => m.ErpConexionId).OnDelete(DeleteBehavior.Cascade);
+        mapeoTipoCliente.HasOne(m => m.TipoClienteCatalogo).WithMany().HasForeignKey(m => m.TipoClienteCatalogoId).OnDelete(DeleteBehavior.Restrict);
 
         // ── int.ErpFlujo ─────────────────────────────────────────────────────────
         var flujo = modelBuilder.Entity<ErpFlujo>();

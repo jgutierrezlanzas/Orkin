@@ -1,10 +1,10 @@
 # ORKIN — Integración con ERP
 
-> **Estado:** 🟡 Diseño cerrado, **primera versión funcionando** (solo lectura, productos).
+> **Estado:** 🟡 Diseño cerrado, **conexión real validada** (`10.40.50.1`), carga de productos funcionando.
 > **Alcance:** **una sola dirección** — el ERP alimenta los catálogos del cotizador. La web **nunca**
 > escribe en el ERP del cliente (**D-19**).
 > **Estructura de datos:** [`BASE-DE-DATOS.md`](BASE-DE-DATOS.md) §7.
-> **Fecha:** 2026-09-27 · **Actualizado:** 2026-09-29 — ver §9, "Lo que ya está construido".
+> **Fecha:** 2026-09-27 · **Actualizado:** 2026-11-16 — conexión real, análisis del legacy y D-04 resuelto.
 >
 > La §9 describe lo que existe en el código hoy, que es menos que el diseño de las §1–8. Las
 > secciones de diseño se conservan completas porque siguen siendo la referencia de lo que falta,
@@ -737,6 +737,75 @@ poder leerse como *"esto es lo que le pasó al catálogo"*, sin filas de mentira
 Las pruebas automatizadas (`Orkin.Cotizador.Tests/Carga/SimulacionCargaTests.cs`) fijan las dos
 promesas: que la simulación no inserta, no modifica y no adopta; y que sus contadores coinciden
 con los de la carga real, incluso con códigos repetidos en el origen.
+
+### 9.6 Conexión real al ERP de ORKIN y resolución de D-04 (2026-11-16)
+
+Se validó la conectividad al servidor de desarrollo/pruebas `10.40.50.1` con el usuario `Desarrollo`
+/ clave `Desarrollo`. Ambas bases están online:
+
+| Base | Estado | Relevancia |
+|---|---|---|
+| `FUMIPLAGA` | ONLINE | ERP operativo (Softland/Exactus); esquemas `FMP` (operación) y `ERPADMIN` (usuarios). |
+| `SINCOERPORKIN` | ONLINE | Sistema legacy WinForm; contiene las vistas `vv*` que leen de `FUMIPLAGA` y que usaremos como origen. |
+
+Conteos reales de las vistas que alimentan catálogos:
+
+| Vista | Filas | Destino en la web |
+|---|---|---|
+| `dbo.vvArticulos` | **201** (188 `AMORTIZABLE='NO'` + 13 `AMORTIZABLE='SI'`) | Productos, categorías, unidades de medida y activos amortizables. |
+| `dbo.vvClientes` | **935** (`C01`=96, `C02`=349, `C03`=490) | Clientes y tipo de cliente. |
+| `dbo.vvTipoServicios` | **43** | Tipos de servicio. |
+| `dbo.vvTecnicos` | **14** | Técnicos (futuro catálogo o usuarios). |
+
+**Resolución de D-04 — vida útil de activos amortizables.**
+
+La vista `vvArticulos` no trae meses de vida útil. El cliente confirmó que ese dato se mantiene
+manual en la web. Por eso:
+
+* `ActivoAmortizable.MesesVidaUtil` pasó a ser `int?` nullable en el dominio y en la base.
+* `CargadorActivosAmortizables` ya no exige `MesesVidaUtil`; si el ERP no lo trae, el activo se
+carga con vida útil `null`.
+* En la cotización, la vida útil por línea (`DetalleAmortizable.MesesVidaUtil`) sigue siendo
+obligatoria y > 0. Si el catálogo no la trae, el usuario debe ingresarla en el formulario; el
+motor rechaza el cálculo si queda en cero.
+
+Esto desbloquea el flujo ETL de activos amortizables desde `vvArticulos`.
+
+**Mapeo configurable de categorías de cliente.**
+
+Se agregó `int.ErpMapeoTipoCliente`: cada conexión puede definir a qué `dbo.TipoClienteCatalogo`
+mapea cada código de categoría del ERP. Para ORKIN/Softland se cargó el mapeo:
+`C01`/`C02` → `EMPRESARIAL`, `C03` → `RESIDENCIAL`. Si no hay fila configurada, el cargador aplica
+el mismo fallback por defecto.
+
+**Unidades de medida tal cual las trae el ERP.**
+
+No se normalizan: `UND`, `MLTS`, `GRS`, `BOLSA`, `LBS`, `PAR` se crean en `dbo.UnidadMedida` con
+los códigos del ERP, porque es lo que ya maneja el cliente.
+
+**Flujos ETL creados y ejecutados.**
+
+| Flujo | Origen | Filas cargadas |
+|---|---|---|
+| `UNIDADES_MEDIDA` | `vvArticulos.UNIDAD_VENTA` | 7 |
+| `CATEGORIAS_PRODUCTO` | `vvArticulos.CLASIFICACION` | 18 |
+| `PRODUCTOS` | `vvArticulos` (no amortizables) | 188 |
+| `ACTIVOS_AMORTIZABLES` | `vvArticulos` (amortizables) | 13 |
+| `TIPOS_SERVICIO` | `vvTipoServicios` | 43 |
+| `CLIENTES` | `vvClientes` | 935 |
+
+> **Base de datos de la plataforma.** La API ya apunta a `SINCOERPORKIN` como base principal.
+> Se aplicó un backup previo (`F:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\
+> Backup\SINCOERPORKIN_bak_opencode_20261117.bak`) y las migraciones crearon los esquemas `dbo`,
+> `seg`, `int` y `aud` junto con las tablas del cotizador. Las tablas operativas del legacy
+> (`Orden_Trabajo`, `Requisa`, etc.) coexisten en `dbo` sin conflictos de nombres.
+
+**Próximos pasos concretos:**
+
+1. Validar los datos cargados con el usuario (especialmente unidades, categorías y mapeo de clientes).
+2. Cargar histórico de tipos de cambio (si aplica) o dejar el actual manual.
+3. Probar una cotización end-to-end con productos y activos reales del ERP.
+4. Planificar la migración de los módulos operativos del legacy (órdenes de trabajo, requisas, etc.) en Fase 11.
 
 ---
 

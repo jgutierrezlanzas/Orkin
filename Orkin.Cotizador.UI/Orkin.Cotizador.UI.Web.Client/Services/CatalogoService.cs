@@ -51,6 +51,44 @@ public sealed class CatalogoService
         return await response.Content.ReadFromJsonAsync<ApiResponse<UnidadMedidaModel>>();
     }
 
+    public async Task<List<TecnicoModel>> ListarTecnicosAsync()
+    {
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<TecnicoModel>>>("api/catalogos/tecnicos");
+        return respuesta?.Datos ?? [];
+    }
+
+    public async Task<ApiResponse<TecnicoModel>?> CrearTecnicoAsync(TecnicoModel modelo)
+    {
+        var request = new
+        {
+            modelo.Codigo,
+            modelo.Nombre,
+            modelo.Telefono,
+            modelo.Correo,
+            modelo.Cargo,
+            modelo.Orden
+        };
+
+        var response = await _http.PostAsJsonAsync("api/catalogos/tecnicos", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<TecnicoModel>>();
+    }
+
+    public async Task<ApiResponse<TecnicoModel>?> ActualizarTecnicoAsync(TecnicoModel modelo)
+    {
+        var request = new
+        {
+            modelo.Nombre,
+            modelo.Telefono,
+            modelo.Correo,
+            modelo.Cargo,
+            modelo.Orden,
+            modelo.EsActivo
+        };
+
+        var response = await _http.PutAsJsonAsync($"api/catalogos/tecnicos/{modelo.Id}", request);
+        return await response.Content.ReadFromJsonAsync<ApiResponse<TecnicoModel>>();
+    }
+
     public async Task<List<CategoriaProductoModel>> ListarCategoriasProductoAsync()
     {
         var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<CategoriaProductoModel>>>("api/catalogos/categorias-producto");

@@ -147,15 +147,15 @@ public sealed class CotizacionesController : ControllerBase
             .Select(a => new ActivoAmortizableOption(a.Id, a.Codigo, a.Nombre, a.CostoActual, a.MesesVidaUtil, a.UnidadMedida.Abreviatura))
             .ToListAsync(cancellationToken);
 
-        // Los técnicos salen de los usuarios activos de la plataforma. La duda de si debería
-        // existir un "catálogo de técnicos" separado (que vendría del ERP del cliente como los
-        // demás catálogos) está anotada: por ahora, quien se asigna a un trabajo es un usuario
-        // del sistema, no una fila importada.
-        var tecnicos = await _contexto.Usuario
+        // D-21: el técnico es un catálogo compartido. Viene del ERP (FMP.U_TECNICOS) y lo usa
+        // tanto el cotizador como las órdenes de trabajo. No se lista seg.Usuario: un usuario
+        // del sistema no necesariamente hace trabajo de campo, y un técnico de campo no
+        // necesariamente tiene login.
+        var tecnicos = await _contexto.Tecnico
             .AsNoTracking()
-            .Where(u => u.EsActivo)
-            .OrderBy(u => u.NombreCompleto)
-            .Select(u => new TecnicoOption(u.Id, u.NombreCompleto))
+            .Where(t => t.IsActive)
+            .OrderBy(t => t.Nombre)
+            .Select(t => new TecnicoOption(t.Id, t.Nombre))
             .ToListAsync(cancellationToken);
 
         var respuesta = new
@@ -391,9 +391,9 @@ public sealed class CotizacionesController : ControllerBase
         Guid? tecnicoAsignadoId = null;
         if (request.TecnicoAsignadoId is { } idTecnico)
         {
-            var existeTecnico = await _contexto.Usuario
+            var existeTecnico = await _contexto.Tecnico
                 .AsNoTracking()
-                .AnyAsync(u => u.Id == idTecnico && u.EsActivo, cancellationToken);
+                .AnyAsync(t => t.Id == idTecnico && t.IsActive, cancellationToken);
 
             if (!existeTecnico)
             {
@@ -573,9 +573,9 @@ public sealed class CotizacionesController : ControllerBase
         Guid? tecnicoAsignadoId = null;
         if (request.TecnicoAsignadoId is { } idTecnico)
         {
-            var existeTecnico = await _contexto.Usuario
+            var existeTecnico = await _contexto.Tecnico
                 .AsNoTracking()
-                .AnyAsync(u => u.Id == idTecnico && u.EsActivo, cancellationToken);
+                .AnyAsync(t => t.Id == idTecnico && t.IsActive, cancellationToken);
 
             if (!existeTecnico)
             {
@@ -723,9 +723,11 @@ public sealed class CotizacionesController : ControllerBase
 
             // Idéntica regla al motor: la vida útil de la cotización pisa la del catálogo, y si no
             // viene (o viene en cero, que es lo que traía el Excel) se usa la del catálogo.
+            // Si el catálogo no la trae, la línea no se puede guardar hasta que quien cotiza la
+            // complete; es preferible omitirla que dejar un valor mensual en cero en silencio.
             var vidaUtil = linea.MesesVidaUtil is > 0 ? linea.MesesVidaUtil.Value : activo.MesesVidaUtil;
 
-            if (vidaUtil <= 0)
+            if (vidaUtil is null or <= 0)
             {
                 // Sin vida útil no hay valor mensual, y la tabla lo prohíbe (CK > 0). Es un error
                 // de datos en el catálogo, no de quien cotiza: se salta la línea en vez de tumbar
@@ -742,9 +744,9 @@ public sealed class CotizacionesController : ControllerBase
                 ActivoAmortizableId = activo.Id,
                 Cantidad = linea.Cantidad,
                 PrecioUnitario = activo.CostoActual,
-                MesesVidaUtil = vidaUtil,
+                MesesVidaUtil = vidaUtil.Value,
                 Total = total,
-                ValorMensual = total / vidaUtil,
+                ValorMensual = total / vidaUtil.Value,
                 UnidadMedidaTexto = activo.UnidadMedida?.Abreviatura ?? string.Empty,
                 ActivoNombre = activo.Nombre,
                 Orden = orden++
