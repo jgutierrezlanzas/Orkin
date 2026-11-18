@@ -8,7 +8,7 @@
         <MudItem xs="12" md="9">
             <MudTextField @bind-Value="_textoEventos" Lines="4" Variant="Variant.Outlined" Margin="Margin.Dense"
                           Label="Eventos exportados de Google Calendar"
-                          HelperText="Pegue el JSON de la API de Calendar o líneas: EventoId|Summary|Ubicacion|Descripcion|Inicio|Fin (yyyy-MM-dd HH:mm)." />
+                          HelperText="Acepta la respuesta completa de Calendar (con items), el array de eventos o líneas: EventoId|Summary|Ubicacion|Descripcion|Inicio|Fin. Si no vienen fechas, se usa la fecha por defecto." />
         </MudItem>
         <MudItem xs="12" md="3" Class="d-flex flex-column justify-center align-stretch gap-2">
             <MudDatePicker @bind-Date="_fechaEventos" Label="Fecha por defecto" Variant="Variant.Outlined" Margin="Margin.Dense" />
@@ -377,10 +377,8 @@
             try
             {
                 using var documento = JsonDocument.Parse(contenido);
-                var elementos = documento.RootElement.ValueKind == JsonValueKind.Array
-                    ? documento.RootElement.EnumerateArray().ToList()
-                    : [documento.RootElement];
-                foreach (var elemento in elementos)
+                var fechaPorDefecto = _fechaEventos ?? DateTime.Today;
+                foreach (var elemento in ElementosJson(documento.RootElement))
                 {
                     resultado.Add(new EventoGoogleModel
                     {
@@ -389,8 +387,8 @@
                         Summary = Texto(elemento, "summary", "titulo"),
                         Ubicacion = Texto(elemento, "location", "ubicacion"),
                         Descripcion = Texto(elemento, "description", "descripcion"),
-                        FechaInicio = Fecha(elemento, "start", "startTime", "fechaInicio"),
-                        FechaFin = Fecha(elemento, "end", "endTime", "fechaFin")
+                        FechaInicio = Fecha(elemento, "start", "startTime", "fechaInicio") ?? fechaPorDefecto,
+                        FechaFin = Fecha(elemento, "end", "endTime", "fechaFin") ?? fechaPorDefecto
                     });
                 }
             }
@@ -470,5 +468,25 @@
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Google Calendar devuelve <c>{ "items": [...] }</c>; también se aceptan el array suelto y un evento suelto.
+    /// </summary>
+    private static List<JsonElement> ElementosJson(JsonElement raiz)
+    {
+        if (raiz.ValueKind == JsonValueKind.Array)
+        {
+            return raiz.EnumerateArray().ToList();
+        }
+
+        if (raiz.ValueKind == JsonValueKind.Object &&
+            raiz.TryGetProperty("items", out var elementos) &&
+            elementos.ValueKind == JsonValueKind.Array)
+        {
+            return elementos.EnumerateArray().ToList();
+        }
+
+        return [raiz];
     }
 }
