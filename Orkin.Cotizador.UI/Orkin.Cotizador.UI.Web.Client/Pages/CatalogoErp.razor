@@ -20,6 +20,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
+@implements IDisposable
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
     <div class="d-flex justify-space-between align-center mb-4 gap-4">
@@ -40,7 +41,7 @@
     }
     else
     {
-        <MudTable Items="_filtradas" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <MudTable @key="_slug" Items="_filtradas" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
             <HeaderContent>
                 <MudTh>Código</MudTh>
                 <MudTh>Descripción</MudTh>
@@ -97,6 +98,7 @@
     private List<OpcionErpModel> _filas = [];
     private List<OpcionErpModel> _filtradas = [];
     private string _filtro = string.Empty;
+    private string _slug = string.Empty;
     private string _titulo = string.Empty;
     private bool _cargando = true;
     private bool _catalogoDesconocido;
@@ -107,12 +109,34 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Todas las rutas de catálogo resuelven al MISMO componente. El router reutiliza la
+        // instancia al navegar entre ellas, así que OnInitializedAsync corre solo una vez:
+        // hay que volver a cargar cuando cambie la URL (LocationChanged).
+        Navigation.LocationChanged += OnLocationChanged;
+        await CargarCatalogoAsync();
+    }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        await CargarCatalogoAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CargarCatalogoAsync()
+    {
+        _cargando = true;
+        _catalogoDesconocido = false;
+        _filtro = string.Empty;
+        _slug = string.Empty;
+        _filas = [];
+        _filtradas = [];
+
         try
         {
             var relativa = Navigation.ToBaseRelativePath(Navigation.Uri);
-            var slug = relativa.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? string.Empty;
+            _slug = relativa.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? string.Empty;
 
-            if (!Catalogos.TryGetValue(slug, out var definicion))
+            if (!Catalogos.TryGetValue(_slug, out var definicion))
             {
                 _catalogoDesconocido = true;
                 return;
@@ -132,6 +156,11 @@
         {
             _cargando = false;
         }
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 
     private void CambiarFiltro(string? valor)
