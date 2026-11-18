@@ -17,6 +17,7 @@ public class VistaClienteErp
 public class VistaLocacionErp
 {
     public string Codigo { get; set; } = null!;
+    public string? Nombre { get; set; }
     public string? Cliente { get; set; }
     public string? Activo { get; set; }
 }
@@ -30,6 +31,9 @@ public class VistaTipoServicioErp
 public class VistaVehiculoErp
 {
     public string Codigo { get; set; } = null!;
+    public string? Descripcion { get; set; }
+    public string? Placa { get; set; }
+    public string? TipoVehiculo { get; set; }
     public string? Activo { get; set; }
 }
 
@@ -38,5 +42,64 @@ public class VistaTecnicoErp
     public string Codigo { get; set; } = null!;
     public string? Iniciales { get; set; }
     public string? NombreCompleto { get; set; }
+    public string? Activo { get; set; }
+}
+
+/// <summary>Contrato mínimo de las vistas que solo aportan código, descripción y activo.</summary>
+public interface IOpcionErpView
+{
+    string Codigo { get; set; }
+    string? Descripcion { get; set; }
+    string? Activo { get; set; }
+}
+
+/// <summary><c>vvTipodePlagas</c>: TIPO_PLAGA del detalle de plantilla.</summary>
+public class VistaPlagaErp : IOpcionErpView
+{
+    public string Codigo { get; set; } = null!;
+    public string? Descripcion { get; set; }
+    public string? Activo { get; set; }
+}
+
+/// <summary><c>vvTipodeUbicaciones</c>: LUGAR_TRATAR del detalle de plantilla.</summary>
+public class VistaUbicacionErp : IOpcionErpView
+{
+    public string Codigo { get; set; } = null!;
+    public string? Descripcion { get; set; }
+    public string? Activo { get; set; }
+}
+
+/// <summary><c>vvDosificacion</c>: CODIGO_DOSIFICACION del detalle de plantilla.</summary>
+public class VistaDosificacionErp
+{
+    public string Codigo { get; set; } = null!;
+    public string? Descripcion { get; set; }
+    public decimal? Cantidad { get; set; }
+    public string? CodigoUnidadMedida { get; set; }
+    public string? Activo { get; set; }
+}
+
+/// <summary><c>vvMetodosAplicacion</c>: METODO_APLICACION del detalle de plantilla.</summary>
+public class VistaMetodoAplicacionErp : IOpcionErpView
+{
+    public string Codigo { get; set; } = null!;
+    public string? Descripcion { get; set; }
+    public string? Activo { get; set; }
+}
+
+/// <summary><c>vvFrecuencia</c>: CODIGO_FRECUENCIA del servicio de plantilla.</summary>
+public class VistaFrecuenciaErp
+{
+    public string Codigo { get; set; } = null!;
+    public string? Descripcion { get; set; }
+    public int? NumeroServicios { get; set; }
+    public string? Activo { get; set; }
+}
+
+/// <summary><c>vvTipodeEquipos</c>: CODIGO_EQUIPO de la plantilla.</summary>
+public class VistaEquipoErp : IOpcionErpView
+{
+    public string Codigo { get; set; } = null!;
+    public string? Descripcion { get; set; }
     public string? Activo { get; set; }
 }

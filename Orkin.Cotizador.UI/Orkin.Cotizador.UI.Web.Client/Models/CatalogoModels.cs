@@ -112,3 +112,24 @@ public sealed class FuenteTipoCambioOption
     public string Codigo { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
 }
+
+/// <summary>Opción legible de una vista <c>vv*</c>: el código se guarda, el texto se muestra.</summary>
+public sealed class OpcionErpModel
+{
+    public string Codigo { get; set; } = string.Empty;
+    public string Descripcion { get; set; } = string.Empty;
+    public string? Detalle { get; set; }
+    public string? UnidadMedida { get; set; }
+}
+
+public sealed class OpcionesErpModel
+{
+    public List<OpcionErpModel> Locaciones { get; set; } = [];
+    public List<OpcionErpModel> Vehiculos { get; set; } = [];
+    public List<OpcionErpModel> Plagas { get; set; } = [];
+    public List<OpcionErpModel> Ubicaciones { get; set; } = [];
+    public List<OpcionErpModel> Dosificaciones { get; set; } = [];
+    public List<OpcionErpModel> Metodos { get; set; } = [];
+    public List<OpcionErpModel> Frecuencias { get; set; } = [];
+    public List<OpcionErpModel> Equipos { get; set; } = [];
+}

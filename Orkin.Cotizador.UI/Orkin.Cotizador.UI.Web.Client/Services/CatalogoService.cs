@@ -15,6 +15,19 @@ public sealed class CatalogoService
         _http = http;
     }
 
+    /// <summary>
+    /// Opciones legibles de las vistas ERP. Un solo endpoint para todos los códigos que antes se
+    /// capturaban a ciegas; el filtro por cliente solo acota las locaciones (D-21).
+    /// </summary>
+    public async Task<OpcionesErpModel> ListarOpcionesErpAsync(string? cliente = null)
+    {
+        var url = string.IsNullOrWhiteSpace(cliente)
+            ? "api/catalogos/opciones-erp"
+            : $"api/catalogos/opciones-erp?cliente={Uri.EscapeDataString(cliente.Trim())}";
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<OpcionesErpModel>>(url);
+        return respuesta?.Datos ?? new OpcionesErpModel();
+    }
+
     public async Task<List<UnidadMedidaModel>> ListarUnidadesMedidaAsync()
     {
         var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<UnidadMedidaModel>>>("api/catalogos/unidades-medida");

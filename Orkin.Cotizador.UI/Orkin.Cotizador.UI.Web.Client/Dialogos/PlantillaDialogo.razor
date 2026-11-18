@@ -1,6 +1,7 @@
 @* Alta y edición de plantilla de orden de trabajo sobre las tablas legacy existentes (D-22).
-   Los catálogos del ERP (locación, plaga, ubicación, dosificación, método, frecuencia, equipo)
-   se capturan como código texto: no hay tabla local ni FK para ellos (D-20). *@
+   Los códigos del ERP (locación, vehículo, plaga, ubicación, dosificación, método, frecuencia y
+   equipo) se eligen de un combo legible leído desde las vistas vv* por la API de catálogos (D-20/D-21):
+   se guarda el código, se muestra su descripción. Ningún catálogo se copia ni se crea (D-22). *@
 <MudDialog>
     <DialogContent>
         <MudGrid Spacing="2">
@@ -28,8 +29,13 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" md="3">
-                <MudTextField @bind-Value="Modelo.Locacion" Label="Locación (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                              Required="true" RequiredError="Ingrese la locación" />
+                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                 Items="@LocacionesDisponibles" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                 Value="@(Modelo.Locacion ?? string.Empty)"
+                                 ValueChanged="@(v => Modelo.Locacion = v)"
+                                 TextoValorActual="@TextoActual(Modelo.Locacion, _opciones.Locaciones)"
+                                 Label="Locación" Clearable="true"
+                                 HelperText="Se listan las locaciones del cliente seleccionado." />
             </MudItem>
             <MudItem xs="12" md="5">
                 <MudTextField @bind-Value="Modelo.Direccion" Label="Dirección" Variant="Variant.Outlined" Margin="Margin.Dense" />
@@ -41,7 +47,12 @@
                 <MudTextField @bind-Value="Modelo.Telefono" Label="Teléfono" Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudItem>
             <MudItem xs="12" md="3">
-                <MudTextField @bind-Value="Modelo.Vehiculo" Label="Vehículo (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                 Items="_opciones.Vehiculos" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                 Value="@(Modelo.Vehiculo ?? string.Empty)"
+                                 ValueChanged="@(v => Modelo.Vehiculo = v)"
+                                 TextoValorActual="@TextoActual(Modelo.Vehiculo, _opciones.Vehiculos)"
+                                 Label="Vehículo (opcional)" Clearable="true" />
             </MudItem>
             <MudItem xs="12" md="7">
                 <MudTextField @bind-Value="Modelo.DescripcionTrabajo" Label="Descripción del trabajo" Variant="Variant.Outlined" Margin="Margin.Dense" />
@@ -90,13 +101,28 @@
                             </MudItem>
                             <MudItem xs="12" md="2">
                                 @* UMEDIDA se conserva tal como viene del ERP (UNIDAD_VENTA), sin normalizar. *@
-                                <MudTextField @bind-Value="linea.Umedida" Label="Unidad (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <SelectorLegible TItem="UnidadMedidaModel" TValue="string"
+                                                 Items="_unidadesMedida" ValorDe="u => u.Abreviatura" TextoDe="TextoUnidad"
+                                                 Value="@(linea.Umedida ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.Umedida = v)"
+                                                 TextoValorActual="@(string.IsNullOrWhiteSpace(linea.Umedida) ? string.Empty : $"Unidad ERP: {linea.Umedida}")"
+                                                 Label="Unidad" Clearable="true" />
                             </MudItem>
                             <MudItem xs="12" md="3">
-                                <MudTextField @bind-Value="linea.TipoPlaga" Label="Tipo de plaga (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Plagas" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.TipoPlaga ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.TipoPlaga = v)"
+                                                 TextoValorActual="@TextoActual(linea.TipoPlaga, _opciones.Plagas)"
+                                                 Label="Tipo de plaga" Clearable="true" />
                             </MudItem>
                             <MudItem xs="12" md="3">
-                                <MudTextField @bind-Value="linea.LugarTratar" Label="Lugar a tratar (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Ubicaciones" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.LugarTratar ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.LugarTratar = v)"
+                                                 TextoValorActual="@TextoActual(linea.LugarTratar, _opciones.Ubicaciones)"
+                                                 Label="Lugar a tratar" Clearable="true" />
                             </MudItem>
                             <MudItem xs="12" md="2">
                                 <MudNumericField @bind-Value="linea.Area" Label="Área" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
@@ -105,10 +131,20 @@
                                 <MudTextField @bind-Value="linea.Concentracion" Label="Concentración" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                             <MudItem xs="12" md="2">
-                                <MudTextField @bind-Value="linea.CodigoDosificacion" Label="Dosificación (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Dosificaciones" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.CodigoDosificacion ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.CodigoDosificacion = v)"
+                                                 TextoValorActual="@TextoActual(linea.CodigoDosificacion, _opciones.Dosificaciones)"
+                                                 Label="Dosificación" Clearable="true" />
                             </MudItem>
                             <MudItem xs="12" md="3">
-                                <MudTextField @bind-Value="linea.MetodoAplicacion" Label="Método (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Metodos" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.MetodoAplicacion ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.MetodoAplicacion = v)"
+                                                 TextoValorActual="@TextoActual(linea.MetodoAplicacion, _opciones.Metodos)"
+                                                 Label="Método de aplicación" Clearable="true" />
                             </MudItem>
                             <MudItem xs="12" md="2">
                                 <MudNumericField Value="linea.CostoUnitario" ValueChanged="@((decimal? v) => { linea.CostoUnitario = v; Recalcular(linea); })"
@@ -151,7 +187,12 @@
                                 </MudSelect>
                             </MudItem>
                             <MudItem xs="12" md="4">
-                                <MudTextField @bind-Value="linea.CodigoFrecuencia" Label="Frecuencia (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Frecuencias" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.CodigoFrecuencia ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.CodigoFrecuencia = v)"
+                                                 TextoValorActual="@TextoActual(linea.CodigoFrecuencia, _opciones.Frecuencias)"
+                                                 Label="Frecuencia" Clearable="true" />
                             </MudItem>
                         </MudGrid>
                     </MudPaper>
@@ -176,7 +217,12 @@
                                                OnClick="@(() => Modelo.Equipos.Remove(linea))" aria-label="Quitar equipo" />
                             </MudItem>
                             <MudItem xs="12" md="5">
-                                <MudTextField @bind-Value="linea.CodigoEquipo" Label="Equipo (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Equipos" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.CodigoEquipo ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.CodigoEquipo = v)"
+                                                 TextoValorActual="@TextoActual(linea.CodigoEquipo, _opciones.Equipos)"
+                                                 Label="Equipo" Clearable="true" />
                             </MudItem>
                             <MudItem xs="12" md="3">
                                 @* El legacy guarda UTILIZADO como SI/NO, no como bool. *@
@@ -215,8 +261,18 @@
     private List<TecnicoModel> _tecnicos = [];
     private List<ProductoModel> _productos = [];
     private List<TipoServicioModel> _tiposServicio = [];
+    private List<UnidadMedidaModel> _unidadesMedida = [];
+    private OpcionesErpModel _opciones = new();
 
     private bool EsEdicion => Modelo.Plantilla != 0;
+
+    /// <summary>Las locaciones se acotan al cliente elegido; el código se guarda igual.</summary>
+    private IReadOnlyList<OpcionErpModel> LocacionesDisponibles =>
+        string.IsNullOrWhiteSpace(Modelo.Cliente)
+            ? _opciones.Locaciones
+            : _opciones.Locaciones
+                .Where(l => string.Equals(l.Detalle, Modelo.Cliente.Trim(), StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -225,13 +281,55 @@
             Cargar(() => Catalogos.ListarClientesAsync(), lista => _clientes = lista),
             Cargar(() => Catalogos.ListarTecnicosAsync(), lista => _tecnicos = lista),
             Cargar(() => Catalogos.ListarProductosAsync(), lista => _productos = lista),
-            Cargar(() => Catalogos.ListarTiposServicioAsync(), lista => _tiposServicio = lista)
+            Cargar(() => Catalogos.ListarTiposServicioAsync(), lista => _tiposServicio = lista),
+            Cargar(() => Catalogos.ListarUnidadesMedidaAsync(), lista => _unidadesMedida = lista),
+            CargarDato(() => Catalogos.ListarOpcionesErpAsync(), opciones => _opciones = opciones)
         };
         await Task.WhenAll(tareas);
     }
 
     private static async Task Cargar<T>(Func<Task<List<T>>> obtener, Action<List<T>> asignar)
         => asignar(await obtener());
+
+    private static async Task CargarDato<T>(Func<Task<T>> obtener, Action<T> asignar)
+        => asignar(await obtener());
+
+    /// <summary>La descripción primero y el código entre paréntesis: nunca solo el código.</summary>
+    private static string TextoOpcion(OpcionErpModel opcion)
+    {
+        var datos = new List<string> { opcion.Codigo };
+        if (!string.IsNullOrWhiteSpace(opcion.Detalle))
+        {
+            datos.Add(opcion.Detalle.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(opcion.UnidadMedida))
+        {
+            datos.Add(opcion.UnidadMedida.Trim());
+        }
+
+        return $"{opcion.Descripcion} ({string.Join(" · ", datos)})";
+    }
+
+    private static string TextoUnidad(UnidadMedidaModel unidad)
+        => $"{unidad.Nombre} ({unidad.Abreviatura})";
+
+    /// <summary>
+    /// Cuando el código legacy ya no está en la vista activa se muestra tal cual, pero etiquetado,
+    /// para que quien edite entienda que es un dato heredado y no una opción del catálogo.
+    /// </summary>
+    private static string TextoActual(string? codigo, IReadOnlyList<OpcionErpModel> opciones)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return string.Empty;
+        }
+
+        var texto = codigo.Trim();
+        var opcion = opciones.FirstOrDefault(o =>
+            string.Equals(o.Codigo, texto, StringComparison.OrdinalIgnoreCase));
+        return opcion is null ? $"Código heredado: {texto}" : TextoOpcion(opcion);
+    }
 
     private void AgregarDetalle() => Modelo.Detalles.Add(new PlantillaDetalleModel
     {

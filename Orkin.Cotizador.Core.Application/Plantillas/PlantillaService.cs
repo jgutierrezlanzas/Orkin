@@ -147,6 +147,7 @@ public sealed class PlantillaService
         CancellationToken cancellationToken = default)
     {
         Validar(datos);
+        await ValidarAsync(datos, null, cancellationToken);
 
         var numero = await SiguientePlantillaAsync(cancellationToken);
         var cabecera = new PlantillaOrdenTrabajo
@@ -183,6 +184,8 @@ public sealed class PlantillaService
         var cabecera = await _contexto.PlantillaOrdenTrabajo
             .FirstOrDefaultAsync(p => p.Plantilla == plantilla, cancellationToken)
             ?? throw new InvalidOperationException($"No existe la plantilla {plantilla}.");
+
+        await ValidarAsync(datos, await CompletaAsync(cabecera, cancellationToken), cancellationToken);
 
         cabecera.Cliente = Limite(datos.Cliente, 20);
         cabecera.Locacion = Limite(datos.Locacion, 5);
@@ -483,6 +486,102 @@ public sealed class PlantillaService
             ? "SISTEMA"
             : _usuario.NombreUsuario.Trim();
         return Limite(nombre, 25)!;
+    }
+
+    /// <summary>
+    /// Valida los códigos contra las vistas <c>vv*</c> de origen (D-20). Un código que ya estaba
+    /// grabado se acepta aunque hoy no esté activo: así se puede editar una plantilla legacy sin
+    /// quedar atrapada por un catálogo que cambió después. Los códigos nuevos sí deben existir.
+    /// La validación estructural (hijos obligatorios) sigue siendo solo del alta, como en el WinForms.
+    /// </summary>
+    private async Task ValidarAsync(
+        PlantillaGuardar datos,
+        PlantillaCompleta? actual,
+        CancellationToken cancellationToken)
+    {
+        var locaciones = await ConjuntoAsync(
+            _contexto.VistaLocacionErp.AsNoTracking().Where(v => v.Activo == ActivoSi).Select(v => v.Codigo),
+            cancellationToken);
+        var vehiculos = await ConjuntoAsync(
+            _contexto.VistaVehiculoErp.AsNoTracking().Where(v => v.Activo == ActivoSi).Select(v => v.Codigo),
+            cancellationToken);
+        var plagas = await ConjuntoAsync(
+            _contexto.VistaPlagaErp.AsNoTracking().Where(v => v.Activo == ActivoSi).Select(v => v.Codigo),
+            cancellationToken);
+        var ubicaciones = await ConjuntoAsync(
+            _contexto.VistaUbicacionErp.AsNoTracking().Where(v => v.Activo == ActivoSi).Select(v => v.Codigo),
+            cancellationToken);
+        var dosificaciones = await ConjuntoAsync(
+            _contexto.VistaDosificacionErp.AsNoTracking().Where(v => v.Activo == ActivoSi).Select(v => v.Codigo),
+            cancellationToken);
+        var metodos = await ConjuntoAsync(
+            _contexto.VistaMetodoAplicacionErp.AsNoTracking().Where(v => v.Activo == ActivoSi).Select(v => v.Codigo),
+            cancellationToken);
+        var frecuencias = await ConjuntoAsync(
+            _contexto.VistaFrecuenciaErp.AsNoTracking().Where(v => v.Activo == ActivoSi).Select(v => v.Codigo),
+            cancellationToken);
+        var equipos = await ConjuntoAsync(
+            _contexto.VistaEquipoErp.AsNoTracking().Where(v => v.Activo == ActivoSi).Select(v => v.Codigo),
+            cancellationToken);
+
+        var anterioresPlagas = Conjunto(actual?.Detalles.Select(d => d.TipoPlaga));
+        var anterioresUbicaciones = Conjunto(actual?.Detalles.Select(d => d.LugarTratar));
+        var anterioresDosificaciones = Conjunto(actual?.Detalles.Select(d => d.CodigoDosificacion));
+        var anterioresMetodos = Conjunto(actual?.Detalles.Select(d => d.MetodoAplicacion));
+        var anterioresFrecuencias = Conjunto(actual?.Servicios.Select(s => s.CodigoFrecuencia));
+        var anterioresEquipos = Conjunto(actual?.Equipos.Select(e => e.CodigoEquipo));
+
+        RequerirCodigo("Locación", datos.Locacion, locaciones, Conjunto(new[] { actual?.Cabecera.Locacion }));
+        RequerirCodigo("Vehículo", datos.Vehiculo, vehiculos, Conjunto(new[] { actual?.Cabecera.Vehiculo }));
+
+        foreach (var detalle in datos.Detalles)
+        {
+            RequerirCodigo("Tipo de plaga", detalle.TipoPlaga, plagas, anterioresPlagas);
+            RequerirCodigo("Lugar a tratar", detalle.LugarTratar, ubicaciones, anterioresUbicaciones);
+            RequerirCodigo("Dosificación", detalle.CodigoDosificacion, dosificaciones, anterioresDosificaciones);
+            RequerirCodigo("Método de aplicación", detalle.MetodoAplicacion, metodos, anterioresMetodos);
+        }
+
+        foreach (var servicio in datos.Servicios)
+        {
+            RequerirCodigo("Frecuencia", servicio.CodigoFrecuencia, frecuencias, anterioresFrecuencias);
+        }
+
+        foreach (var equipo in datos.Equipos)
+        {
+            RequerirCodigo("Equipo", equipo.CodigoEquipo, equipos, anterioresEquipos);
+        }
+    }
+
+    private static async Task<HashSet<string>> ConjuntoAsync(
+        IQueryable<string> codigos,
+        CancellationToken cancellationToken)
+        => Conjunto(await codigos.ToListAsync(cancellationToken));
+
+    private static HashSet<string> Conjunto(IEnumerable<string?>? valores)
+        => new(valores?.Where(v => !string.IsNullOrWhiteSpace(v))
+            .Select(v => v!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase) ?? [], StringComparer.OrdinalIgnoreCase);
+
+    private static void RequerirCodigo(
+        string campo,
+        string? codigo,
+        HashSet<string> validos,
+        HashSet<string> anteriores)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return;
+        }
+
+        var texto = codigo.Trim();
+        if (validos.Contains(texto) || anteriores.Contains(texto))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"{campo}: el código '{texto}' no existe o está inactivo en el catálogo ERP.");
     }
 
     private static void Validar(PlantillaGuardar datos)

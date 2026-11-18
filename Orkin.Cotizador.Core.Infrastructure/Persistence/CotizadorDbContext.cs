@@ -59,6 +59,12 @@ public class CotizadorDbContext : DbContext
     public DbSet<VistaTipoServicioErp> VistaTipoServicioErp => Set<VistaTipoServicioErp>();
     public DbSet<VistaVehiculoErp> VistaVehiculoErp => Set<VistaVehiculoErp>();
     public DbSet<VistaTecnicoErp> VistaTecnicoErp => Set<VistaTecnicoErp>();
+    public DbSet<VistaPlagaErp> VistaPlagaErp => Set<VistaPlagaErp>();
+    public DbSet<VistaUbicacionErp> VistaUbicacionErp => Set<VistaUbicacionErp>();
+    public DbSet<VistaDosificacionErp> VistaDosificacionErp => Set<VistaDosificacionErp>();
+    public DbSet<VistaMetodoAplicacionErp> VistaMetodoAplicacionErp => Set<VistaMetodoAplicacionErp>();
+    public DbSet<VistaFrecuenciaErp> VistaFrecuenciaErp => Set<VistaFrecuenciaErp>();
+    public DbSet<VistaEquipoErp> VistaEquipoErp => Set<VistaEquipoErp>();
     public DbSet<ParametroGeneral> ParametroGeneral => Set<ParametroGeneral>();
     public DbSet<Consecutivo> Consecutivo => Set<Consecutivo>();
     public DbSet<NotificacionEnviada> NotificacionEnviada => Set<NotificacionEnviada>();
@@ -1040,6 +1046,7 @@ public class CotizadorDbContext : DbContext
         modelBuilder.Entity<VistaClienteErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(1).IsUnicode(false);
 
         ConfigurarVistaErp<VistaLocacionErp>(modelBuilder, "vvLocacionesClientes", "Codigo", "CODIGO", 5);
+        modelBuilder.Entity<VistaLocacionErp>().Property(v => v.Nombre).HasColumnName("LOCACION_NOMBRE").HasMaxLength(50).IsUnicode(false);
         modelBuilder.Entity<VistaLocacionErp>().Property(v => v.Cliente).HasColumnName("CLIENTE").HasMaxLength(20).IsUnicode(false);
         modelBuilder.Entity<VistaLocacionErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
 
@@ -1047,12 +1054,48 @@ public class CotizadorDbContext : DbContext
         modelBuilder.Entity<VistaTipoServicioErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
 
         ConfigurarVistaErp<VistaVehiculoErp>(modelBuilder, "vvVehiculos", "Codigo", "CODIGO", 4);
+        modelBuilder.Entity<VistaVehiculoErp>().Property(v => v.Descripcion).HasColumnName("DESCRIPCION").HasMaxLength(50).IsUnicode(false);
+        modelBuilder.Entity<VistaVehiculoErp>().Property(v => v.Placa).HasColumnName("PLACA").HasMaxLength(15).IsUnicode(false);
+        modelBuilder.Entity<VistaVehiculoErp>().Property(v => v.TipoVehiculo).HasColumnName("TIPOVEHICULO").HasMaxLength(25).IsUnicode(false);
         modelBuilder.Entity<VistaVehiculoErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
 
         ConfigurarVistaErp<VistaTecnicoErp>(modelBuilder, "vvTecnicos", "Codigo", "CODIGO", 5);
         modelBuilder.Entity<VistaTecnicoErp>().Property(v => v.Iniciales).HasColumnName("INICIALES").HasMaxLength(4).IsUnicode(false);
         modelBuilder.Entity<VistaTecnicoErp>().Property(v => v.NombreCompleto).HasColumnName("NOMBRE_COMPLETO").HasMaxLength(50).IsUnicode(false);
         modelBuilder.Entity<VistaTecnicoErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
+
+        // Estas seis vistas son el origen de los códigos que antes se capturaban a ciegas en el
+        // diálogo de plantillas. Se leen, nunca se copian ni se migran (D-20/D-22).
+        ConfigurarVistaErp<VistaPlagaErp>(modelBuilder, "vvTipodePlagas", "Codigo", "CODIGO", 4);
+        ConfigurarOpcionErp<VistaPlagaErp>(modelBuilder, 50);
+
+        ConfigurarVistaErp<VistaUbicacionErp>(modelBuilder, "vvTipodeUbicaciones", "Codigo", "CODIGO", 4);
+        ConfigurarOpcionErp<VistaUbicacionErp>(modelBuilder, 50);
+
+        ConfigurarVistaErp<VistaDosificacionErp>(modelBuilder, "vvDosificacion", "Codigo", "CODIGO", 4);
+        modelBuilder.Entity<VistaDosificacionErp>().Property(v => v.Descripcion).HasColumnName("DESCRIPCION").HasMaxLength(50).IsUnicode(false);
+        modelBuilder.Entity<VistaDosificacionErp>().Property(v => v.Cantidad).HasColumnName("CANTIDAD").HasColumnType("decimal(28,8)");
+        modelBuilder.Entity<VistaDosificacionErp>().Property(v => v.CodigoUnidadMedida).HasColumnName("CODUMEDIDA").HasMaxLength(6).IsUnicode(false);
+        modelBuilder.Entity<VistaDosificacionErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
+
+        ConfigurarVistaErp<VistaMetodoAplicacionErp>(modelBuilder, "vvMetodosAplicacion", "Codigo", "CODIGO", 4);
+        ConfigurarOpcionErp<VistaMetodoAplicacionErp>(modelBuilder, 50);
+
+        ConfigurarVistaErp<VistaFrecuenciaErp>(modelBuilder, "vvFrecuencia", "Codigo", "CODIGO", 4);
+        modelBuilder.Entity<VistaFrecuenciaErp>().Property(v => v.Descripcion).HasColumnName("DESCRIPCION").HasMaxLength(50).IsUnicode(false);
+        modelBuilder.Entity<VistaFrecuenciaErp>().Property(v => v.NumeroServicios).HasColumnName("NOSERVICIOS");
+        modelBuilder.Entity<VistaFrecuenciaErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
+
+        ConfigurarVistaErp<VistaEquipoErp>(modelBuilder, "vvTipodeEquipos", "Codigo", "CODIGO", 4);
+        ConfigurarOpcionErp<VistaEquipoErp>(modelBuilder, 50);
+    }
+
+    private static void ConfigurarOpcionErp<TEntidad>(ModelBuilder modelBuilder, int longitudDescripcion)
+        where TEntidad : class
+    {
+        modelBuilder.Entity<TEntidad>().Property("Descripcion").HasColumnName("DESCRIPCION")
+            .HasMaxLength(longitudDescripcion).IsUnicode(false);
+        modelBuilder.Entity<TEntidad>().Property("Activo").HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
     }
 
     private static void ConfigurarVistaErp<TEntidad>(

@@ -26,7 +26,11 @@ public sealed class PlantillaServiceTests
     {
         private readonly string _nombre = $"pl-{Guid.NewGuid()}";
 
-        public Laboratorio() => Contexto = Crear();
+        public Laboratorio()
+        {
+            Contexto = Crear();
+            SembrarVistas();
+        }
 
         public CotizadorDbContext Contexto { get; }
 
@@ -34,6 +38,28 @@ public sealed class PlantillaServiceTests
 
         private CotizadorDbContext Crear() =>
             new(new DbContextOptionsBuilder<CotizadorDbContext>().UseInMemoryDatabase(_nombre).Options);
+
+        /// <summary>Las vistas vv* son de solo lectura; en la prueba se siembran códigos válidos.</summary>
+        private void SembrarVistas()
+        {
+            Contexto.Set<VistaLocacionErp>().Add(new VistaLocacionErp
+            {
+                Codigo = "L0070", Nombre = "LOCACIÓN DE PRUEBA", Cliente = "000081", Activo = "SI"
+            });
+            Contexto.Set<VistaPlagaErp>().Add(new VistaPlagaErp
+            {
+                Codigo = "P01", Descripcion = "PLAGA DE PRUEBA", Activo = "SI"
+            });
+            Contexto.Set<VistaFrecuenciaErp>().Add(new VistaFrecuenciaErp
+            {
+                Codigo = "MENS", Descripcion = "MENSUAL DE PRUEBA", Activo = "SI"
+            });
+            Contexto.Set<VistaEquipoErp>().Add(new VistaEquipoErp
+            {
+                Codigo = "E01", Descripcion = "EQUIPO DE PRUEBA", Activo = "SI"
+            });
+            Contexto.SaveChanges();
+        }
 
         public async ValueTask DisposeAsync() => await Contexto.DisposeAsync();
     }
@@ -94,6 +120,19 @@ public sealed class PlantillaServiceTests
         var datos = DatosBase() with { Equipos = [] };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.CrearAsync(datos));
+        Assert.Empty(await laboratorio.Contexto.PlantillaOrdenTrabajo.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Crear_CodigoFueraDelCatalogoErp_LanzaError()
+    {
+        await using var laboratorio = new Laboratorio();
+        var servicio = Servicio(laboratorio);
+        var datos = DatosBase() with { Locacion = "L9999" };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.CrearAsync(datos));
+
+        Assert.Contains("L9999", error.Message);
         Assert.Empty(await laboratorio.Contexto.PlantillaOrdenTrabajo.ToListAsync());
     }
 

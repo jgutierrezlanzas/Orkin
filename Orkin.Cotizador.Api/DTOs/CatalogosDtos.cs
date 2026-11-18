@@ -425,3 +425,26 @@ public sealed record ActualizarVehiculoRequest(
     bool Activo,
     int Orden,
     bool EsActivo);
+
+/// <summary>
+/// Opción legible leída directamente de una vista <c>vv*</c> del ERP (D-20). El valor que se
+/// guarda sigue siendo <see cref="Codigo"/>; <see cref="Descripcion"/> solo se muestra en la UI.
+/// <see cref="Detalle"/> es información extra del ERP (placa del vehículo, cliente de la locación)
+/// y <see cref="UnidadMedida"/> solo aplica a dosificaciones.
+/// </summary>
+public sealed record OpcionErpResponse(
+    string Codigo,
+    string Descripcion,
+    string? Detalle = null,
+    string? UnidadMedida = null);
+
+/// <summary>Un único contrato para todas las opciones ERP que antes se capturaban como texto.</summary>
+public sealed record OpcionesErpResponse(
+    IReadOnlyList<OpcionErpResponse> Locaciones,
+    IReadOnlyList<OpcionErpResponse> Vehiculos,
+    IReadOnlyList<OpcionErpResponse> Plagas,
+    IReadOnlyList<OpcionErpResponse> Ubicaciones,
+    IReadOnlyList<OpcionErpResponse> Dosificaciones,
+    IReadOnlyList<OpcionErpResponse> Metodos,
+    IReadOnlyList<OpcionErpResponse> Frecuencias,
+    IReadOnlyList<OpcionErpResponse> Equipos);

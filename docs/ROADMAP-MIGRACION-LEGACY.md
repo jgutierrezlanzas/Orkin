@@ -40,18 +40,18 @@ Leyenda de estado: ✅ ya cubierto · 🔶 parcial · 🆕 por construir · ❓ 
 | 1 | Login / cambiar servidor | `Frmlogin`, `Frmsettings` | `AuthController` + `/login`, JWT, "Recordarme", `/cambiar-contrasena` | ✅ | 0 |
 | 2 | Menú principal | `Frmprincipal` | `MainLayout.razor` (sidebar MudBlazor por permisos) | 🔶 | 0/10 |
 | 3 | Catálogo de artículos | `FrmPlantillaCatalogo` | `/catalogos/productos` + ETL desde `vvArticulos` | ✅ | 0/1 |
-| 4 | Catálogo de dosificación | `FrmPlantillaCatalogo` | Ya existe en `vvDosificacion`; **no se copia**. Solo consulta desde el ERP cuando un módulo lo pida | ⛔ D-20 | — |
-| 5 | Catálogo de frecuencia | `FrmPlantillaCatalogo` | Ya existe en `vvFrecuencia`; **no se copia** | ⛔ D-20 | — |
+| 4 | Catálogo de dosificación | `FrmPlantillaCatalogo` | `vvDosificacion` se consulta desde `api/catalogos/opciones-erp`; **no se copia** y el editor muestra descripción + código | ✅ | 2 |
+| 5 | Catálogo de frecuencia | `FrmPlantillaCatalogo` | `vvFrecuencia` se consulta desde `api/catalogos/opciones-erp`; **no se copia** | ✅ | 2 |
 | 6 | Catálogo de técnicos | `FrmPlantillaCatalogo` | `/catalogos/tecnicos` + ETL `vvTecnicos` — sí se conserva: lo usa el cotizador | ✅ | 1 |
 | 7 | Catálogo de servicios | `FrmPlantillaCatalogo` | `/catalogos/tipos-servicio` | ✅ | 0 |
-| 8 | Catálogo de vehículos | `FrmPlantillaCatalogo` | Ya existe en `vvVehiculos`; **no se copia** | ⛔ D-20 | — |
+| 8 | Catálogo de vehículos | `FrmPlantillaCatalogo` | `vvVehiculos` se consulta desde `api/catalogos/opciones-erp`; **no se copia** | ✅ | 2 |
 | 9 | Catálogo de usuarios | `FrmPlantillaCatalogo` | `/administracion/usuarios` (seg.Usuario) | 🔶 | 1/9 |
 | 10 | Parámetros generales | `FormParametroGenerales` | `/administracion/parametros` | ✅ | 0 |
-| 11 | Tipos de plaga / ubicación / método de aplicación (catálogos auxiliares) | Modo selección | Ya existen en `vvTipodePlagas`, `vvTipodeUbicaciones`, `vvMetodosAplicacion`; **no se copian** | ⛔ D-20 | — |
-| 12 | Locaciones de cliente | Modo selección | Ya existe en `vvLocacionesClientes`; **no se copia** | ⛔ D-20 | — |
+| 11 | Tipos de plaga / ubicación / método de aplicación (catálogos auxiliares) | Modo selección | `vvTipodePlagas`, `vvTipodeUbicaciones` y `vvMetodosAplicacion` se consultan desde `api/catalogos/opciones-erp`; **no se copian** | ✅ | 2 |
+| 12 | Locaciones de cliente | Modo selección | `vvLocacionesClientes` se consulta filtrando por cliente desde `api/catalogos/opciones-erp`; **no se copia** | ✅ | 2 |
 | 13 | Bodegas | Modo selección | Ya existe en `vvBodegas`; **no se copia** | ⛔ D-20 | — |
-| 14 | Tipos de equipo | Modo selección | Ya existe en `vvTipodeEquipos`; **no se copia** | ⛔ D-20 | — |
-| 15 | Plantillas (CRUD + copiar) | `FrmPlantillas`, `FrmCrudPlantillas` | `/plantillas` (alta, edición y copia en diálogo con pestañas) | ✅ | 2 |
+| 14 | Tipos de equipo | Modo selección | `vvTipodeEquipos` se consulta desde `api/catalogos/opciones-erp`; **no se copia** | ✅ | 2 |
+| 15 | Plantillas (CRUD + copiar) | `FrmPlantillas`, `FrmCrudPlantillas` | `/plantillas` (alta, edición y copia en diálogo con pestañas; códigos ERP ahora se eligen en combos legibles y se validan contra las `vv*`) | ✅ | 2 |
 | 16 | Programación de visitas | `FrmProgramacionVisitas` | `/visitas` (calendario mensual, semana × técnico, lista y filtros) | ✅ | 3 |
 | 17 | Confirmar visita / asignar técnicos y plantillas | `FrmAsociacionTecnicoVisitaConfirmada` | Diálogo de visita en `/visitas` con técnicos y plantilla | ✅ | 3 |
 | 18 | Ver / reversar visitas confirmadas | `FormProgramacionVisitasConfirmadas` | Panel lateral de detalle y acción `Reversar` en `/visitas` | ✅ | 3 |
