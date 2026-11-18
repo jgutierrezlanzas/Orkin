@@ -62,13 +62,21 @@
                 <MudTd DataLabel="Acciones">
                     @if (PuedeEditar && context.Estado is "LISTO" or "CONFLICTO")
                     {
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
-                                       OnClick="@(() => Corregir(context))" aria-label="Corregir" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small" Color="Color.Success"
-                                       Disabled="@(context.Estado != "LISTO")"
-                                       OnClick="@(() => Confirmar(context))" aria-label="Confirmar" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Block" Size="Size.Small" Color="Color.Error"
-                                       OnClick="@(() => Descartar(context))" aria-label="Descartar" />
+                        <MudTooltip Text="Corregir los datos y volver a validarlos contra el ERP">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                                           OnClick="@(() => Corregir(context))" aria-label="Corregir evento" />
+                        </MudTooltip>
+                        <MudTooltip Text="@(context.Estado == "LISTO"
+                            ? "Confirmar: crea la visita en la agenda (no se puede deshacer si ya tiene orden de trabajo)"
+                            : "Confirmar: solo disponible cuando el evento está LISTO")">
+                            <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small" Color="Color.Success"
+                                           Disabled="@(context.Estado != "LISTO")"
+                                           OnClick="@(() => Confirmar(context))" aria-label="Confirmar evento" />
+                        </MudTooltip>
+                        <MudTooltip Text="Descartar: marca el evento como descartado sin crear la visita">
+                            <MudIconButton Icon="@Icons.Material.Filled.Block" Size="Size.Small" Color="Color.Error"
+                                           OnClick="@(() => Descartar(context))" aria-label="Descartar evento" />
+                        </MudTooltip>
                     }
                 </MudTd>
             </RowTemplate>
@@ -113,8 +121,12 @@
                         <MudCheckBox @bind-Value="_mapeo.Activo" Label="Activa" Color="Color.Primary" />
                     </MudItem>
                     <MudItem xs="12" md="1" Class="d-flex align-center justify-end gap-1">
-                        <MudIconButton Icon="@Icons.Material.Filled.Save" Size="Size.Small" Color="Color.Success" OnClick="GuardarMapeo" aria-label="Guardar" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _editandoMapeo = false)" aria-label="Cancelar" />
+                        <MudTooltip Text="Guardar la homologación">
+                            <MudIconButton Icon="@Icons.Material.Filled.Save" Size="Size.Small" Color="Color.Success" OnClick="GuardarMapeo" aria-label="Guardar homologación" />
+                        </MudTooltip>
+                        <MudTooltip Text="Cancelar sin guardar">
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _editandoMapeo = false)" aria-label="Cancelar edición" />
+                        </MudTooltip>
                     </MudItem>
                 </MudGrid>
             </MudPaper>
@@ -141,10 +153,14 @@
                 <MudTd DataLabel="Acciones">
                     @if (PuedeEditar)
                     {
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
-                                       OnClick="@(() => EditarMapeo(context))" aria-label="Editar" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
-                                       OnClick="@(() => EliminarMapeo(context))" aria-label="Eliminar" />
+                        <MudTooltip Text="Editar la homologación">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                                           OnClick="@(() => EditarMapeo(context))" aria-label="Editar homologación" />
+                        </MudTooltip>
+                        <MudTooltip Text="Eliminar la homologación">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                           OnClick="@(() => EliminarMapeo(context))" aria-label="Eliminar homologación" />
+                        </MudTooltip>
                     }
                 </MudTd>
             </RowTemplate>
@@ -266,6 +282,18 @@
 
     private async Task Confirmar(ImportacionGoogleEventoModel evento)
     {
+        var dialogo = await Dialogos.ShowAsync<ConfirmarDialogo>(
+            "Confirmar evento de Google", new DialogParameters<ConfirmarDialogo>
+            {
+                { d => d.Titulo, $"Confirmar {evento.EventoId}" },
+                { d => d.Mensaje, "Se creará una visita real en la agenda con los técnicos y la plantilla indicados. Si la visita llega a tener orden de trabajo, ya no se podrá reversar." }
+            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not true)
+        {
+            return;
+        }
+
         try
         {
             var ok = await Servicio.ConfirmarEventoAsync(evento.Id);
@@ -287,6 +315,18 @@
 
     private async Task Descartar(ImportacionGoogleEventoModel evento)
     {
+        var dialogo = await Dialogos.ShowAsync<ConfirmarDialogo>(
+            "Descartar evento de Google", new DialogParameters<ConfirmarDialogo>
+            {
+                { d => d.Titulo, $"Descartar {evento.EventoId}" },
+                { d => d.Mensaje, "El evento se marcará como DESCARTADO y NO se creará la visita. No elimina nada de la agenda." }
+            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not true)
+        {
+            return;
+        }
+
         try
         {
             await Servicio.DescartarEventoAsync(evento.Id);
