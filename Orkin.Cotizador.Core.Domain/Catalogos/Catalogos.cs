@@ -81,6 +81,13 @@ public class Tecnico : CatalogoBase
 
     /// <summary>Ej. "Técnico de campo", "Supervisor técnico". Informativo.</summary>
     public string? Cargo { get; set; }
+
+    /// <summary>
+    /// Color del calendario de este técnico en la agenda (Fase 3), en formato <c>#RRGGBB</c>.
+    /// Se guarda en el catálogo compartido (D-21) para que haya una sola fuente de verdad y se
+    /// edite desde /catalogos/tecnicos. Si está vacío, la UI asigna uno determinístico por código.
+    /// </summary>
+    public string? ColorCalendario { get; set; }
 }
 
 /// <summary>Familia de un producto: insecticida, rodenticida, repelente, bulk, servicio…</summary>

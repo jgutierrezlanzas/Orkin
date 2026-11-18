@@ -49,6 +49,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TipoCambioService>();
         services.AddScoped<CotizacionService>();
         services.AddScoped<Plantillas.PlantillaService>();
+        services.AddScoped<Visitas.IGeneradorOrdenTrabajo, Visitas.GeneradorOrdenTrabajoService>();
+        services.AddScoped<Visitas.VisitaService>();
+        services.AddScoped<Visitas.ImportadorGoogleService>();
 
         // Proceso de carga desde origen externo (Fase 2.5): un cargador por catálogo. El de
         // clientes va con el de productos porque el cliente de ORKIN también vive en su ERP, y

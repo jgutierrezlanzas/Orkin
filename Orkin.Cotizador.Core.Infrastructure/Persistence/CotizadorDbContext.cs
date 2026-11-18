@@ -46,6 +46,19 @@ public class CotizadorDbContext : DbContext
     public DbSet<PlantillaOrdenTrabajoDetalle> PlantillaOrdenTrabajoDetalle => Set<PlantillaOrdenTrabajoDetalle>();
     public DbSet<PlantillaOrdenTrabajoServicio> PlantillaOrdenTrabajoServicio => Set<PlantillaOrdenTrabajoServicio>();
     public DbSet<PlantillaOrdenTrabajoEquipos> PlantillaOrdenTrabajoEquipos => Set<PlantillaOrdenTrabajoEquipos>();
+    // Visitas: la agenda propia YA EXISTE en las tablas legacy (D-22). Se mapean con
+    // ExcludeFromMigrations en la configuración: EF las lee/escribe, nunca las crea ni altera.
+    public DbSet<ProgramacionVisitaConfirmada> ProgramacionVisitaConfirmada => Set<ProgramacionVisitaConfirmada>();
+    public DbSet<ProgramacionVisitaDetalleConfirmada> ProgramacionVisitaDetalleConfirmada => Set<ProgramacionVisitaDetalleConfirmada>();
+    public DbSet<PlantillaCalendario> PlantillaCalendario => Set<PlantillaCalendario>();
+    // Proyección mínima de la OT legacy para saber si una visita ya tiene orden (D-22).
+    public DbSet<OrdenTrabajoVisita> OrdenTrabajoVisita => Set<OrdenTrabajoVisita>();
+    // Vistas vv* del ERP, solo lectura: validación de códigos sin copiar catálogos (D-20).
+    public DbSet<VistaClienteErp> VistaClienteErp => Set<VistaClienteErp>();
+    public DbSet<VistaLocacionErp> VistaLocacionErp => Set<VistaLocacionErp>();
+    public DbSet<VistaTipoServicioErp> VistaTipoServicioErp => Set<VistaTipoServicioErp>();
+    public DbSet<VistaVehiculoErp> VistaVehiculoErp => Set<VistaVehiculoErp>();
+    public DbSet<VistaTecnicoErp> VistaTecnicoErp => Set<VistaTecnicoErp>();
     public DbSet<ParametroGeneral> ParametroGeneral => Set<ParametroGeneral>();
     public DbSet<Consecutivo> Consecutivo => Set<Consecutivo>();
     public DbSet<NotificacionEnviada> NotificacionEnviada => Set<NotificacionEnviada>();
@@ -106,6 +119,11 @@ public class CotizadorDbContext : DbContext
     // ── int · Integración con el ERP del cliente (Fase 12) ─────────────────────
     public DbSet<ErpConexion> ErpConexion => Set<ErpConexion>();
     public DbSet<ErpMapeoTipoCliente> ErpMapeoTipoCliente => Set<ErpMapeoTipoCliente>();
+    // Importador de Google Calendar (Fase 3): staging y homologación nuevas; no sustituyen
+    // ninguna tabla legacy. El evento se revisa aquí y solo se confirma en las tablas reales.
+    public DbSet<ErpMapeoEventoGoogle> ErpMapeoEventoGoogle => Set<ErpMapeoEventoGoogle>();
+    public DbSet<ImportacionGoogleLote> ImportacionGoogleLote => Set<ImportacionGoogleLote>();
+    public DbSet<ImportacionGoogleEvento> ImportacionGoogleEvento => Set<ImportacionGoogleEvento>();
     public DbSet<ErpFlujo> ErpFlujo => Set<ErpFlujo>();
     public DbSet<SincronizacionEjecucion> SincronizacionEjecucion => Set<SincronizacionEjecucion>();
 
@@ -893,6 +911,7 @@ public class CotizadorDbContext : DbContext
         aprobacion.HasOne(a => a.Estado).WithMany().HasForeignKey(a => a.EstadoId).OnDelete(DeleteBehavior.Restrict);
 
         ConfigurarPlantillasLegacy(modelBuilder);
+        ConfigurarVisitasLegacy(modelBuilder);
     }
 
     /// <summary>
@@ -960,12 +979,109 @@ public class CotizadorDbContext : DbContext
         equipos.Property(e => e.Utilizado).HasColumnName("UTILIZADO").HasMaxLength(2).IsUnicode(false);
     }
 
+    /// <summary>
+    /// Visitas: D-22. La agenda propia <b>ya existe</b> en <c>SINCOERPORKIN</c> desde 2019
+    /// (<c>ProgramacionVisitaConfirmadas</c>, su detalle y <c>Plantilla_Calendario</c>). Se mapean
+    /// con <c>ExcludeFromMigrations</c> para que EF las lea/escriba sin crearlas ni alterarlas.
+    /// <para>
+    /// No se declaran relaciones entre visitas, técnicos y plantillas: las claves son del ERP y
+    /// la unión se hace por <c>ID_CALENDARIO</c>, exactamente como en el WinForms.
+    /// </para>
+    /// </summary>
+    private static void ConfigurarVisitasLegacy(ModelBuilder modelBuilder)
+    {
+        var visita = modelBuilder.Entity<ProgramacionVisitaConfirmada>();
+        visita.ToTable("ProgramacionVisitaConfirmadas", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        visita.HasKey(v => v.IdVisita);
+        visita.Property(v => v.IdVisita).HasColumnName("ID_VISITA").ValueGeneratedNever();
+        visita.Property(v => v.IdCalendario).HasColumnName("ID_CALENDARIO").HasMaxLength(100).IsUnicode(false).IsRequired();
+        visita.Property(v => v.Cliente).HasColumnName("CLIENTE").HasMaxLength(20).IsUnicode(false);
+        visita.Property(v => v.Locacion).HasColumnName("LOCACION").HasMaxLength(5).IsUnicode(false);
+        visita.Property(v => v.TipoServicio).HasColumnName("TIPO_SERVICIO").HasMaxLength(4).IsUnicode(false);
+        visita.Property(v => v.FechaInicio).HasColumnName("FECHA_INICIO").HasColumnType("date");
+        visita.Property(v => v.HoraInicio).HasColumnName("HORA_INICIO").HasColumnType("time");
+        visita.Property(v => v.FechaFinal).HasColumnName("FECHA_FINAL").HasColumnType("date");
+        visita.Property(v => v.HoraFinal).HasColumnName("HORA_FINAL").HasColumnType("time");
+        visita.Property(v => v.CodigoVehiculo).HasColumnName("CODIGO_VEHICULO").HasMaxLength(4).IsUnicode(false);
+        visita.Property(v => v.CantidadTecnicos).HasColumnName("CANTIDAD_TECNICOS");
+        visita.Property(v => v.Nota).HasColumnName("NOTA").HasMaxLength(250).IsUnicode(false);
+
+        var tecnico = modelBuilder.Entity<ProgramacionVisitaDetalleConfirmada>();
+        tecnico.ToTable("ProgramacionVisitaDetalleConfirmada", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        tecnico.HasKey(t => new { t.IdVisita, t.Linea });
+        tecnico.Property(t => t.IdVisita).HasColumnName("ID_VISITA").ValueGeneratedNever();
+        tecnico.Property(t => t.Linea).HasColumnName("LINEA").ValueGeneratedNever();
+        tecnico.Property(t => t.CodigoTecnico).HasColumnName("CODIGO_TECNICO").HasMaxLength(4).IsUnicode(false);
+        tecnico.Property(t => t.Iniciales).HasColumnName("INICIALES").HasMaxLength(2).IsUnicode(false);
+
+        var calendario = modelBuilder.Entity<PlantillaCalendario>();
+        calendario.ToTable("Plantilla_Calendario", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        calendario.HasKey(c => new { c.Plantilla, c.IdCalendario });
+        calendario.Property(c => c.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        calendario.Property(c => c.IdCalendario).HasColumnName("ID_CALENDARIO").HasMaxLength(100).IsUnicode(false).IsRequired();
+        calendario.Property(c => c.FechaServicio).HasColumnName("FECHA_SERVICIO").HasColumnType("date");
+        calendario.Property(c => c.HoraServicio).HasColumnName("HORA_SERVICIO").HasColumnType("time");
+        calendario.Property(c => c.FechaCreacion).HasColumnName("FECHA_CREACION").HasColumnType("date");
+        calendario.Property(c => c.UsuarioCreacion).HasColumnName("USUARIO_CREACION").HasMaxLength(25).IsUnicode(false);
+
+        var orden = modelBuilder.Entity<OrdenTrabajoVisita>();
+        orden.ToTable("Orden_Trabajo", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        orden.HasKey(o => new { o.OrdenNumero, o.IdVisita, o.Plantilla });
+        orden.Property(o => o.OrdenNumero).HasColumnName("ORDEN_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
+        orden.Property(o => o.IdVisita).HasColumnName("ID_VISITA").ValueGeneratedNever();
+        orden.Property(o => o.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        orden.Property(o => o.Estado).HasColumnName("ESTADO").HasMaxLength(2).IsUnicode(false);
+
+        // Vistas vv* del ERP: se consultan, no se crean ni se alteran (D-20/D-22). La clave la
+        // declare EF solo para poder rastrear/probar las entidades; el código del ERP es único
+        // en cada vista y todas las consultas son de solo lectura.
+        ConfigurarVistaErp<VistaClienteErp>(modelBuilder, "vvClientes", "Cliente", "CLIENTE", 20);
+        modelBuilder.Entity<VistaClienteErp>().Property(v => v.NombreCliente).HasColumnName("NOMBRE_CLIENTE").HasMaxLength(150).IsUnicode(false);
+        modelBuilder.Entity<VistaClienteErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(1).IsUnicode(false);
+
+        ConfigurarVistaErp<VistaLocacionErp>(modelBuilder, "vvLocacionesClientes", "Codigo", "CODIGO", 5);
+        modelBuilder.Entity<VistaLocacionErp>().Property(v => v.Cliente).HasColumnName("CLIENTE").HasMaxLength(20).IsUnicode(false);
+        modelBuilder.Entity<VistaLocacionErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
+
+        ConfigurarVistaErp<VistaTipoServicioErp>(modelBuilder, "vvTipoServicios", "Codigo", "CODIGO", 4);
+        modelBuilder.Entity<VistaTipoServicioErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
+
+        ConfigurarVistaErp<VistaVehiculoErp>(modelBuilder, "vvVehiculos", "Codigo", "CODIGO", 4);
+        modelBuilder.Entity<VistaVehiculoErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
+
+        ConfigurarVistaErp<VistaTecnicoErp>(modelBuilder, "vvTecnicos", "Codigo", "CODIGO", 5);
+        modelBuilder.Entity<VistaTecnicoErp>().Property(v => v.Iniciales).HasColumnName("INICIALES").HasMaxLength(4).IsUnicode(false);
+        modelBuilder.Entity<VistaTecnicoErp>().Property(v => v.NombreCompleto).HasColumnName("NOMBRE_COMPLETO").HasMaxLength(50).IsUnicode(false);
+        modelBuilder.Entity<VistaTecnicoErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
+    }
+
+    private static void ConfigurarVistaErp<TEntidad>(
+        ModelBuilder modelBuilder,
+        string nombreVista,
+        string nombrePropiedadCodigo,
+        string nombreColumna,
+        int longitud) where TEntidad : class
+    {
+        var entidad = modelBuilder.Entity<TEntidad>();
+        entidad.ToTable(nombreVista, Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        entidad.HasKey(nombrePropiedadCodigo);
+        entidad.Property<string>(nombrePropiedadCodigo).HasColumnName(nombreColumna).HasMaxLength(longitud)
+            .IsUnicode(false).IsRequired().ValueGeneratedNever();
+    }
+
     // ═════════════════════════════════════════════════════════════════════════════
     //  Catálogos maestros editables
     // ═════════════════════════════════════════════════════════════════════════════
 
     private static void ConfigurarCatalogosMaestros(ModelBuilder modelBuilder)
     {
+        // ── dbo.Tecnico ──────────────────────────────────────────────────────────
+        // El catálogo se mapea por convención; solo se fija aquí el ancho del color para que la
+        // migración no cree un nvarchar(max) y la UI pueda validar el formato #RRGGBB (D-21).
+        modelBuilder.Entity<Tecnico>()
+            .Property(t => t.ColorCalendario).HasColumnName("ColorCalendario").HasMaxLength(7)
+            .IsUnicode(false);
+
         // ── dbo.UnidadMedida ─────────────────────────────────────────────────────
         var unidad = modelBuilder.Entity<UnidadMedida>();
         ConfigurarBase(unidad);
@@ -1145,6 +1261,64 @@ public class CotizadorDbContext : DbContext
             .HasDatabaseName("UX_ErpMapeoTipoCliente_ConexionCategoria");
         mapeoTipoCliente.HasOne(m => m.ErpConexion).WithMany().HasForeignKey(m => m.ErpConexionId).OnDelete(DeleteBehavior.Cascade);
         mapeoTipoCliente.HasOne(m => m.TipoClienteCatalogo).WithMany().HasForeignKey(m => m.TipoClienteCatalogoId).OnDelete(DeleteBehavior.Restrict);
+
+        // ── int.ErpMapeoEventoGoogle ────────────────────────────────────────────
+        var mapeoEvento = modelBuilder.Entity<ErpMapeoEventoGoogle>();
+        ConfigurarBase(mapeoEvento);
+        mapeoEvento.ToTable("ErpMapeoEventoGoogle", Esquemas.Integracion);
+        mapeoEvento.Property(m => m.Campo).HasColumnName("Campo").HasMaxLength(30).IsRequired();
+        mapeoEvento.Property(m => m.ValorOrigen).HasColumnName("ValorOrigen").HasMaxLength(100).IsRequired();
+        mapeoEvento.Property(m => m.ValorDestino).HasColumnName("ValorDestino").HasMaxLength(100).IsRequired();
+        mapeoEvento.Property(m => m.Descripcion).HasColumnName("Descripcion").HasMaxLength(200);
+        mapeoEvento.Property(m => m.Activo).HasColumnName("Activo").IsRequired();
+        mapeoEvento.HasIndex(m => new { m.Campo, m.ValorOrigen }).IsUnique()
+            .HasDatabaseName("UX_ErpMapeoEventoGoogle_CampoOrigen");
+
+        // ── int.ImportacionGoogleLote ───────────────────────────────────────────
+        var lote = modelBuilder.Entity<ImportacionGoogleLote>();
+        ConfigurarBase(lote);
+        lote.ToTable("ImportacionGoogleLote", Esquemas.Integracion);
+        lote.Property(l => l.Nombre).HasColumnName("Nombre").HasMaxLength(150).IsRequired();
+        lote.Property(l => l.Origen).HasColumnName("Origen").HasMaxLength(2000);
+        lote.Property(l => l.FechaImportacionUtc).HasColumnName("FechaImportacionUtc").HasColumnType("datetime2(3)").IsRequired();
+        lote.Property(l => l.Estado).HasColumnName("Estado").HasMaxLength(20).IsRequired();
+        lote.Property(l => l.TotalEventos).HasColumnName("TotalEventos").IsRequired();
+        lote.Property(l => l.Confirmados).HasColumnName("Confirmados").IsRequired();
+        lote.Property(l => l.Descartados).HasColumnName("Descartados").IsRequired();
+        lote.Property(l => l.ConError).HasColumnName("ConError").IsRequired();
+        lote.Property(l => l.Observaciones).HasColumnName("Observaciones").HasMaxLength(2000);
+
+        // ── int.ImportacionGoogleEvento ─────────────────────────────────────────
+        var evento = modelBuilder.Entity<ImportacionGoogleEvento>();
+        ConfigurarBase(evento);
+        evento.ToTable("ImportacionGoogleEvento", Esquemas.Integracion);
+        evento.Property(e => e.LoteId).HasColumnName("LoteId").IsRequired();
+        evento.Property(e => e.EventoId).HasColumnName("EventoId").HasMaxLength(100).IsRequired();
+        evento.Property(e => e.CalendarId).HasColumnName("CalendarId").HasMaxLength(100);
+        evento.Property(e => e.Summary).HasColumnName("Summary").HasMaxLength(500);
+        evento.Property(e => e.Ubicacion).HasColumnName("Ubicacion").HasMaxLength(500);
+        evento.Property(e => e.Descripcion).HasColumnName("Descripcion").HasMaxLength(2000);
+        evento.Property(e => e.FechaInicio).HasColumnName("FechaInicio").HasColumnType("datetime2(3)");
+        evento.Property(e => e.FechaFin).HasColumnName("FechaFin").HasColumnType("datetime2(3)");
+        evento.Property(e => e.ClienteParseado).HasColumnName("ClienteParseado").HasMaxLength(100);
+        evento.Property(e => e.LocacionParseada).HasColumnName("LocacionParseada").HasMaxLength(100);
+        evento.Property(e => e.TipoServicioParseado).HasColumnName("TipoServicioParseado").HasMaxLength(100);
+        evento.Property(e => e.VehiculoParseado).HasColumnName("VehiculoParseado").HasMaxLength(100);
+        evento.Property(e => e.TecnicosParseados).HasColumnName("TecnicosParseados").HasMaxLength(250);
+        evento.Property(e => e.Nota).HasColumnName("Nota").HasMaxLength(250);
+        evento.Property(e => e.ClienteCodigo).HasColumnName("ClienteCodigo").HasMaxLength(20);
+        evento.Property(e => e.LocacionCodigo).HasColumnName("LocacionCodigo").HasMaxLength(5);
+        evento.Property(e => e.TipoServicioCodigo).HasColumnName("TipoServicioCodigo").HasMaxLength(4);
+        evento.Property(e => e.VehiculoCodigo).HasColumnName("VehiculoCodigo").HasMaxLength(4);
+        evento.Property(e => e.TecnicosCodigos).HasColumnName("TecnicosCodigos").HasMaxLength(250);
+        evento.Property(e => e.Plantilla).HasColumnName("Plantilla");
+        evento.Property(e => e.Estado).HasColumnName("Estado").HasMaxLength(20).IsRequired();
+        evento.Property(e => e.Error).HasColumnName("Error").HasMaxLength(2000);
+        evento.Property(e => e.IdVisita).HasColumnName("IdVisita");
+        evento.Property(e => e.ProcesadoUtc).HasColumnName("ProcesadoUtc").HasColumnType("datetime2(3)");
+        evento.HasIndex(e => new { e.LoteId, e.EventoId }).IsUnique()
+            .HasDatabaseName("UX_ImportacionGoogleEvento_LoteEvento");
+        evento.HasOne(e => e.Lote).WithMany().HasForeignKey(e => e.LoteId).OnDelete(DeleteBehavior.Cascade);
 
         // ── int.ErpFlujo ─────────────────────────────────────────────────────────
         var flujo = modelBuilder.Entity<ErpFlujo>();

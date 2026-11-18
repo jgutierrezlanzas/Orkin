@@ -68,12 +68,19 @@
 
                 @* Operación: las capacidades que vienen del legacy (plantillas, visitas,
                    órdenes, requisas, inventario, reportes). Solo se agrega un link cuando la
-                   página existe; hoy es Plantillas. Ningún catálogo se repite en este grupo:
-                   los catálogos viven en "Catálogos compartidos" (D-21). *@
-                @if (TienePermiso("PLANTILLAS.VER"))
+                   página existe. Ningún catálogo se repite en este grupo: los catálogos viven
+                   en "Catálogos compartidos" (D-21). *@
+                @if (TienePermiso("PLANTILLAS.VER") || TienePermiso("VISITAS.VER"))
                 {
                     <MudNavGroup Title="Operación" Icon="@Icons.Material.Filled.Build" Expanded="true">
-                        <MudNavLink Href="/plantillas" Icon="@Icons.Material.Filled.Description">Plantillas</MudNavLink>
+                        @if (TienePermiso("PLANTILLAS.VER"))
+                        {
+                            <MudNavLink Href="/plantillas" Icon="@Icons.Material.Filled.Description">Plantillas</MudNavLink>
+                        }
+                        @if (TienePermiso("VISITAS.VER"))
+                        {
+                            <MudNavLink Href="/visitas" Icon="@Icons.Material.Filled.CalendarMonth">Visitas</MudNavLink>
+                        }
                     </MudNavGroup>
                 }
 

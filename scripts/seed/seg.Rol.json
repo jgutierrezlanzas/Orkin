@@ -35,6 +35,11 @@
         "PLANTILLAS.EDITAR",
         "PLANTILLAS.COPIAR",
         "PLANTILLAS.ELIMINAR",
+        "VISITAS.VER",
+        "VISITAS.EDITAR",
+        "VISITAS.REVERSAR",
+        "VISITAS.GENERAR_OT",
+        "VISITAS.IMPORTAR",
         "ADMIN.USUARIOS",
         "ADMIN.ROLES",
         "ADMIN.PARAMETROS",
@@ -72,6 +77,10 @@
         "PLANTILLAS.EDITAR",
         "PLANTILLAS.COPIAR",
         "PLANTILLAS.ELIMINAR",
+        "VISITAS.VER",
+        "VISITAS.EDITAR",
+        "VISITAS.REVERSAR",
+        "VISITAS.GENERAR_OT",
         "AUDITORIA.VER"
       ]
     },
@@ -94,7 +103,8 @@
         "CLIENTES.CREAR",
         "CLIENTES.EDITAR",
         "CATALOGOS.VER",
-        "PLANTILLAS.VER"
+        "PLANTILLAS.VER",
+        "VISITAS.VER"
       ]
     }
   ]

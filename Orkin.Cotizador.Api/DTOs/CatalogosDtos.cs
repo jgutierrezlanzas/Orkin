@@ -35,7 +35,8 @@ public sealed record TecnicoResponse(
     string? Correo,
     string? Cargo,
     int Orden,
-    bool EsActivo);
+    bool EsActivo,
+    string? ColorCalendario = null);
 
 /// <summary>Solicitud para crear un técnico manual.</summary>
 public sealed record CrearTecnicoRequest(
@@ -44,7 +45,8 @@ public sealed record CrearTecnicoRequest(
     string? Telefono,
     string? Correo,
     string? Cargo,
-    int Orden);
+    int Orden,
+    string? ColorCalendario = null);
 
 /// <summary>Solicitud para actualizar un técnico.</summary>
 public sealed record ActualizarTecnicoRequest(
@@ -53,7 +55,8 @@ public sealed record ActualizarTecnicoRequest(
     string? Correo,
     string? Cargo,
     int Orden,
-    bool EsActivo);
+    bool EsActivo,
+    string? ColorCalendario = null);
 
 /// <summary>Respuesta de una categoría de producto.</summary>
 public sealed record CategoriaProductoResponse(

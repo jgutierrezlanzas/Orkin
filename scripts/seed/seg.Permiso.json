@@ -32,6 +32,12 @@
     { "Codigo": "PLANTILLAS.COPIAR", "Nombre": "Copiar plantillas", "Descripcion": "Duplicar una plantilla con todas sus lineas.", "ModuloId": "PLANTILLAS", "Orden": 3 },
     { "Codigo": "PLANTILLAS.ELIMINAR", "Nombre": "Dar de baja plantillas", "Descripcion": "Baja logica; la plantilla y sus lineas se conservan en la base.", "ModuloId": "PLANTILLAS", "Orden": 4 },
 
+    { "Codigo": "VISITAS.VER", "Nombre": "Ver visitas", "Descripcion": "Ver la agenda y el detalle de las visitas programadas.", "ModuloId": "VISITAS", "Orden": 1 },
+    { "Codigo": "VISITAS.EDITAR", "Nombre": "Editar visitas", "Descripcion": "Programar y editar visitas, asignar tecnicos y plantilla.", "ModuloId": "VISITAS", "Orden": 2 },
+    { "Codigo": "VISITAS.REVERSAR", "Nombre": "Reversar confirmacion", "Descripcion": "Deshacer la confirmacion de una visita sin orden de trabajo generada.", "ModuloId": "VISITAS", "Orden": 3 },
+    { "Codigo": "VISITAS.GENERAR_OT", "Nombre": "Generar orden de trabajo", "Descripcion": "Generar la OT desde una visita confirmada invocando el SP legacy.", "ModuloId": "VISITAS", "Orden": 4 },
+    { "Codigo": "VISITAS.IMPORTAR", "Nombre": "Importar eventos", "Descripcion": "Importar eventos de Google Calendar a la agenda propia.", "ModuloId": "VISITAS", "Orden": 5 },
+
     { "Codigo": "ADMIN.USUARIOS", "Nombre": "Administrar usuarios", "ModuloId": "ADMIN", "Orden": 1 },
     { "Codigo": "ADMIN.ROLES", "Nombre": "Administrar roles y permisos", "ModuloId": "ADMIN", "Orden": 2 },
     { "Codigo": "ADMIN.PARAMETROS", "Nombre": "Administrar parametros", "Descripcion": "Mover umbrales de aprobacion, dias de vigencia, textos del PDF. Es el permiso mas sensible del sistema.", "ModuloId": "ADMIN", "Orden": 3 },

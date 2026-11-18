@@ -1,0 +1,474 @@
+@* Importador de Google Calendar (Fase 3). Los eventos se revisan en staging y solo se convierten
+   en visitas legacy al confirmar. La homologación es configurable en BD y se muestra en grilla;
+   nunca se expone el JSON crudo del evento. *@
+@using System.Text.Json
+
+<MudPaper Class="pa-4 mb-4" Elevation="1" Outlined="true">
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="9">
+            <MudTextField @bind-Value="_textoEventos" Lines="4" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Label="Eventos exportados de Google Calendar"
+                          HelperText="Pegue el JSON de la API de Calendar o líneas: EventoId|Summary|Ubicacion|Descripcion|Inicio|Fin (yyyy-MM-dd HH:mm)." />
+        </MudItem>
+        <MudItem xs="12" md="3" Class="d-flex flex-column justify-center align-stretch gap-2">
+            <MudDatePicker @bind-Date="_fechaEventos" Label="Fecha por defecto" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.UploadFile"
+                       Disabled="@(!PuedeImportar || _cargando || string.IsNullOrWhiteSpace(_textoEventos))"
+                       OnClick="Importar">Importar a revisión</MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_resumen is not null)
+{
+    <MudAlert Severity="Severity.Success" Dense="true" Class="mb-4">
+        Lote <b>@_resumen.Nombre</b>: @_resumen.TotalEventos evento(s) ·
+        @_resumen.Listos listo(s) · @_resumen.Conflictos con conflicto.
+    </MudAlert>
+}
+
+<MudTabs Elevation="1" Outlined="true" Rounded="true" Class="mb-4">
+    <MudTabPanel Text="Vista previa" Icon="@Icons.Material.Filled.FactCheck" BadgeData="@(_eventos.Count.ToString())">
+        <MudTable Items="_eventos" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+                  RowClassFunc="@((e, i) => e.Estado == "CONFLICTO" ? "mud-error-text" : e.Estado == "CONFIRMADO" ? "mud-success-text" : string.Empty)">
+            <HeaderContent>
+                <MudTh>Evento</MudTh>
+                <MudTh>Fecha</MudTh>
+                <MudTh>Cliente</MudTh>
+                <MudTh>Locación</MudTh>
+                <MudTh>Servicio</MudTh>
+                <MudTh>Vehículo</MudTh>
+                <MudTh>Técnicos</MudTh>
+                <MudTh>Estado</MudTh>
+                <MudTh>Acciones</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Evento">
+                    <MudText Typo="Typo.caption">@context.EventoId</MudText>
+                    @if (!string.IsNullOrWhiteSpace(context.Error))
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Error">@context.Error</MudText>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Fecha">@context.FechaInicio?.ToString("yyyy-MM-dd HH:mm")</MudTd>
+                <MudTd DataLabel="Cliente">@context.ClienteCodigo <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.ClienteParseado</MudText></MudTd>
+                <MudTd DataLabel="Locación">@context.LocacionCodigo</MudTd>
+                <MudTd DataLabel="Servicio">@context.TipoServicioCodigo</MudTd>
+                <MudTd DataLabel="Vehículo">@context.VehiculoCodigo</MudTd>
+                <MudTd DataLabel="Técnicos">@context.TecnicosCodigos</MudTd>
+                <MudTd DataLabel="Estado">
+                    <MudChip T="string" Size="Size.Small" Color="@ColorEstado(context.Estado)">@context.Estado</MudChip>
+                </MudTd>
+                <MudTd DataLabel="Acciones">
+                    @if (PuedeEditar && context.Estado is "LISTO" or "CONFLICTO")
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                                       OnClick="@(() => Corregir(context))" aria-label="Corregir" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small" Color="Color.Success"
+                                       Disabled="@(context.Estado != "LISTO")"
+                                       OnClick="@(() => Confirmar(context))" aria-label="Confirmar" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Block" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => Descartar(context))" aria-label="Descartar" />
+                    }
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager RowsPerPageString="Filas por página" />
+            </PagerContent>
+        </MudTable>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Homologación" Icon="@Icons.Material.Filled.CompareArrows" BadgeData="@(_mapeos.Count.ToString())">
+        <div class="d-flex justify-space-between align-center pa-3">
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                Traduce el texto del evento al código real del ERP antes de validar contra las vistas vv*.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Add" Disabled="@(!PuedeEditar)"
+                       OnClick="NuevoMapeo">Nueva homologación</MudButton>
+        </div>
+
+        @if (_editandoMapeo)
+        {
+            <MudPaper Class="pa-3 mb-3" Elevation="1" Outlined="true">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" md="2">
+                        <MudSelect T="string" @bind-Value="_mapeo.Campo" Label="Campo" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                            @foreach (var campo in Campos)
+                            {
+                                <MudSelectItem T="string" Value="@campo">@campo</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_mapeo.ValorOrigen" Label="Texto del evento" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="3">
+                        <MudTextField @bind-Value="_mapeo.ValorDestino" Label="Código ERP" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="2">
+                        <MudTextField @bind-Value="_mapeo.Descripcion" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" md="1">
+                        <MudCheckBox @bind-Value="_mapeo.Activo" Label="Activa" Color="Color.Primary" />
+                    </MudItem>
+                    <MudItem xs="12" md="1" Class="d-flex align-center justify-end gap-1">
+                        <MudIconButton Icon="@Icons.Material.Filled.Save" Size="Size.Small" Color="Color.Success" OnClick="GuardarMapeo" aria-label="Guardar" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _editandoMapeo = false)" aria-label="Cancelar" />
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        }
+
+        <MudTable Items="_mapeos" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Campo</MudTh>
+                <MudTh>Texto del evento</MudTh>
+                <MudTh>Código ERP</MudTh>
+                <MudTh>Descripción</MudTh>
+                <MudTh>Activa</MudTh>
+                <MudTh>Acciones</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Campo">@context.Campo</MudTd>
+                <MudTd DataLabel="Texto del evento">@context.ValorOrigen</MudTd>
+                <MudTd DataLabel="Código ERP">@context.ValorDestino</MudTd>
+                <MudTd DataLabel="Descripción">@context.Descripcion</MudTd>
+                <MudTd DataLabel="Activa">
+                    <MudIcon Icon="@(context.Activo ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)"
+                             Color="@(context.Activo ? Color.Success : Color.Default)" />
+                </MudTd>
+                <MudTd DataLabel="Acciones">
+                    @if (PuedeEditar)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                                       OnClick="@(() => EditarMapeo(context))" aria-label="Editar" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => EliminarMapeo(context))" aria-label="Eliminar" />
+                    }
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager RowsPerPageString="Filas por página" />
+            </PagerContent>
+        </MudTable>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private static readonly string[] Campos = ["CLIENTE", "LOCACION", "TIPO_SERVICIO", "VEHICULO", "TECNICO"];
+
+    [Parameter]
+    public bool PuedeImportar { get; set; }
+
+    [Parameter]
+    public bool PuedeEditar { get; set; }
+
+    [Parameter]
+    public EventCallback OnCambios { get; set; }
+
+    [Inject]
+    private VisitaService Servicio { get; set; } = null!;
+
+    [Inject]
+    private IDialogService Dialogos { get; set; } = null!;
+
+    [Inject]
+    private ISnackbar Snackbar { get; set; } = null!;
+
+    private string? _textoEventos;
+    private DateTime? _fechaEventos = DateTime.Today;
+    private bool _cargando;
+    private ImportacionGoogleResumenModel? _resumen;
+    private List<ImportacionGoogleEventoModel> _eventos = [];
+    private List<MapeoEventoGoogleModel> _mapeos = [];
+    private bool _editandoMapeo;
+    private MapeoEventoGoogleModel _mapeo = new();
+
+    protected override async Task OnInitializedAsync() => await Cargar();
+
+    private async Task Cargar()
+    {
+        _cargando = true;
+        try
+        {
+            var tareas = new Task[]
+            {
+                Cargar(() => Servicio.ListarEventosImportadosAsync(), lista => _eventos = lista),
+                Cargar(() => Servicio.ListarMapeosAsync(), lista => _mapeos = lista)
+            };
+            await Task.WhenAll(tareas);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo cargar el importador: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private static async Task Cargar<T>(Func<Task<List<T>>> obtener, Action<List<T>> asignar)
+        => asignar(await obtener());
+
+    private async Task Importar()
+    {
+        var eventos = ParsearEventos(_textoEventos ?? string.Empty);
+        if (eventos.Count == 0)
+        {
+            Snackbar.Add("No se reconocieron eventos. Revise el formato.", Severity.Warning);
+            return;
+        }
+
+        _cargando = true;
+        try
+        {
+            _resumen = await Servicio.ImportarAsync($"Importación {DateTime.Now:yyyy-MM-dd HH:mm}", eventos);
+            _textoEventos = null;
+            await Cargar();
+            Snackbar.Add(
+                $"Importados {_resumen.TotalEventos} evento(s): {_resumen.Listos} listo(s), {_resumen.Conflictos} con conflicto.",
+                _resumen.Conflictos > 0 ? Severity.Warning : Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo importar: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task Corregir(ImportacionGoogleEventoModel evento)
+    {
+        var opciones = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parametros = new DialogParameters { [nameof(CorregirEventoGoogleDialogo.Modelo)] = evento };
+        var dialogo = await Dialogos.ShowAsync<CorregirEventoGoogleDialogo>("Corregir evento", parametros, opciones);
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not CorregirEventoGoogleModel datos)
+        {
+            return;
+        }
+
+        try
+        {
+            await Servicio.CorregirEventoAsync(evento.Id, datos);
+            await Cargar();
+            Snackbar.Add("Evento corregido y validado.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo corregir: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task Confirmar(ImportacionGoogleEventoModel evento)
+    {
+        try
+        {
+            var ok = await Servicio.ConfirmarEventoAsync(evento.Id);
+            if (!ok)
+            {
+                Snackbar.Add("No se pudo confirmar el evento.", Severity.Error);
+                return;
+            }
+
+            Snackbar.Add($"Visita {evento.EventoId} creada en la agenda.", Severity.Success);
+            await Cargar();
+            await OnCambios.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo confirmar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task Descartar(ImportacionGoogleEventoModel evento)
+    {
+        try
+        {
+            await Servicio.DescartarEventoAsync(evento.Id);
+            await Cargar();
+            Snackbar.Add("Evento descartado.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo descartar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void NuevoMapeo()
+    {
+        _mapeo = new MapeoEventoGoogleModel { Campo = Campos[0], Activo = true };
+        _editandoMapeo = true;
+    }
+
+    private void EditarMapeo(MapeoEventoGoogleModel mapeo)
+    {
+        _mapeo = new MapeoEventoGoogleModel
+        {
+            Id = mapeo.Id, Campo = mapeo.Campo, ValorOrigen = mapeo.ValorOrigen,
+            ValorDestino = mapeo.ValorDestino, Descripcion = mapeo.Descripcion, Activo = mapeo.Activo
+        };
+        _editandoMapeo = true;
+    }
+
+    private async Task GuardarMapeo()
+    {
+        if (string.IsNullOrWhiteSpace(_mapeo.ValorOrigen) || string.IsNullOrWhiteSpace(_mapeo.ValorDestino))
+        {
+            Snackbar.Add("Ingrese el texto del evento y el código ERP.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            await Servicio.GuardarMapeoAsync(_mapeo);
+            _editandoMapeo = false;
+            await Cargar();
+            Snackbar.Add("Homologación guardada.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo guardar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task EliminarMapeo(MapeoEventoGoogleModel mapeo)
+    {
+        try
+        {
+            await Servicio.EliminarMapeoAsync(mapeo.Id);
+            await Cargar();
+            Snackbar.Add("Homologación eliminada.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo eliminar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private static Color ColorEstado(string estado) => estado switch
+    {
+        "LISTO" => Color.Success,
+        "CONFLICTO" => Color.Error,
+        "CONFIRMADO" => Color.Primary,
+        "DESCARTADO" => Color.Default,
+        _ => Color.Warning
+    };
+
+    /// <summary>
+    /// Acepta el JSON de eventos de Google Calendar y el formato por líneas usado por el legacy.
+    /// Solo extrae campos estructurados: el texto original nunca se muestra como JSON en la grilla.
+    /// </summary>
+    private List<EventoGoogleModel> ParsearEventos(string texto)
+    {
+        var resultado = new List<EventoGoogleModel>();
+        var contenido = texto.Trim();
+        if (contenido.Length == 0)
+        {
+            return resultado;
+        }
+
+        if (contenido.StartsWith('[') || contenido.StartsWith('{'))
+        {
+            try
+            {
+                using var documento = JsonDocument.Parse(contenido);
+                var elementos = documento.RootElement.ValueKind == JsonValueKind.Array
+                    ? documento.RootElement.EnumerateArray().ToList()
+                    : [documento.RootElement];
+                foreach (var elemento in elementos)
+                {
+                    resultado.Add(new EventoGoogleModel
+                    {
+                        EventoId = Texto(elemento, "id", "eventoId"),
+                        CalendarId = Texto(elemento, "calendarId"),
+                        Summary = Texto(elemento, "summary", "titulo"),
+                        Ubicacion = Texto(elemento, "location", "ubicacion"),
+                        Descripcion = Texto(elemento, "description", "descripcion"),
+                        FechaInicio = Fecha(elemento, "start", "startTime", "fechaInicio"),
+                        FechaFin = Fecha(elemento, "end", "endTime", "fechaFin")
+                    });
+                }
+            }
+            catch (JsonException)
+            {
+                return [];
+            }
+
+            return resultado;
+        }
+
+        foreach (var linea in contenido.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var partes = linea.Split('|');
+            if (partes.Length < 3)
+            {
+                continue;
+            }
+
+            resultado.Add(new EventoGoogleModel
+            {
+                EventoId = partes[0].Trim(),
+                Summary = partes[1].Trim(),
+                Ubicacion = partes[2].Trim(),
+                Descripcion = partes.Length > 3 ? partes[3].Trim() : null,
+                FechaInicio = FechaLinea(partes.Length > 4 ? partes[4] : null),
+                FechaFin = FechaLinea(partes.Length > 5 ? partes[5] : null)
+            });
+        }
+
+        return resultado;
+    }
+
+    private DateTime? FechaLinea(string? texto)
+        => DateTime.TryParse(texto, out var fecha) ? fecha : (_fechaEventos ?? DateTime.Today);
+
+    private static string? Texto(JsonElement elemento, params string[] nombres)
+    {
+        foreach (var nombre in nombres)
+        {
+            if (elemento.TryGetProperty(nombre, out var valor) && valor.ValueKind == JsonValueKind.String)
+            {
+                return valor.GetString();
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTime? Fecha(JsonElement elemento, params string[] nombres)
+    {
+        foreach (var nombre in nombres)
+        {
+            if (!elemento.TryGetProperty(nombre, out var valor))
+            {
+                continue;
+            }
+
+            if (valor.ValueKind == JsonValueKind.String && DateTime.TryParse(valor.GetString(), out var fecha))
+            {
+                return fecha;
+            }
+
+            if (valor.ValueKind == JsonValueKind.Object &&
+                valor.TryGetProperty("dateTime", out var fechaHora) &&
+                DateTime.TryParse(fechaHora.GetString(), out var resultado))
+            {
+                return resultado;
+            }
+
+            if (valor.ValueKind == JsonValueKind.Object &&
+                valor.TryGetProperty("date", out var soloFecha) &&
+                DateTime.TryParse(soloFecha.GetString(), out var dia))
+            {
+                return dia;
+            }
+        }
+
+        return null;
+    }
+}

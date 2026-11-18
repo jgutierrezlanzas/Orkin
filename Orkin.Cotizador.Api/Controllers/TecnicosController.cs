@@ -60,6 +60,7 @@ public sealed class TecnicosController : ControllerBase
             request.Correo,
             request.Cargo,
             request.Orden,
+            request.ColorCalendario,
             cancellationToken);
 
         return ApiResponse<TecnicoResponse>.Ok(AResponse(entidad)).AHttp();
@@ -80,11 +81,12 @@ public sealed class TecnicosController : ControllerBase
             request.Cargo,
             request.Orden,
             request.EsActivo,
+            request.ColorCalendario,
             cancellationToken);
 
         return ApiResponse<TecnicoResponse>.Ok(AResponse(entidad)).AHttp();
     }
 
     private static TecnicoResponse AResponse(Orkin.Cotizador.Core.Domain.Catalogos.Tecnico t)
-        => new(t.Id, t.Codigo, t.Nombre, t.Telefono, t.Correo, t.Cargo, t.Orden, t.IsActive);
+        => new(t.Id, t.Codigo, t.Nombre, t.Telefono, t.Correo, t.Cargo, t.Orden, t.IsActive, t.ColorCalendario);
 }

@@ -1,0 +1,75 @@
+@* Corrección manual de un evento en staging. Se muestran los códigos resultantes (homologados),
+   nunca el JSON crudo del evento. Al guardar se vuelve a validar contra las vistas vv* del ERP. *@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6" Color="Color.Primary">Corregir evento @Modelo.EventoId</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+            Parseado: cliente @Modelo.ClienteParseado · locación @Modelo.LocacionParseada ·
+            servicio @Modelo.TipoServicioParseado · vehículo @Modelo.VehiculoParseado ·
+            técnicos @Modelo.TecnicosParseados
+        </MudAlert>
+        @if (!string.IsNullOrWhiteSpace(Modelo.Error))
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">@Modelo.Error</MudAlert>
+        }
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="Edicion.ClienteCodigo" Label="Cliente (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="Edicion.LocacionCodigo" Label="Locación (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="Edicion.TipoServicioCodigo" Label="Tipo de servicio (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="Edicion.VehiculoCodigo" Label="Vehículo (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="Edicion.TecnicosCodigos" Label="Técnicos (códigos separados por coma)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudSelect T="long?" @bind-Value="Edicion.Plantilla" Label="Plantilla de orden de trabajo" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" Dense="true" Clearable="true">
+                    @foreach (var plantilla in _plantillas)
+                    {
+                        <MudSelectItem T="long?" Value="@plantilla.Plantilla">@plantilla.Plantilla — @plantilla.ClienteNombre</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="Edicion.Nota" Label="Nota" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" MaxLength="250" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">Validar y guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public ImportacionGoogleEventoModel Modelo { get; set; } = null!;
+
+    [Inject]
+    private PlantillaService ServicioPlantillas { get; set; } = null!;
+
+    private List<PlantillaModel> _plantillas = [];
+    private CorregirEventoGoogleModel Edicion { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Edicion = CorregirEventoGoogleModel.Desde(Modelo);
+        _plantillas = await ServicioPlantillas.ListarAsync();
+    }
+
+    private void Aceptar() => Dialogo.Close(DialogResult.Ok(Edicion));
+
+    private void Cancelar() => Dialogo.Cancel();
+}

@@ -1,6 +1,6 @@
 # ORKIN — Roadmap de migración del legacy `sinco_wos`
 
-> **Estado:** 🟢 Propuesta para validación · **Fecha:** 2026-11-17
+> **Estado:** 🟢 Fases 0–3 completadas (sin push) · **Fecha:** 2026-11-17
 > **Origen:** `D:\repos\sinco-orkin-lagacy\sinco_wos`
 > **Destino:** plataforma web .NET 10 / Blazor WebAssembly / MudBlazor / EF Core 10, con `SINCOERPORKIN` como BD principal.
 >
@@ -52,10 +52,10 @@ Leyenda de estado: ✅ ya cubierto · 🔶 parcial · 🆕 por construir · ❓ 
 | 13 | Bodegas | Modo selección | Ya existe en `vvBodegas`; **no se copia** | ⛔ D-20 | — |
 | 14 | Tipos de equipo | Modo selección | Ya existe en `vvTipodeEquipos`; **no se copia** | ⛔ D-20 | — |
 | 15 | Plantillas (CRUD + copiar) | `FrmPlantillas`, `FrmCrudPlantillas` | `/plantillas` (alta, edición y copia en diálogo con pestañas) | ✅ | 2 |
-| 16 | Programación de visitas | `FrmProgramacionVisitas` | `/visitas` (calendario + lista) | 🆕 | 3 |
-| 17 | Confirmar visita / asignar técnicos y plantillas | `FrmAsociacionTecnicoVisitaConfirmada` | `/visitas/confirmar` (tabs técnicas/plantillas) | 🆕 | 3 |
-| 18 | Ver / reversar visitas confirmadas | `FormProgramacionVisitasConfirmadas` | `/visitas/confirmadas` | 🆕 | 3 |
-| 19 | Generar orden de trabajo desde visita | `SINCO_GENERA_ORDENE_DE_TRABAJO` | Acción en `/visitas/confirmadas` → `/ordenes/nueva` | 🆕 | 3/4 |
+| 16 | Programación de visitas | `FrmProgramacionVisitas` | `/visitas` (calendario mensual, semana × técnico, lista y filtros) | ✅ | 3 |
+| 17 | Confirmar visita / asignar técnicos y plantillas | `FrmAsociacionTecnicoVisitaConfirmada` | Diálogo de visita en `/visitas` con técnicos y plantilla | ✅ | 3 |
+| 18 | Ver / reversar visitas confirmadas | `FormProgramacionVisitasConfirmadas` | Panel lateral de detalle y acción `Reversar` en `/visitas` | ✅ | 3 |
+| 19 | Generar orden de trabajo desde visita | `SINCO_GENERA_ORDENE_DE_TRABAJO` | Acción `Generar OT` en `/visitas` (SP envuelto por `IGeneradorOrdenTrabajo`) | ✅ | 3 |
 | 20 | Órdenes de trabajo (listado + ABM + anular) | `FrmPlantillas`, `FrmCrudOrdenes` | `/ordenes` + `/ordenes/nueva|editar|detalle` | 🆕 | 4 |
 | 21 | Detalle OT: productos / servicios / equipos / técnicos | Pestañas de `FrmCrudOrdenes` | Un solo formulario con pestañas MudBlazor | 🆕 | 4 |
 | 22 | Generar requisa desde OT | `SINCO_GENERA_REQUISA` | Acción en detalle de OT | 🆕 | 4/5 |
@@ -66,7 +66,7 @@ Leyenda de estado: ✅ ya cubierto · 🔶 parcial · 🆕 por construir · ❓ 
 | 27 | Imprimir orden de trabajo | `FrmReportViewer` + `OrdenesDeTrabajo.rdlc` | `/ordenes/{id}/imprimir` — PDF generado en la API desde los SPs | 🆕 decisión cerrada | 7 |
 | 28 | Reportes de requisas y costos | SPs `SINCO_IMPRIMIR_REQUISAS*`, `SINCO_CONSULTAR_*` | `/reportes` — PDF desde API + datasets existentes | 🆕 decisión cerrada | 7 |
 | 29 | Notificaciones de visitas y correos | Consola + Windows Service + SPs `SINCO_NOTIFICAR_*` | `IHostedService` + proveedor de correo | 🆕 | 8 |
-| 30 | Integración Google Calendar | `GoogleCalendar.cs` | **Agenda propia con UI tipo Google Calendar + importador** de eventos existentes | 🆕 decisión cerrada | 3 |
+| 30 | Integración Google Calendar | `GoogleCalendar.cs` | **Agenda propia con calendarios por técnico y su color + importador** de eventos existentes | ✅ decisión cerrada | 3 |
 | 31 | `PRICING` | Sin handler | **Retirado del menú**; estructura preparada para reactivarlo | ✅ decisión cerrada | 9 |
 | 32 | `REPORTES` (botón del menú) | Sin handler | Se activa con la Fase 7 | 🆕 | 7 |
 | 33 | `CAMBIAR CONTRASEÑA` (label) | Sin handler | Ya existe en `/cambiar-contrasena` | ✅ | 0 |
@@ -85,7 +85,7 @@ Leyenda de estado: ✅ ya cubierto · 🔶 parcial · 🆕 por construir · ❓ 
 | Núcleo operativo legacy (D-22) | `Plantilla_Orden_Trabajo`, `_Detalle`, `_Servicio`, `_Equipos` | **Tablas existentes, mapeadas tal cual** con `ExcludeFromMigrations()`. Clave `PLANTILLA` (`bigint`, sin identity), hijos con `int`, `ACTIVO = SI/NO`, consecutivos `MAX + 1`. No se crean tablas ni se importan datos. |
 | Núcleo operativo nuevo | `Orden_Trabajo*`, `Requisa*`, `ProgramacionVisita*`, `Documento_Inv*` | Modelo EF Core propio sobre las estructuras del ERP, con `Codigo`/`Numero` consecutivo y auditoría |
 | Técnicas/puente | `NotificarProgramacionVisitaTemporal`, `NotificacionesEnviadas`, `logs` | Sustituir por `int.JobEjecucion`, `aud.Notificacion`, `aud.Bitacora` |
-| A decidir | `Plantilla_Calendario` | Depende de si se conserva Google Calendar o se crea agenda propia |
+| Núcleo operativo legacy (D-22) | `Plantilla_Calendario` | **Tabla existente**, mapeada tal cual: la agenda propia la usa para alta, edición y reversa. No se crean tablas de visitas paralelas. |
 
 ### 3.2 Stored procedures (29)
 
@@ -184,20 +184,24 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ---
 
-### Fase 3 — Programación de visitas
+### Fase 3 — Programación de visitas ✅ Completada
 **Objetivo:** traer `FrmProgramacionVisitas` y sus dos formularios auxiliares.
 
 **Decisión cerrada:** fuente de verdad = **agenda propia**, con una interfaz deliberadamente similar a Google Calendar para reducir el impacto del cambio, y un **importador** que migra los eventos que ya tienen los usuarios. OAuth queda confinado al importador inicial; después de migrar, la operación diaria no depende de Google.
 
-**Entregables**
-- **UI tipo Google Calendar**: vista mensual/semanal con eventos en cuadrícula, panel lateral de detalle, botón `Crear` en cada día, filtros por calendario/cliente/técnico y cambio rápido de mes. MudBlazor no trae un scheduler, así que se construye un componente propio (`CalendarioVisitas.razor`) manteniendo las convenciones visuales que el usuario ya conoce.
-- Agenda propia: entidades `Visita`, `VisitaTecnico`, `VisitaPlantilla`, con `FechaInicio`, `FechaFin`, `ClienteId`, `LocacionId`, `TipoServicioId`, `VehiculoId`, `Estado`, `CalendarEventId` (para trazabilidad del origen).
-- **Importador de Google Calendar**: lee eventos con `Summary.Contains("Orkin -")`, reutiliza el parseo actual de `Ubicacion`/`Descripcion`/`Summary` y valida cliente, locación, servicio, vehículo y técnicos contra las vistas `vv*`. Los errores van a `aud` en vez de `dbo.logs`. Ejecutable desde la web ( botón `Importar eventos` ) con vista previa y confirmación.
-- Confirmación de visitas, asignación de técnicos y plantillas, reversa de confirmación.
-- Generación de orden de trabajo desde visita confirmada.
-- Permisos: `VISITAS.VER`, `.CONFIRMAR`, `.REVERSAR`, `.GENERAR_OT`, `.IMPORTAR`.
+> **Aclaración del usuario:** *"no recuerdo bien la interfaz del calendario que usan pero creo que para cada técnico le crean calendario y cada uno con su color correspondiente, quizás algo así podemos hacer o ver si podemos dar algún plus de mejora en la organización"*. Se adoptó como mejora de organización: **un calendario por técnico, con color propio**, activable/desactivable como en Google Calendar.
 
-**Dependencias:** Fase 2. **Riesgo:** alto — replicar la experiencia de Google Calendar y migrar los eventos existentes sin perder información. Ver **Anexo A**.
+**Entregables**
+- ✅ **Sin tablas paralelas de visitas (D-22).** La agenda opera sobre `dbo.ProgramacionVisitaConfirmadas`, `dbo.ProgramacionVisitaDetalleConfirmada`, `dbo.Plantilla_Calendario` y `dbo.Orden_Trabajo`, mapeadas con `ExcludeFromMigrations()` (claves `ID_VISITA`, `(ID_VISITA, LINEA)`, `(PLANTILLA, ID_CALENDARIO)`). Consecutivo `MAX + 1`.
+- ✅ **UI `/visitas`**: vista mensual con chips por visita, vista **Semana × técnico** (una fila por técnico; una visita compartida aparece en cada técnico asignado), panel lateral de detalle, filtros por texto/cliente/plantilla/rango, `+` por día, alta/edición en diálogo, reversa y generación de OT. Implementada en `Pages/Visitas.razor` + `VisitaDialogo.razor`, `VisitaModels.cs` y `VisitaService.cs` del cliente.
+- ✅ **Calendarios por técnico**: el color vive en `dbo.Tecnico.ColorCalendario` (`varchar(7)`, migración `20261118014750_ColorCalendarioTecnico`), el **catálogo compartido único** (D-21), no en una tabla nueva ni en JSON. Se edita en `/catalogos/tecnicos` (campo texto + selector de color) y se valida `#RRGGBB` en `TecnicoService`. Si está vacío, `ColorCalendario.Para(codigo)` deriva uno determinístico de una paleta que empieza por el rojo corporativo `#E31837`. El panel "Calendarios" permite activar/desactivar cada técnico y la grilla respeta el filtro.
+- ✅ **Importador de Google Calendar**: `ImportadorGoogleService` reutiliza el parseo legacy de `Summary`/`Ubicacion`/`Descripcion`, valida cliente/locación/servicio/vehículo/técnico contra las vistas `vv*` (`ACTIVO='S'` cliente, `ACTIVO='SI'` resto), homologa con diálogo de corrección y confirma la importación desde `ImportadorGoogleCalendar.razor`.
+- ✅ **Enriquecimiento permitido**: el importador sí agrega estructura nueva, porque es auditoría y staging que no existía: `int.ImportacionGoogleLote`, `int.ImportacionGoogleEvento` e `int.ErpMapeoEventoGoogle` (migración `20261118012934_ImportadorGoogleCalendar`). No duplica catálogos ni visitas.
+- ✅ **OT desde visita**: `IGeneradorOrdenTrabajo` envuelve `dbo.SINCO_GENERA_ORDENE_DE_TRABAJO` con `@Id_Visita`. La reversa borra orden detalle → visita → `Plantilla_Calendario` y se bloquea si la visita ya tiene OT.
+- ✅ **Permisos sembrados** `VISITAS.VER`, `.EDITAR`, `.REVERSAR`, `.GENERAR_OT`, `.IMPORTAR`.
+- ✅ **Verificado**: build `0 Errores`, tests `100/100` (`Orkin.Cotizador.Tests/Visitas`), `dotnet ef migrations has-pending-model-changes` → *"No changes have been made to the model since the last migration"*.
+
+**Dependencias:** Fase 2. **Riesgo:** alto — resuelto respetando las claves compuestas del legacy y concentrando el color en el catálogo compartido. Ver **Anexo A**.
 
 ---
 
@@ -319,32 +323,35 @@ El sidebar es de la **plataforma**, no del cotizador:
 | 7 | **D-20 — catálogos duplicados** | **No copiar a la plataforma catálogos que ya existen en SOFTLAND/FUMIPLAGA o en `SINCOERPORKIN.vv*`.** Solo modelar localmente lo que el cotizador realmente necesita y no tiene origen. Se cancela `AgregarCatalogosLegacy` y se retiran los 6 catálogos nuevos. |
 | 8 | **D-21 — catálogo compartido y menú** | Una sola copia de cada catálogo, una sola API y un solo grupo `Catálogos compartidos` en el menú, consumido por cotizador y por los módulos legacy. Todo termina viniendo de Softland; no se crean catálogos por aplicación. |
 | 9 | **D-22 — BD legacy existente** | Las capacidades del WinForms operan sobre **las tablas que ya existen** en `SINCOERPORKIN` (`Plantilla_Orden_Trabajo*`, `Plantilla_Calendario`, `TmpPlantillas`, etc.). Se migra la API y el frontend, **no el esquema**: no se crean tablas nuevas ni se importan datos a tablas paralelas. Se corrige la Fase 2, que había creado `dbo.Plantilla` y sus hijas; esas tablas se eliminaron con `PlantillasSoloLegacy`. |
+| 10 | **Calendarios por técnico** | Cada técnico activo del catálogo compartido es un calendario con su color (D-21). El color se guarda en `dbo.Tecnico.ColorCalendario` y si falta se deriva de forma determinística; se permite activar/desactivar calendarios y ver una vista `Semana × técnico`. No se crea una tabla de calendarios ni se guarda el color en JSON. |
+| 11 | **Excepción permitida en la Fase 3** | El importador de Google sí agrega tres tablas `int.*` de staging/auditoría/homologación; no son copias de catálogos ni de visitas, por lo que no violan D-20/D-22. |
 
 ---
 
 ## 7. Próximo paso concreto
 
-Con D-20, D-21 y D-22 cerrados y las fases 0–2 completadas, el siguiente trabajo es la **Fase 3 — Programación de visitas**:
+Con D-20, D-21 y D-22 cerrados y las fases 0–3 completadas, el siguiente trabajo es la **Fase 4 — Órdenes de trabajo**:
 
-1. Mantener el principio D-22 desde el primer día: `Plantilla_Calendario` **ya existe**; la agenda propia y su importador deben leer/escribir esa tabla y las de programación del ERP, sin crear tablas de visitas paralelas.
+1. Mantener el principio D-22: operar sobre `Orden_Trabajo*` y `Plantilla_Orden_Trabajo*`, sin tablas paralelas.
 2. Reutilizar el catálogo único compartido (técnicos, clientes, plantillas) y la API única; no duplicar catálogos por módulo (D-21).
 3. Respetar la regla legacy: una plantilla no se elimina físicamente mientras tenga filas en `Plantilla_Calendario`.
-4. Verificar la UI `/plantillas` en navegador (grilla con 3.218 activas de 3.503, sin errores de consola) antes de seguir con la agenda.
+4. Aprovechar el puente ya construido: `IGeneradorOrdenTrabajo` y la reversa de visitas de la Fase 3.
 5. Mantener el sidebar con `Catálogos compartidos` y agregar páginas a `Operación` solo cuando existan; nunca duplicar un catálogo entre grupos.
 
 ---
 
 ## Anexo A — Agenda de visitas tipo Google Calendar
 
-La fuente de verdad será nuestra agenda, pero la interacción debe resultar familiar a quien hoy usa Google Calendar:
+La fuente de verdad es nuestra agenda, pero la interacción resulta familiar a quien hoy usa Google Calendar:
 
-- **Vista mensual por defecto**, con opción de semana/día y navegación rápida de mes. Encabezado con el nombre del mes en español, botones `‹`, `›` y `Hoy`, y selector de calendarios cliente/técnico a la izquierda.
-- **Cuadrícula de días** con eventos coloreados por tipo de servicio o estado (confirmada / pendiente). Cada evento muestra hora, cliente y locación, como en Google.
-- **Botón `Crear`** en la esquina superior izquierda y un `+` en cada celda de día; clic en un evento abre un panel lateral de detalle (no una ventana modal pesada), con acciones Editar, Confirmar, Reversar y Generar OT.
-- **Arrastrar para mover** un evento a otra fecha/hora y redimensionar para cambiar duración (si el alcance lo permite en la primera entrega; si no, quedaría como mejora inmediata).
-- **Panel lateral de detalle** con pestañas `Detalles`, `Técnicos` y `Plantillas`, reflejando el flujo actual de `FrmAsociacionTecnicoVisitaConfirmada`.
-- **Filtros** por fecha, cliente, locación, descripción y técnico, equivalentes a los del legacy.
-- **Importador** con vista previa: lista los eventos `Orkin -` de Google, muestra cuáles se pudieron homologar y cuáles se rechazaron ( cliente/locación/servicio/vehículo/técnico ), y permite revisar y corregir el mapeo antes de insertarlos en la agenda propia.
-- **Trazabilidad:** cada visita importada conserva `CalendarEventId` y `FechaImportacionUtc`; los rechazos se guardan en `aud` con el motivo.
+- ✅ **Vista mensual por defecto** con navegación rápida de mes (`‹`, `›`, `Hoy`) y encabezado en español.
+- ✅ **Panel "Calendarios" a la izquierda**: un técnico activo = un calendario con su color, activable/desactivable. El conteo `N de M visibles` y el icono `Seleccionar todos` permiten enfocar la agenda.
+- ✅ **Vista "Semana × técnico"**: fila por técnico y columna por día; una visita con varios técnicos aparece en cada fila, con el color de ese calendario. Es el plus de organización pedido por el usuario.
+- ✅ **Cuadrícula de días** con chips coloreados por técnico (icono de evento o de orden generada), hora y título. Clic en un chip abre el panel lateral de detalle.
+- ✅ **Panel lateral de detalle**: visita, cliente, locación/servicio, fecha/hora, vehículo/técnicos, plantilla/orden, nota y chips de técnicos asignados; acciones Editar, Generar OT y Reversar según permisos.
+- ✅ **Filtros** por texto, cliente, plantilla y rango, más el filtro por calendarios activos (también aplicado a la pestaña `Lista`).
+- ✅ **Importador** con vista previa: lista los eventos `Orkin -` de Google, muestra cuáles se pudieron homologar y cuáles se rechazaron (cliente/locación/servicio/vehículo/técnico) y permite corregir el mapeo antes de insertarlos en la agenda propia.
+- ✅ **Trazabilidad:** cada visita importada conserva el `IdCalendario` del evento; el lote, los eventos y los rechazos se guardan en `int.ImportacionGoogleLote`, `int.ImportacionGoogleEvento` e `int.ErpMapeoEventoGoogle`.
+- 🔶 **Diferido:** arrastrar para mover/redimensionar eventos y la vista día. No estaban en la primera entrega; la edición de fecha/hora se hace en el diálogo de visita.
 
-> Objetivo de UX: que el usuario reconozca la pantalla y solo note mejoras (más rápida, integrada con el resto del sistema y sin depender de OAuth para trabajar).
+> Objetivo de UX: que el usuario reconozca la pantalla y solo note mejoras (calendarios por técnico con color, integración con el resto del sistema y sin depender de OAuth para trabajar).

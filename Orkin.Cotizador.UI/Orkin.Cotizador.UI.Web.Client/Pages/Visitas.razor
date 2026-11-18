@@ -1,0 +1,706 @@
+@page "/visitas"
+@attribute [Authorize("VISITAS.VER")]
+@layout MainLayout
+@inject VisitaService Servicio
+@inject CatalogoService Catalogos
+@inject PlantillaService ServicioPlantillas
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogos
+
+<style>
+    .calendario-encabezado, .calendario-cuadricula {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 1px;
+        background: var(--mud-palette-divider);
+        border: 1px solid var(--mud-palette-divider);
+    }
+
+    .calendario-encabezado {
+        background: transparent;
+        border-bottom: 0;
+    }
+
+    .calendario-dia-semana {
+        background: var(--mud-palette-background-gray);
+        padding: 6px 8px;
+        text-align: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .calendario-celda {
+        background: var(--mud-palette-surface);
+        min-height: 104px;
+        padding: 4px;
+        overflow: hidden;
+    }
+
+    .calendario-fuera-mes {
+        background: var(--mud-palette-background-gray);
+        opacity: 0.6;
+    }
+
+    .calendario-hoy {
+        box-shadow: inset 0 0 0 2px var(--mud-palette-primary);
+    }
+
+    .calendario-chip {
+        display: block;
+        max-width: 100%;
+        margin-bottom: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Vista Semana × técnico: una columna por día y una fila por calendario. */
+    .semana-encabezado, .semana-fila {
+        display: grid;
+        grid-template-columns: minmax(120px, 1.4fr) repeat(7, minmax(0, 1fr));
+        gap: 1px;
+        background: var(--mud-palette-divider);
+        border: 1px solid var(--mud-palette-divider);
+    }
+
+    .semana-encabezado {
+        background: transparent;
+        border-bottom: 0;
+    }
+
+    .semana-tecnico {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 60px;
+        padding: 4px 8px;
+        background: var(--mud-palette-background-gray);
+        border-left: 4px solid var(--mud-palette-primary);
+    }
+
+    .semana-celda {
+        min-height: 60px;
+        padding: 3px;
+        background: var(--mud-palette-surface);
+        overflow: hidden;
+    }
+</style>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Color="Color.Primary">Agenda de visitas</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Operación · visitas confirmadas sobre tablas legacy (SINCOERPORKIN)
+            </MudText>
+        </div>
+        <div class="d-flex gap-2">
+            @if (_puedeImportar)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.UploadFile"
+                           OnClick="@(() => _vista = 2)">Importar de Google</MudButton>
+            }
+            @if (_puedeEditar)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="@(() => Nueva())">Nueva visita</MudButton>
+            }
+        </div>
+    </div>
+
+    <MudPaper Class="pa-4 mb-4" Elevation="1" Outlined="true">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="_texto" Label="Evento, cliente o nota" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudSelect T="string?" @bind-Value="_cliente" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Dense="true" Clearable="true">
+                    @foreach (var cliente in _clientes)
+                    {
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Nombre</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudSelect T="long?" @bind-Value="_plantilla" Label="Plantilla" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Dense="true" Clearable="true">
+                    @foreach (var plantilla in _plantillas)
+                    {
+                        <MudSelectItem T="long?" Value="@plantilla.Plantilla">@plantilla.Plantilla — @plantilla.ClienteNombre</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudDateRangePicker @bind-DateRange="_rango" Label="Rango de fechas" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="1" Class="d-flex align-center justify-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
+                           OnClick="Cargar">Buscar</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudTabs @bind-ActivePanelIndex="_vista" Elevation="1" Outlined="true" Rounded="true" Class="mb-4"
+             Colors="Colors.Primary">
+        @* ── Calendario tipo Google Calendar: mes y semana por técnico ─────────── *@
+        <MudTabPanel Text="Calendario" Icon="@Icons.Material.Filled.CalendarMonth">
+            <div class="d-flex justify-space-between align-center pa-3 flex-wrap gap-2">
+                <div class="d-flex align-center gap-2">
+                    <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="@(() => CambiarMes(-1))" aria-label="Mes anterior" />
+                    <MudText Typo="Typo.h6">@MesActual.ToString("MMMM yyyy")</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="@(() => CambiarMes(1))" aria-label="Mes siguiente" />
+                </div>
+                <div class="d-flex align-center gap-2">
+                    <MudButton Variant="@(_modoCalendario == 0 ? Variant.Filled : Variant.Outlined)" Color="Color.Primary"
+                               Size="Size.Small" OnClick="@(() => _modoCalendario = 0)">Mes</MudButton>
+                    <MudButton Variant="@(_modoCalendario == 1 ? Variant.Filled : Variant.Outlined)" Color="Color.Primary"
+                               Size="Size.Small" OnClick="@(() => _modoCalendario = 1)">Semana × técnico</MudButton>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="Hoy">Hoy</MudButton>
+                </div>
+            </div>
+
+            <MudGrid Spacing="0" Class="pa-3">
+                @* Panel de calendarios: un técnico = un calendario activable con su color. *@
+                <MudItem xs="12" md="2">
+                    <MudPaper Class="pa-3" Elevation="1" Outlined="true" Style="position: sticky; top: 80px;">
+                        <div class="d-flex justify-space-between align-center mb-1">
+                            <MudText Typo="Typo.subtitle2" Color="Color.Primary">Calendarios</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.SelectAll" Size="Size.Small"
+                                           OnClick="SeleccionarTodosTecnicos" aria-label="Seleccionar todos los técnicos" />
+                        </div>
+                        <MudText Typo="Typo.caption" class="mud-text-secondary">Técnicos con agenda propia</MudText>
+                        <div style="max-height: 58vh; overflow-y: auto;" class="mt-2">
+                            @foreach (var tecnico in TecnicosActivos)
+                            {
+                                <div class="d-flex align-center gap-1 mb-1">
+                                    <MudCheckBox T="bool" Dense="true" Color="Color.Primary"
+                                                 Value="@_calendariosActivos.Contains(tecnico.Codigo)"
+                                                 ValueChanged="@((bool v) => AlternarTecnico(tecnico.Codigo, v))" />
+                                    <span style="display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;background-color:@ColorCalendario.Para(tecnico.Codigo, tecnico.ColorCalendario);"></span>
+                                    <MudText Typo="Typo.caption">@tecnico.Nombre</MudText>
+                                </div>
+                            }
+                        </div>
+                        <MudDivider Class="my-2" />
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            @_calendariosActivos.Count de @TecnicosActivos.Count visibles
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" md="7">
+                    @if (_modoCalendario == 0)
+                    {
+                        <div class="calendario-encabezado">
+                            @foreach (var dia in DiasSemana)
+                            {
+                                <div class="calendario-dia-semana">@dia</div>
+                            }
+                        </div>
+                        <div class="calendario-cuadricula">
+                            @foreach (var celda in Celdas)
+                            {
+                                var visitasDelDia = VisitasDelDia(celda);
+                                <div class="calendario-celda @(celda.Month == MesActual.Month ? string.Empty : "calendario-fuera-mes") @(celda.Date == HoyDate.Date ? "calendario-hoy" : string.Empty)">
+                                    <div class="d-flex justify-space-between align-center mb-1">
+                                        <MudText Typo="Typo.caption">@celda.Day</MudText>
+                                        @if (_puedeEditar)
+                                        {
+                                            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                                           OnClick="@(() => Nueva(celda))" aria-label="Nueva visita este día" />
+                                        }
+                                    </div>
+                                    @foreach (var visita in visitasDelDia.Take(2))
+                                    {
+                                        <MudChip T="VisitaModel" Size="Size.Small" Class="calendario-chip"
+                                                 Style="@($"background-color:{ColorDe(visita)};color:#fff;")"
+                                                 Icon="@(visita.OrdenNumero is null ? Icons.Material.Filled.Event : Icons.Material.Filled.CheckCircle)"
+                                                 OnClick="@(() => Seleccionar(visita))">
+                                            @visita.HoraTexto @visita.Titulo
+                                        </MudChip>
+                                    }
+                                    @if (visitasDelDia.Count > 2)
+                                    {
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">+@(visitasDelDia.Count - 2) más</MudText>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        @* Vista semana: fila por técnico, columna por día. Una visita compartida
+                           aparece en cada técnico asignado, con el color de su calendario. *@
+                        <div class="semana-encabezado">
+                            <div class="calendario-dia-semana">Técnico</div>
+                            @foreach (var dia in DiasDeLaSemana)
+                            {
+                                <div class="calendario-dia-semana">@dia.ToString("ddd dd/MM")</div>
+                            }
+                        </div>
+                        @foreach (var tecnico in TecnicosVisibles)
+                        {
+                            var color = ColorCalendario.Para(tecnico.Codigo, tecnico.ColorCalendario);
+                            <div class="semana-fila">
+                                <div class="semana-tecnico" style="border-left-color:@color;">
+                                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background-color:@color;"></span>
+                                    <MudText Typo="Typo.caption">@tecnico.Nombre</MudText>
+                                </div>
+                                @foreach (var dia in DiasDeLaSemana)
+                                {
+                                    <div class="semana-celda">
+                                        @foreach (var visita in VisitasDelTecnico(dia, tecnico.Codigo))
+                                        {
+                                            <MudChip T="VisitaModel" Size="Size.Small" Class="calendario-chip"
+                                                     Style="@($"background-color:{color};color:#fff;")"
+                                                     OnClick="@(() => Seleccionar(visita))">
+                                                @visita.HoraTexto @visita.Titulo
+                                            </MudChip>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                        @if (TecnicosVisibles.Count == 0)
+                        {
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="ma-3">
+                                Seleccione al menos un calendario de técnico a la izquierda.
+                            </MudAlert>
+                        }
+                    }
+                </MudItem>
+
+                <MudItem xs="12" md="3">
+                    <MudPaper Class="pa-4" Elevation="1" Outlined="true" Style="position: sticky; top: 80px;">
+                        @if (_detalle is null)
+                        {
+                            <MudText Typo="Typo.subtitle1" Color="Color.Primary">Detalle de visita</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary mt-2">
+                                Seleccione una visita del calendario para ver técnicos, plantilla y orden de trabajo.
+                            </MudText>
+                        }
+                        else
+                        {
+                            <div class="d-flex justify-space-between align-start">
+                                <MudText Typo="Typo.subtitle1" Color="Color.Primary">@_detalle.Titulo</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _detalle = null)" aria-label="Cerrar" />
+                            </div>
+                            <MudDivider Class="my-2" />
+                            <MudList T="string" Dense="true">
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.ConfirmationNumber">
+                                    Visita @_detalle.IdVisita · @_detalle.IdCalendario
+                                </MudListItem>
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.Person">
+                                    Cliente @_detalle.Cliente @_detalle.ClienteNombre
+                                </MudListItem>
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.Place">
+                                    Locación @_detalle.Locacion · Servicio @_detalle.TipoServicio
+                                </MudListItem>
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.Schedule">
+                                    @_detalle.FechaInicio?.ToString("yyyy-MM-dd") @_detalle.HoraTexto
+                                </MudListItem>
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.DirectionsCar">
+                                    Vehículo @_detalle.CodigoVehiculo · Técnicos @_detalle.CantidadTecnicos
+                                </MudListItem>
+                                <MudListItem T="string" Icon="@Icons.Material.Filled.Description">
+                                    Plantilla @_detalle.Plantilla · Orden @(_detalle.OrdenNumero ?? "sin generar")
+                                </MudListItem>
+                                @if (!string.IsNullOrWhiteSpace(_detalle.Nota))
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.Notes">@_detalle.Nota</MudListItem>
+                                }
+                            </MudList>
+                            @if (_detalle.TecnicosDetalle.Count > 0)
+                            {
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">Técnicos asignados</MudText>
+                                @foreach (var tecnico in _detalle.TecnicosDetalle.OrderBy(t => t.Linea))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Class="mr-1">@tecnico.CodigoTecnico @tecnico.Iniciales</MudChip>
+                                }
+                            }
+                            <div class="d-flex flex-wrap gap-2 mt-4">
+                                @if (_puedeEditar)
+                                {
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.Edit" OnClick="@(() => Editar(_detalle))">Editar</MudButton>
+                                }
+                                @if (_puedeGenerarOt && _detalle.OrdenNumero is null)
+                                {
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.Assignment" OnClick="@(() => GenerarOrden(_detalle))">Generar OT</MudButton>
+                                }
+                                @if (_puedeReversar)
+                                {
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.Delete" OnClick="@(() => Reversar(_detalle))">Reversar</MudButton>
+                                }
+                            </div>
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        @* ── Lista / grilla ──────────────────────────────────────────────────── *@
+        <MudTabPanel Text="Lista" Icon="@Icons.Material.Filled.TableRows">
+            <MudTable Items="VisitasVisibles" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+                      RowClassFunc="@((v, i) => v == _detalle ? "mud-selected-item" : string.Empty)">
+                <HeaderContent>
+                    <MudTh>Visita</MudTh>
+                    <MudTh>Evento</MudTh>
+                    <MudTh>Cliente</MudTh>
+                    <MudTh>Locación</MudTh>
+                    <MudTh>Fecha</MudTh>
+                    <MudTh>Técnicos</MudTh>
+                    <MudTh>Plantilla</MudTh>
+                    <MudTh>Orden</MudTh>
+                    <MudTh>Acciones</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Visita">
+                        <div style="cursor: pointer;" @onclick="@(() => Seleccionar(context))">@context.IdVisita</div>
+                    </MudTd>
+                    <MudTd DataLabel="Evento"><MudText Typo="Typo.caption">@context.IdCalendario</MudText></MudTd>
+                    <MudTd DataLabel="Cliente">@context.ClienteNombre</MudTd>
+                    <MudTd DataLabel="Locación">@context.Locacion</MudTd>
+                    <MudTd DataLabel="Fecha">@context.FechaInicio?.ToString("yyyy-MM-dd") @context.HoraTexto</MudTd>
+                    <MudTd DataLabel="Técnicos">@context.Tecnicos</MudTd>
+                    <MudTd DataLabel="Plantilla">@context.Plantilla</MudTd>
+                    <MudTd DataLabel="Orden">@context.OrdenNumero</MudTd>
+                    <MudTd DataLabel="Acciones">
+                        @if (_puedeEditar)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                                           OnClick="@(() => Editar(context))" aria-label="Editar" />
+                        }
+                        @if (_puedeGenerarOt && context.OrdenNumero is null)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Assignment" Size="Size.Small" Color="Color.Secondary"
+                                           OnClick="@(() => GenerarOrden(context))" aria-label="Generar OT" />
+                        }
+                        @if (_puedeReversar)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                           OnClick="@(() => Reversar(context))" aria-label="Reversar" />
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager RowsPerPageString="Filas por página" />
+                </PagerContent>
+            </MudTable>
+        </MudTabPanel>
+
+        @* ── Importador de Google Calendar ──────────────────────────────────── *@
+        <MudTabPanel Text="Importar de Google" Icon="@Icons.Material.Filled.CloudDownload">
+            @if (_puedeImportar)
+            {
+                <ImportadorGoogleCalendar PuedeImportar="@_puedeImportar" PuedeEditar="@_puedeEditar" OnCambios="Cargar" />
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning" Class="ma-4">No tiene permiso para importar eventos.</MudAlert>
+            }
+        </MudTabPanel>
+    </MudTabs>
+</MudContainer>
+
+@code {
+    private static readonly string[] DiasSemana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+
+    private List<VisitaModel> _visitas = [];
+    private List<ClienteModel> _clientes = [];
+    private List<PlantillaModel> _plantillas = [];
+    private List<TecnicoModel> _tecnicos = [];
+    private readonly HashSet<string> _calendariosActivos = new(StringComparer.OrdinalIgnoreCase);
+    private int _modoCalendario;
+    private VisitaModel? _detalle;
+    private string? _texto;
+    private string? _cliente;
+    private long? _plantilla;
+    private DateRange? _rango;
+    private int _vista;
+    private bool _cargando;
+    private bool _puedeEditar;
+    private bool _puedeReversar;
+    private bool _puedeGenerarOt;
+    private bool _puedeImportar;
+
+    /// <summary>Cada técnico activo del catálogo compartido es un calendario seleccionable.</summary>
+    private IReadOnlyList<TecnicoModel> TecnicosActivos => _tecnicos.Where(t => t.EsActivo).ToList();
+
+    private IReadOnlyList<TecnicoModel> TecnicosVisibles
+        => TecnicosActivos.Where(t => _calendariosActivos.Contains(t.Codigo)).ToList();
+
+    private Dictionary<string, TecnicoModel> TecnicosPorCodigo
+        => _tecnicos.ToDictionary(t => t.Codigo, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Visitas que pasan el filtro de calendarios. Las que no tienen técnicos asignados en el
+    /// detalle legacy se mantienen siempre visibles para no ocultar información del ERP.
+    /// </summary>
+    private List<VisitaModel> VisitasVisibles
+        => _visitas.Where(v => v.CodigosTecnico.Count == 0 ||
+                               v.CodigosTecnico.Any(c => _calendariosActivos.Contains(c)))
+            .ToList();
+
+    private DateTime MesActual => _rango?.Start ?? DateTime.Today;
+
+    private DateTime HoyDate => DateTime.Today;
+
+    /// <summary>Lunes a domingo de la semana que contiene la fecha de inicio del rango.</summary>
+    private List<DateTime> DiasDeLaSemana
+    {
+        get
+        {
+            var referencia = _rango?.Start ?? DateTime.Today;
+            var lunes = referencia.AddDays(-(((int)referencia.DayOfWeek + 6) % 7));
+            return Enumerable.Range(0, 7).Select(i => lunes.AddDays(i)).ToList();
+        }
+    }
+
+    /// <summary>42 celdas (6 semanas) empezando en lunes, como la vista mensual de Google Calendar.</summary>
+    private List<DateTime> Celdas
+    {
+        get
+        {
+            var primero = new DateTime(MesActual.Year, MesActual.Month, 1);
+            var desplazamiento = ((int)primero.DayOfWeek + 6) % 7;
+            var inicio = primero.AddDays(-desplazamiento);
+            return Enumerable.Range(0, 42).Select(i => inicio.AddDays(i)).ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+        _puedeEditar = estado.User.HasClaim("orkin:permiso", "VISITAS.EDITAR");
+        _puedeReversar = estado.User.HasClaim("orkin:permiso", "VISITAS.REVERSAR");
+        _puedeGenerarOt = estado.User.HasClaim("orkin:permiso", "VISITAS.GENERAR_OT");
+        _puedeImportar = estado.User.HasClaim("orkin:permiso", "VISITAS.IMPORTAR");
+        _rango = new DateRange(
+            new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1),
+            new DateTime(DateTime.Today.Year, DateTime.Today.Month,
+                DateTime.DaysInMonth(DateTime.Today.Year, DateTime.Today.Month)));
+
+        await Task.WhenAll(
+            CargarCatalogos(),
+            Cargar());
+    }
+
+    private async Task CargarCatalogos()
+    {
+        _clientes = await Catalogos.ListarClientesAsync();
+        _plantillas = await ServicioPlantillas.ListarAsync();
+        _tecnicos = await Catalogos.ListarTecnicosAsync();
+
+        // Todos los calendarios arrancan activos, como en Google Calendar.
+        _calendariosActivos.Clear();
+        foreach (var tecnico in TecnicosActivos)
+        {
+            _calendariosActivos.Add(tecnico.Codigo);
+        }
+    }
+
+    private async Task Cargar()
+    {
+        _cargando = true;
+        try
+        {
+            _visitas = await Servicio.ListarAsync(
+                _rango?.Start is { } d ? DateOnly.FromDateTime(d) : null,
+                _rango?.End is { } h ? DateOnly.FromDateTime(h) : null,
+                _texto, _cliente, _plantilla);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudieron cargar las visitas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void CambiarMes(int delta)
+    {
+        var primero = new DateTime(MesActual.Year, MesActual.Month, 1).AddMonths(delta);
+        _rango = new DateRange(primero, primero.AddMonths(1).AddDays(-1));
+        _ = Cargar();
+    }
+
+    private void Hoy()
+    {
+        var hoy = DateTime.Today;
+        _rango = new DateRange(new DateTime(hoy.Year, hoy.Month, 1),
+            new DateTime(hoy.Year, hoy.Month, DateTime.DaysInMonth(hoy.Year, hoy.Month)));
+        _ = Cargar();
+    }
+
+    private List<VisitaModel> VisitasDelDia(DateTime dia)
+        => VisitasVisibles.Where(v => v.FechaInicio is { } f &&
+                                      f.Year == dia.Year && f.Month == dia.Month && f.Day == dia.Day)
+            .OrderBy(v => v.HoraInicio).ToList();
+
+    /// <summary>Visitas de un técnico en un día; una visita compartida aparece en cada fila.</summary>
+    private List<VisitaModel> VisitasDelTecnico(DateTime dia, string codigo)
+        => VisitasVisibles.Where(v => v.CodigosTecnico.Any(c => string.Equals(c, codigo, StringComparison.OrdinalIgnoreCase)) &&
+                                      v.FechaInicio is { } f &&
+                                      f.Year == dia.Year && f.Month == dia.Month && f.Day == dia.Day)
+            .OrderBy(v => v.HoraInicio).ToList();
+
+    /// <summary>Color del primer técnico activo asignado; si no hay, el corporativo.</summary>
+    private string ColorDe(VisitaModel visita)
+    {
+        var codigo = visita.CodigosTecnico.FirstOrDefault(c => _calendariosActivos.Contains(c))
+                     ?? visita.CodigosTecnico.FirstOrDefault();
+        if (codigo is null)
+        {
+            return ColorCalendario.Paleta[0];
+        }
+
+        var configurado = TecnicosPorCodigo.TryGetValue(codigo, out var tecnico)
+            ? tecnico.ColorCalendario
+            : null;
+        return ColorCalendario.Para(codigo, configurado);
+    }
+
+    private void AlternarTecnico(string codigo, bool activo)
+    {
+        if (activo)
+        {
+            _calendariosActivos.Add(codigo);
+        }
+        else
+        {
+            _calendariosActivos.Remove(codigo);
+        }
+    }
+
+    /// <summary>Alterna entre "todos visibles" y "ninguno visible".</summary>
+    private void SeleccionarTodosTecnicos()
+    {
+        var tecnicos = TecnicosActivos;
+        if (_calendariosActivos.Count >= tecnicos.Count)
+        {
+            _calendariosActivos.Clear();
+        }
+        else
+        {
+            foreach (var tecnico in tecnicos)
+            {
+                _calendariosActivos.Add(tecnico.Codigo);
+            }
+        }
+    }
+
+    private async Task Seleccionar(VisitaModel visita)
+    {
+        try
+        {
+            _detalle = await Servicio.ObtenerAsync(visita.IdVisita) ?? visita;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo cargar el detalle: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private Task Nueva(DateTime? dia = null)
+    {
+        var modelo = new VisitaGuardarModel
+        {
+            FechaInicio = DateOnly.FromDateTime(dia ?? DateTime.Today),
+            HoraInicio = new TimeSpan(9, 0, 0),
+            FechaFinal = DateOnly.FromDateTime(dia ?? DateTime.Today),
+            HoraFinal = new TimeSpan(10, 0, 0)
+        };
+        return AbrirDialogo(modelo, esEdicion: false);
+    }
+
+    private async Task Editar(VisitaModel visita)
+    {
+        try
+        {
+            var completa = await Servicio.ObtenerAsync(visita.IdVisita) ?? visita;
+            await AbrirDialogo(VisitaGuardarModel.Desde(completa), esEdicion: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo abrir la visita: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task AbrirDialogo(VisitaGuardarModel modelo, bool esEdicion)
+    {
+        var opciones = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Large, FullWidth = true };
+        var parametros = new DialogParameters { [nameof(VisitaDialogo.Modelo)] = modelo };
+        var dialogo = await Dialogos.ShowAsync<VisitaDialogo>(
+            esEdicion ? "Editar visita" : "Nueva visita", parametros, opciones);
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not VisitaGuardarModel guardar)
+        {
+            return;
+        }
+
+        try
+        {
+            await Servicio.GuardarAsync(guardar, esEdicion);
+            Snackbar.Add(esEdicion ? "Visita actualizada." : "Visita creada.", Severity.Success);
+            await Cargar();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo guardar la visita: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task GenerarOrden(VisitaModel visita)
+    {
+        try
+        {
+            var numero = await Servicio.GenerarOrdenAsync(visita.IdVisita);
+            Snackbar.Add(numero is null
+                ? "Se invocó el procedimiento legacy, pero no se devolvió número de orden."
+                : $"Orden de trabajo {numero} generada.", numero is null ? Severity.Warning : Severity.Success);
+            _detalle = null;
+            await Cargar();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo generar la orden: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task Reversar(VisitaModel visita)
+    {
+        // ConfirmarDialogo es el patrón del proyecto: ShowMessageBox no existe en esta versión.
+        var dialogo = await Dialogos.ShowAsync<ConfirmarDialogo>(
+            "Reversar visita", new DialogParameters<ConfirmarDialogo>
+            {
+                { d => d.Titulo, $"Reversar la visita {visita.IdVisita}" },
+                { d => d.Mensaje, "Se eliminan la visita, sus técnicos y su plantilla de calendario. Si ya tiene orden de trabajo, la operación será bloqueada." }
+            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not true)
+        {
+            return;
+        }
+
+        try
+        {
+            var ok = await Servicio.ReversarAsync(visita.IdVisita);
+            _detalle = null;
+            await Cargar();
+            Snackbar.Add(ok ? "Visita reversada." : "No se pudo reversar la visita.",
+                ok ? Severity.Success : Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo reversar: {ex.Message}", Severity.Error);
+        }
+    }
+}

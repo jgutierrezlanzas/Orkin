@@ -21,6 +21,9 @@ public sealed class TecnicoModel
     public string? Cargo { get; set; }
     public int Orden { get; set; }
     public bool EsActivo { get; set; }
+
+    /// <summary>Color #RRGGBB de su calendario en la agenda de visitas.</summary>
+    public string? ColorCalendario { get; set; }
 }
 
 public sealed class CategoriaProductoModel

@@ -25,6 +25,7 @@
             <MudTh>Cargo</MudTh>
             <MudTh>Teléfono</MudTh>
             <MudTh>Correo</MudTh>
+            <MudTh>Color calendario</MudTh>
             <MudTh>Orden</MudTh>
             <MudTh>Activo</MudTh>
             @if (_puedeEditar)
@@ -38,6 +39,10 @@
             <MudTd DataLabel="Cargo">@context.Cargo</MudTd>
             <MudTd DataLabel="Teléfono">@context.Telefono</MudTd>
             <MudTd DataLabel="Correo">@context.Correo</MudTd>
+            <MudTd DataLabel="Color calendario">
+                <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background-color:@ColorCalendario.Para(context.Codigo, context.ColorCalendario);"></span>
+                <MudText Typo="Typo.caption" Class="ml-1">@(context.ColorCalendario ?? "automático")</MudText>
+            </MudTd>
             <MudTd DataLabel="Orden">@context.Orden</MudTd>
             <MudTd DataLabel="Activo">
                 <MudIcon Icon="@(context.EsActivo ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" />
@@ -86,7 +91,8 @@
         Telefono = tecnico.Telefono,
         Correo = tecnico.Correo,
         Orden = tecnico.Orden,
-        EsActivo = tecnico.EsActivo
+        EsActivo = tecnico.EsActivo,
+        ColorCalendario = tecnico.ColorCalendario
     });
 
     private async Task AbrirDialogo(TecnicoModel modelo)

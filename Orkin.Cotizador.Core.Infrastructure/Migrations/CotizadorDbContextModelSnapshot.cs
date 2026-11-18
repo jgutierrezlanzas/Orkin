@@ -1030,6 +1030,12 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.Property<string>("CodigoExterno")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ColorCalendario")
+                        .HasMaxLength(7)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(7)")
+                        .HasColumnName("ColorCalendario");
+
                     b.Property<string>("Correo")
                         .HasColumnType("nvarchar(max)");
 
@@ -3115,6 +3121,83 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ErpMapeoEventoGoogle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Id")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<bool>("Activo")
+                        .HasColumnType("bit")
+                        .HasColumnName("Activo");
+
+                    b.Property<string>("Campo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasColumnName("Campo");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatedBy");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Descripcion");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IsActive");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion")
+                        .HasColumnName("RowVersion");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UpdatedBy");
+
+                    b.Property<string>("ValorDestino")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ValorDestino");
+
+                    b.Property<string>("ValorOrigen")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ValorOrigen");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Campo", "ValorOrigen")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ErpMapeoEventoGoogle_CampoOrigen");
+
+                    b.ToTable("ErpMapeoEventoGoogle", "int");
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ErpMapeoTipoCliente", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3179,6 +3262,260 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasDatabaseName("UX_ErpMapeoTipoCliente_ConexionCategoria");
 
                     b.ToTable("ErpMapeoTipoCliente", "int");
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ImportacionGoogleEvento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Id")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CalendarId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("CalendarId");
+
+                    b.Property<string>("ClienteCodigo")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("ClienteCodigo");
+
+                    b.Property<string>("ClienteParseado")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ClienteParseado");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatedBy");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("Descripcion");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("Error");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("Estado");
+
+                    b.Property<string>("EventoId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("EventoId");
+
+                    b.Property<DateTime?>("FechaFin")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("FechaFin");
+
+                    b.Property<DateTime?>("FechaInicio")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("FechaInicio");
+
+                    b.Property<long?>("IdVisita")
+                        .HasColumnType("bigint")
+                        .HasColumnName("IdVisita");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IsActive");
+
+                    b.Property<string>("LocacionCodigo")
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)")
+                        .HasColumnName("LocacionCodigo");
+
+                    b.Property<string>("LocacionParseada")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("LocacionParseada");
+
+                    b.Property<Guid>("LoteId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("LoteId");
+
+                    b.Property<string>("Nota")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)")
+                        .HasColumnName("Nota");
+
+                    b.Property<long?>("Plantilla")
+                        .HasColumnType("bigint")
+                        .HasColumnName("Plantilla");
+
+                    b.Property<DateTime?>("ProcesadoUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("ProcesadoUtc");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion")
+                        .HasColumnName("RowVersion");
+
+                    b.Property<string>("Summary")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Summary");
+
+                    b.Property<string>("TecnicosCodigos")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)")
+                        .HasColumnName("TecnicosCodigos");
+
+                    b.Property<string>("TecnicosParseados")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)")
+                        .HasColumnName("TecnicosParseados");
+
+                    b.Property<string>("TipoServicioCodigo")
+                        .HasMaxLength(4)
+                        .HasColumnType("nvarchar(4)")
+                        .HasColumnName("TipoServicioCodigo");
+
+                    b.Property<string>("TipoServicioParseado")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("TipoServicioParseado");
+
+                    b.Property<string>("Ubicacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Ubicacion");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UpdatedBy");
+
+                    b.Property<string>("VehiculoCodigo")
+                        .HasMaxLength(4)
+                        .HasColumnType("nvarchar(4)")
+                        .HasColumnName("VehiculoCodigo");
+
+                    b.Property<string>("VehiculoParseado")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("VehiculoParseado");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoteId", "EventoId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ImportacionGoogleEvento_LoteEvento");
+
+                    b.ToTable("ImportacionGoogleEvento", "int");
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ImportacionGoogleLote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("Id")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<int>("ConError")
+                        .HasColumnType("int")
+                        .HasColumnName("ConError");
+
+                    b.Property<int>("Confirmados")
+                        .HasColumnType("int")
+                        .HasColumnName("Confirmados");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CreatedBy");
+
+                    b.Property<int>("Descartados")
+                        .HasColumnType("int")
+                        .HasColumnName("Descartados");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("Estado");
+
+                    b.Property<DateTime>("FechaImportacionUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("FechaImportacionUtc");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IsActive");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)")
+                        .HasColumnName("Nombre");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("Observaciones");
+
+                    b.Property<string>("Origen")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("Origen");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion")
+                        .HasColumnName("RowVersion");
+
+                    b.Property<int>("TotalEventos")
+                        .HasColumnType("int")
+                        .HasColumnName("TotalEventos");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UpdatedBy");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ImportacionGoogleLote", "int");
                 });
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.NotificacionEnviada", b =>
@@ -3270,6 +3607,36 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasDatabaseName("IX_Notificacion_Estado");
 
                     b.ToTable("NotificacionEnviada", "dbo");
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.OrdenTrabajoVisita", b =>
+                {
+                    b.Property<string>("OrdenNumero")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("ORDEN_NUMERO");
+
+                    b.Property<long>("IdVisita")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ID_VISITA");
+
+                    b.Property<long>("Plantilla")
+                        .HasColumnType("bigint")
+                        .HasColumnName("PLANTILLA");
+
+                    b.Property<string>("Estado")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ESTADO");
+
+                    b.HasKey("OrdenNumero", "IdVisita", "Plantilla");
+
+                    b.ToTable("Orden_Trabajo", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
                 });
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ParametroGeneral", b =>
@@ -3443,6 +3810,44 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.HasIndex("ModuloId");
 
                     b.ToTable("Permiso", "seg");
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.PlantillaCalendario", b =>
+                {
+                    b.Property<long>("Plantilla")
+                        .HasColumnType("bigint")
+                        .HasColumnName("PLANTILLA");
+
+                    b.Property<string>("IdCalendario")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("ID_CALENDARIO");
+
+                    b.Property<DateOnly?>("FechaCreacion")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_CREACION");
+
+                    b.Property<DateOnly?>("FechaServicio")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_SERVICIO");
+
+                    b.Property<TimeSpan?>("HoraServicio")
+                        .HasColumnType("time")
+                        .HasColumnName("HORA_SERVICIO");
+
+                    b.Property<string>("UsuarioCreacion")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("USUARIO_CREACION");
+
+                    b.HasKey("Plantilla", "IdCalendario");
+
+                    b.ToTable("Plantilla_Calendario", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
                 });
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.PlantillaOrdenTrabajo", b =>
@@ -3954,6 +4359,107 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasDatabaseName("IX_Producto_Nombre");
 
                     b.ToTable("Producto", "dbo");
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ProgramacionVisitaConfirmada", b =>
+                {
+                    b.Property<long>("IdVisita")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ID_VISITA");
+
+                    b.Property<int?>("CantidadTecnicos")
+                        .HasColumnType("int")
+                        .HasColumnName("CANTIDAD_TECNICOS");
+
+                    b.Property<string>("Cliente")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("CLIENTE");
+
+                    b.Property<string>("CodigoVehiculo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO_VEHICULO");
+
+                    b.Property<DateOnly?>("FechaFinal")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_FINAL");
+
+                    b.Property<DateOnly?>("FechaInicio")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_INICIO");
+
+                    b.Property<TimeSpan?>("HoraFinal")
+                        .HasColumnType("time")
+                        .HasColumnName("HORA_FINAL");
+
+                    b.Property<TimeSpan?>("HoraInicio")
+                        .HasColumnType("time")
+                        .HasColumnName("HORA_INICIO");
+
+                    b.Property<string>("IdCalendario")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("ID_CALENDARIO");
+
+                    b.Property<string>("Locacion")
+                        .HasMaxLength(5)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(5)")
+                        .HasColumnName("LOCACION");
+
+                    b.Property<string>("Nota")
+                        .HasMaxLength(250)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(250)")
+                        .HasColumnName("NOTA");
+
+                    b.Property<string>("TipoServicio")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("TIPO_SERVICIO");
+
+                    b.HasKey("IdVisita");
+
+                    b.ToTable("ProgramacionVisitaConfirmadas", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ProgramacionVisitaDetalleConfirmada", b =>
+                {
+                    b.Property<long>("IdVisita")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ID_VISITA");
+
+                    b.Property<int>("Linea")
+                        .HasColumnType("int")
+                        .HasColumnName("LINEA");
+
+                    b.Property<string>("CodigoTecnico")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO_TECNICO");
+
+                    b.Property<string>("Iniciales")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("INICIALES");
+
+                    b.HasKey("IdVisita", "Linea");
+
+                    b.ToTable("ProgramacionVisitaDetalleConfirmada", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
                 });
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.RegistroAuditoria", b =>
@@ -4573,6 +5079,140 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.ToTable("UsuarioPermiso", "seg");
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaClienteErp", b =>
+                {
+                    b.Property<string>("Cliente")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("CLIENTE");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(1)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("ACTIVO");
+
+                    b.Property<string>("NombreCliente")
+                        .HasMaxLength(150)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(150)")
+                        .HasColumnName("NOMBRE_CLIENTE");
+
+                    b.HasKey("Cliente");
+
+                    b.ToTable("vvClientes", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaLocacionErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(5)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(5)")
+                        .HasColumnName("CODIGO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ACTIVO");
+
+                    b.Property<string>("Cliente")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("CLIENTE");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvLocacionesClientes", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaTecnicoErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(5)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(5)")
+                        .HasColumnName("CODIGO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ACTIVO");
+
+                    b.Property<string>("Iniciales")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("INICIALES");
+
+                    b.Property<string>("NombreCompleto")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("NOMBRE_COMPLETO");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvTecnicos", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaTipoServicioErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ACTIVO");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvTipoServicios", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaVehiculoErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ACTIVO");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvVehiculos", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.Rol", null)
@@ -4911,6 +5551,17 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.Navigation("ErpConexion");
 
                     b.Navigation("TipoClienteCatalogo");
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ImportacionGoogleEvento", b =>
+                {
+                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ImportacionGoogleLote", "Lote")
+                        .WithMany()
+                        .HasForeignKey("LoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Lote");
                 });
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ParametroGeneral", b =>

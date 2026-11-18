@@ -46,6 +46,7 @@ public sealed class TecnicoService
         string? correo,
         string? cargo,
         int orden,
+        string? colorCalendario = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(codigo);
@@ -67,6 +68,7 @@ public sealed class TecnicoService
             Correo = correo?.Trim(),
             Cargo = cargo?.Trim(),
             Orden = orden,
+            ColorCalendario = NormalizarColor(colorCalendario),
             OrigenDatoId = (byte)OrigenDatoCatalogoSeed.Manual,
             EsSembrado = false,
             IsActive = true,
@@ -88,6 +90,7 @@ public sealed class TecnicoService
         string? cargo,
         int orden,
         bool esActivo,
+        string? colorCalendario = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nombre);
@@ -102,10 +105,33 @@ public sealed class TecnicoService
         entidad.Cargo = cargo?.Trim();
         entidad.Orden = orden;
         entidad.IsActive = esActivo;
+        entidad.ColorCalendario = NormalizarColor(colorCalendario);
         entidad.UpdatedAt = DateTime.UtcNow;
 
         await _contexto.SaveChangesAsync(cancellationToken);
 
         return entidad;
+    }
+
+    /// <summary>Acepta <c>#RRGGBB</c> (o <c>RRGGBB</c>) y guarda siempre con almohadilla.</summary>
+    private static string? NormalizarColor(string? color)
+    {
+        if (string.IsNullOrWhiteSpace(color))
+        {
+            return null;
+        }
+
+        var texto = color.Trim();
+        if (!texto.StartsWith('#'))
+        {
+            texto = "#" + texto;
+        }
+
+        if (texto.Length != 7 || texto.Skip(1).Any(c => !Uri.IsHexDigit(c)))
+        {
+            throw new InvalidOperationException("El color del calendario debe tener formato #RRGGBB.");
+        }
+
+        return texto.ToUpperInvariant();
     }
 }

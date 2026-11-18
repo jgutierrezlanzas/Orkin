@@ -21,6 +21,17 @@
             <MudItem xs="12" md="2">
                 <MudNumericField @bind-Value="Modelo.Orden" Label="Orden" Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudItem>
+            @* Color del calendario de este técnico en la agenda. Se guarda en el catálogo compartido
+               (D-21); si se deja vacío la agenda le asigna uno determinístico por código. *@
+            <MudItem xs="12" md="2">
+                <MudTextField @bind-Value="Modelo.ColorCalendario" Label="Color calendario" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Placeholder="#1976D2" />
+            </MudItem>
+            <MudItem xs="12" md="1">
+                <input type="color" value="@ColorSeguro" style="width:100%;height:38px;border:1px solid #ccc;border-radius:4px;"
+                       @onchange="@((ChangeEventArgs e) => Modelo.ColorCalendario = e.Value?.ToString())"
+                       aria-label="Elegir color del calendario" />
+            </MudItem>
             @if (EsEdicion)
             {
                 <MudItem xs="12" md="1">
@@ -43,6 +54,8 @@
     public TecnicoModel Modelo { get; set; } = new();
 
     private bool EsEdicion => Modelo.Id != Guid.Empty;
+
+    private string ColorSeguro => Modelo.ColorCalendario is { Length: 7 } c && c.StartsWith('#') ? c : "#1976D2";
 
     private void Aceptar() => Dialogo.Close(DialogResult.Ok(Modelo));
 

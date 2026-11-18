@@ -8,7 +8,8 @@
     { "Codigo": "CATALOGOS", "Nombre": "Catalogos", "Descripcion": "Productos, activos, unidades, precios, tipos de servicio.", "Orden": 4 },
     { "Codigo": "APROBACIONES", "Nombre": "Aprobaciones", "Descripcion": "Bandeja de solicitudes y decision.", "Orden": 5 },
     { "Codigo": "PLANTILLAS", "Nombre": "Plantillas", "Descripcion": "Plantillas de orden de trabajo: cabezera, productos, servicios y equipos.", "Orden": 6 },
-    { "Codigo": "ADMIN", "Nombre": "Administracion", "Descripcion": "Usuarios, roles, permisos, parametros.", "Orden": 7 },
-    { "Codigo": "AUDITORIA", "Nombre": "Auditoria", "Descripcion": "Consulta de la bitacora. Solo lectura.", "Orden": 8 }
+    { "Codigo": "VISITAS", "Nombre": "Visitas", "Descripcion": "Agenda propia de visitas sobre las tablas legacy de programacion.", "Orden": 7 },
+    { "Codigo": "ADMIN", "Nombre": "Administracion", "Descripcion": "Usuarios, roles, permisos, parametros.", "Orden": 8 },
+    { "Codigo": "AUDITORIA", "Nombre": "Auditoria", "Descripcion": "Consulta de la bitacora. Solo lectura.", "Orden": 9 }
   ]
 }

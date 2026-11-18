@@ -66,7 +66,8 @@ public sealed class CatalogoService
             modelo.Telefono,
             modelo.Correo,
             modelo.Cargo,
-            modelo.Orden
+            modelo.Orden,
+            modelo.ColorCalendario
         };
 
         var response = await _http.PostAsJsonAsync("api/catalogos/tecnicos", request);
@@ -82,7 +83,8 @@ public sealed class CatalogoService
             modelo.Correo,
             modelo.Cargo,
             modelo.Orden,
-            modelo.EsActivo
+            modelo.EsActivo,
+            modelo.ColorCalendario
         };
 
         var response = await _http.PutAsJsonAsync($"api/catalogos/tecnicos/{modelo.Id}", request);
