@@ -43,6 +43,61 @@ public sealed class VisitaModel
     public string HoraTexto => HoraInicio is { } h ? h.ToString(@"hh\:mm") : "--:--";
 }
 
+/// <summary>
+/// Contrato del endpoint de detalle (<c>GET api/visitas/{id}</c>). La API devuelve
+/// <c>tecnicos</c> como lista de detalle, mientras que el resumen de la grilla lo devuelve
+/// como entero; por eso se mapea explícitamente a <see cref="VisitaModel"/>.
+/// </summary>
+public sealed class VisitaDetalleModel
+{
+    public long IdVisita { get; set; }
+    public string IdCalendario { get; set; } = string.Empty;
+    public string? Cliente { get; set; }
+    public string? ClienteNombre { get; set; }
+    public string? Locacion { get; set; }
+    public string? TipoServicio { get; set; }
+    public DateOnly? FechaInicio { get; set; }
+    public TimeSpan? HoraInicio { get; set; }
+    public DateOnly? FechaFinal { get; set; }
+    public TimeSpan? HoraFinal { get; set; }
+    public string? CodigoVehiculo { get; set; }
+    public int? CantidadTecnicos { get; set; }
+    public string? Nota { get; set; }
+    public long? Plantilla { get; set; }
+    public string? DescripTrabajo { get; set; }
+    public string? OrdenNumero { get; set; }
+    public List<VisitaTecnicoModel> Tecnicos { get; set; } = [];
+    public List<long> Calendarios { get; set; } = [];
+
+    public VisitaModel AVista() => new()
+    {
+        IdVisita = IdVisita,
+        IdCalendario = IdCalendario,
+        Cliente = Cliente,
+        ClienteNombre = ClienteNombre,
+        Locacion = Locacion,
+        TipoServicio = TipoServicio,
+        FechaInicio = FechaInicio,
+        HoraInicio = HoraInicio,
+        FechaFinal = FechaFinal,
+        HoraFinal = HoraFinal,
+        CodigoVehiculo = CodigoVehiculo,
+        CantidadTecnicos = CantidadTecnicos,
+        Tecnicos = CantidadTecnicos ?? Tecnicos.Count,
+        CodigosTecnico = Tecnicos
+            .Where(t => !string.IsNullOrWhiteSpace(t.CodigoTecnico))
+            .Select(t => t.CodigoTecnico!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList(),
+        Nota = Nota,
+        Plantilla = Plantilla,
+        DescripTrabajo = DescripTrabajo,
+        OrdenNumero = OrdenNumero,
+        TecnicosDetalle = Tecnicos,
+        Calendarios = Calendarios
+    };
+}
+
 public sealed class VisitaGuardarModel
 {
     /// <summary>Clave legacy. Cero en altas; solo se usa para elegir POST/PUT.</summary>

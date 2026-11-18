@@ -53,11 +53,11 @@ public sealed class VisitaService
 
     public async Task<VisitaModel?> ObtenerAsync(long idVisita)
     {
-        var respuesta = await _http.GetFromJsonAsync<ApiResponse<VisitaModel>>($"api/visitas/{idVisita}");
-        return respuesta?.Datos;
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<VisitaDetalleModel>>($"api/visitas/{idVisita}");
+        return respuesta?.Datos?.AVista();
     }
 
-    public Task<ApiResponse<VisitaModel>?> GuardarAsync(VisitaGuardarModel modelo, bool esEdicion)
+    public async Task GuardarAsync(VisitaGuardarModel modelo, bool esEdicion)
     {
         var contenido = JsonContent.Create(new
         {
@@ -75,9 +75,14 @@ public sealed class VisitaService
             Tecnicos = modelo.Tecnicos.Select(t => new { t.CodigoTecnico, t.Iniciales }).ToList()
         });
 
-        return esEdicion
-            ? EnviarAsync<VisitaModel>(_http.PutAsync($"api/visitas/{modelo.IdVisita}", contenido))
-            : EnviarAsync<VisitaModel>(_http.PostAsync("api/visitas", contenido));
+        var respuesta = await (esEdicion
+            ? EnviarAsync<VisitaDetalleModel>(_http.PutAsync($"api/visitas/{modelo.IdVisita}", contenido))
+            : EnviarAsync<VisitaDetalleModel>(_http.PostAsync("api/visitas", contenido)));
+
+        if (respuesta is null || !respuesta.Exito)
+        {
+            throw new InvalidOperationException(respuesta?.Mensaje ?? "No se pudo guardar la visita.");
+        }
     }
 
     public async Task<bool> ReversarAsync(long idVisita)
