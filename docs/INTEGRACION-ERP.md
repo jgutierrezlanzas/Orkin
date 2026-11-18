@@ -652,43 +652,17 @@ flujos muestra el resultado de la última corrida; la pantalla de orígenes mues
 Correr el mismo flujo dos veces seguidas da `111 insertados` y después `111 omitidos`, sin tocar
 una sola fila. Es lo que permite programar la sincronización sin miedo cuando llegue (12.11).
 
-### 9.3 Cómo se prueba, de punta a punta
+### 9.3 Cómo se probaba, de punta a punta (retirado)
 
-Con Docker levantado y la base del cliente ficticio creada:
+Esta guía quedó sin efecto con D-24: se eliminaron `scripts/demo-cliente`, la herramienta
+`Orkin.DemoCliente.CargarDatos`, la pantalla `/catalogos/origenes` y el permiso
+`CATALOGOS.ORIGENES`. Los catálogos se leen en vivo desde `vv*`; no hay flujos que ejecutar ni
+espejos que cargar. Para verificar el contrato actual usa `GET /api/catalogos/opciones-erp`.
 
-```powershell
-# 1. Esquema del ERP ficticio (ARTICULO + UNIDAD + GRUPO + la vista contrato)
-#    OJO con el como: la tuberia de PowerShell (Get-Content ... | docker exec -i sqlcmd)
-#    corrompe los acentos del UTF-8 (convirtio un "Pacífico" en "Pac??fico" en la base).
-#    La redireccion de cmd pasa los bytes tal cual y -f 65001 le dice al sqlcmd que lea UTF-8.
-cmd /c "docker exec -i orkin-db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P OrkinDev_2026 -C -d OrkinClienteDemo -f 65001 < scripts\demo-cliente\01-esquema.sql"
+### 9.4 El permiso `CATALOGOS.ORIGENES` (retirado)
 
-# 2. Clientes del ERP ficticio (16 fichas inventadas: el cotizador Excel no tiene hoja de clientes)
-cmd /c "docker exec -i orkin-db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P OrkinDev_2026 -C -d OrkinClienteDemo -f 65001 < scripts\demo-cliente\02-clientes.sql"
-
-# 3. Datos desde el Excel de ORKIN (111 artículos, 1309 días de TC, 11 servicios)
-dotnet run --project tools\Orkin.DemoCliente.CargarDatos -- "Cotizador Original - Agosto 31 2026.xlsm"
-
-# 4. API arriba (aplica migraciones y siembra al arrancar)
-docker compose up -d --build
-```
-
-Y en `http://localhost:59093/catalogos/origenes`, con `admin@orkin.local`:
-
-1. **Conexión** → servidor `db`, puerto `1433`, base `OrkinClienteDemo`, usuario `sa`.
-2. **Probar** → debe decir "Conexión correcta" y el tiempo que tardó.
-3. **Flujo** → catálogo `PRODUCTOS`, origen `dbo.vw_ProductosOrkin`, mapeo vacío.
-4. **Ejecutar** → `111` nuevos.
-5. **Ejecutar otra vez** → `111` sin cambio.
-6. **Historial** → las dos corridas, con duración y contadores.
-7. **Flujo de clientes** → catálogo `CLIENTES`, origen `dbo.vw_ClientesOrkin`, mapeo vacío →
-   `16` nuevas; la vista ya trae `TipoClienteCodigo` (`EMPRESARIAL`/`RESIDENCIAL`), que es
-   obligatorio porque decide el método de costeo de las cotizaciones de ese cliente.
-
-> El paso 2 tiene que ir contra `OrkinClienteDemo` y no contra la base de la plataforma: si se
-> corre con la cadena de la plataforma, el cargador se está leyendo a sí mismo.
-
-### 9.4 El permiso `CATALOGOS.ORIGENES`
+> D-24 eliminó este permiso junto con la pantalla de orígenes. Se conserva el texto como registro
+> histórico del razonamiento que existió mientras el ETL local estuvo activo.
 
 Abrir una conexión a la base de datos de un cliente **no** es lo mismo que corregir un precio de
 un producto. El primero puede leer catálogos completos de un ERP y cambiar de dónde viene el

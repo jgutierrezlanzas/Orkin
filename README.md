@@ -486,7 +486,7 @@ Requisitos: Docker Desktop, .NET 10 SDK, PowerShell 7.
 |---|---|---|
 | SQL Server 2022 | Docker (`docker-compose.yml`) | `localhost:1433` |
 | API (.NET 10) | Docker (`docker-compose.yml`) | `localhost:5031` |
-| Web (Blazor WASM) | Local con `dotnet run` (debug) | `localhost:59093` (HTTPS `59090`) |
+| Web (Blazor WASM) | Local con `dotnet run` (debug) | `localhost:5201` (HTTPS `5200`) |
 
 La API y la base en Docker simplifican el arranque: un solo `docker compose up` deja
 la infraestructura lista. La web corre local para poder depurarla con hot-reload.
