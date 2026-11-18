@@ -1,6 +1,6 @@
 # ORKIN — Roadmap de migración del legacy `sinco_wos`
 
-> **Estado:** 🟢 Fases 0–3 completadas (sin push) · **Fecha:** 2026-11-17
+> **Estado:** 🟢 Fases 0–9 cerradas (Fase 10 pendiente de instrucción explícita; sin push) · **Fecha:** 2026-11-18
 > **Origen:** `D:\repos\sinco-orkin-lagacy\sinco_wos`
 > **Destino:** plataforma web .NET 10 / Blazor WebAssembly / MudBlazor / EF Core 10, con `SINCOERPORKIN` como BD principal.
 >
@@ -38,14 +38,14 @@ Leyenda de estado: ✅ ya cubierto · 🔶 parcial · 🆕 por construir · ❓ 
 | # | Opción legacy | Formulario legacy | Destino en la plataforma | Estado | Fase |
 |---|---|---|---|---|---|
 | 1 | Login / cambiar servidor | `Frmlogin`, `Frmsettings` | `AuthController` + `/login`, JWT, "Recordarme", `/cambiar-contrasena` | ✅ | 0 |
-| 2 | Menú principal | `Frmprincipal` | `MainLayout.razor` (sidebar MudBlazor por permisos) | 🔶 | 0/10 |
+| 2 | Menú principal | `Frmprincipal` | `MainLayout.razor` (sidebar MudBlazor por permisos; `PRICING` retirado) | ✅ | 0/9 |
 | 3 | Catálogo de artículos | `FrmPlantillaCatalogo` | `/catalogos/productos` + ETL desde `vvArticulos` | ✅ | 0/1 |
 | 4 | Catálogo de dosificación | `FrmPlantillaCatalogo` | `vvDosificacion` se consulta desde `api/catalogos/opciones-erp`; **no se copia** y el editor muestra descripción + código | ✅ | 2 |
 | 5 | Catálogo de frecuencia | `FrmPlantillaCatalogo` | `vvFrecuencia` se consulta desde `api/catalogos/opciones-erp`; **no se copia** | ✅ | 2 |
 | 6 | Catálogo de técnicos | `FrmPlantillaCatalogo` | `/catalogos/tecnicos` + ETL `vvTecnicos` — sí se conserva: lo usa el cotizador | ✅ | 1 |
 | 7 | Catálogo de servicios | `FrmPlantillaCatalogo` | `/catalogos/tipos-servicio` | ✅ | 0 |
 | 8 | Catálogo de vehículos | `FrmPlantillaCatalogo` | `vvVehiculos` se consulta desde `api/catalogos/opciones-erp`; **no se copia** | ✅ | 2 |
-| 9 | Catálogo de usuarios | `FrmPlantillaCatalogo` | `/administracion/usuarios` (seg.Usuario) | 🔶 | 1/9 |
+| 9 | Catálogo de usuarios | `FrmPlantillaCatalogo` | `/administracion/usuarios` (seg.Usuario) | 🔶 | 1/10 |
 | 10 | Parámetros generales | `FormParametroGenerales` | `/administracion/parametros` | ✅ | 0 |
 | 11 | Tipos de plaga / ubicación / método de aplicación (catálogos auxiliares) | Modo selección | `vvTipodePlagas`, `vvTipodeUbicaciones` y `vvMetodosAplicacion` se consultan desde `api/catalogos/opciones-erp`; **no se copian** | ✅ | 2 |
 | 12 | Locaciones de cliente | Modo selección | `vvLocacionesClientes` se consulta filtrando por cliente desde `api/catalogos/opciones-erp`; **no se copia** | ✅ | 2 |
@@ -65,12 +65,12 @@ Leyenda de estado: ✅ ya cubierto · 🔶 parcial · 🆕 por construir · ❓ 
 | 26 | Generar / trasladar documento a Exactus | SPs `SINCO_GENERA_DOCINV_EXACTUS`, `SINCO_TRASLADAR_DOCINV_EXACTUS` | Servicio `IExactusService` envolviendo los SPs con parámetros | ✅ | 6 |
 | 27 | Imprimir orden de trabajo | `FrmReportViewer` + `OrdenesDeTrabajo.rdlc` | Acción `Imprimir` en `/ordenes` → PDF generado en la API desde `SINCO_IMPRIMIR_ORDENE_DE_TRABAJO` | ✅ | 7 |
 | 28 | Reportes de requisas y costos | SPs `SINCO_IMPRIMIR_REQUISAS*`, `SINCO_CONSULTAR_*` | `/reportes` — visor, PDF y CSV desde API sobre los datasets existentes | ✅ | 7 |
-| 29 | Notificaciones de visitas y correos | Consola + Windows Service + SPs `SINCO_NOTIFICAR_*` | `IHostedService` + proveedor de correo | 🆕 | 8 |
+| 29 | Notificaciones de visitas y correos | Consola + Windows Service + SPs `SINCO_NOTIFICAR_*` | `IHostedService` + proveedor SMTP configurable, bandeja y campana | ✅ | 8 |
 | 30 | Integración Google Calendar | `GoogleCalendar.cs` | **Agenda propia con calendarios por técnico y su color + importador** de eventos existentes | ✅ decisión cerrada | 3 |
 | 31 | `PRICING` | Sin handler | **Retirado del menú**; estructura preparada para reactivarlo | ✅ decisión cerrada | 9 |
 | 32 | `REPORTES` (botón del menú) | Sin handler | `/reportes` con catálogo único de 13 SPs y permisos `REPORTES.*` | ✅ | 7 |
 | 33 | `CAMBIAR CONTRASEÑA` (label) | Sin handler | Ya existe en `/cambiar-contrasena` | ✅ | 0 |
-| 34 | Campana de notificaciones | Decorativa | implementar en Fase 8 | 🆕 | 8 |
+| 34 | Campana de notificaciones | Decorativa | Campana en el sidebar con badge y sondeo de bandeja | ✅ | 8 |
 
 ---
 
@@ -84,7 +84,7 @@ Leyenda de estado: ✅ ya cubierto · 🔶 parcial · 🆕 por construir · ❓ 
 | Catálogos a crear/confirmar | Maestros `U_*` vía vistas `vv*` | ETL con homologación + simulación (patrón yaImplementado) |
 | Núcleo operativo legacy (D-22) | `Plantilla_Orden_Trabajo`, `_Detalle`, `_Servicio`, `_Equipos` | **Tablas existentes, mapeadas tal cual** con `ExcludeFromMigrations()`. Clave `PLANTILLA` (`bigint`, sin identity), hijos con `int`, `ACTIVO = SI/NO`, consecutivos `MAX + 1`. No se crean tablas ni se importan datos. |
 | Núcleo operativo nuevo | `Orden_Trabajo*`, `Requisa*`, `ProgramacionVisita*`, `Documento_Inv*` | Modelo EF Core propio sobre las estructuras del ERP, con `Codigo`/`Numero` consecutivo y auditoría |
-| Técnicas/puente | `NotificarProgramacionVisitaTemporal`, `NotificacionesEnviadas`, `logs` | Sustituir por `int.JobEjecucion`, `aud.Notificacion`, `aud.Bitacora` |
+| Técnicas/puente | `NotificarProgramacionVisitaTemporal`, `NotificacionEnviada`, `logs` | ✅ Fase 8: `dbo.NotificacionEnviada` (singular, tabla existente) se extiende con `CuerpoHtml`, `ClaveNegocio`, `ProximoIntentoUtc` y `LeidoUtc`; `int.JobEjecucion` registra cada corrida. No se crea `aud.Notificacion` ni tabla paralela de correos. |
 | Núcleo operativo legacy (D-22) | `Plantilla_Calendario` | **Tabla existente**, mapeada tal cual: la agenda propia la usa para alta, edición y reversa. No se crean tablas de visitas paralelas. |
 
 ### 3.2 Stored procedures (29)
@@ -96,7 +96,7 @@ No se migran "como están". Se clasifican y envuelven:
 | Generación de documentos | `SINCO_GENERA_ORDENE_DE_TRABAJO`, `SINCO_GENERA_ORDENES_DE_TRABAJO`, `SINCO_GENERA_REQUISA`, `SINCO_GENERA_DOCINV_EXACTUS`, `SINCO_TRASLADAR_DOCINV_EXACTUS` | Fases 4–6: envolver en servicios con parámetros; Fase 10: trasladar regla a C# y dejar SP de respaldo |
 | Anulación / renumeración | `SINCO_ANULAR_ORDENES_DE_TRABAJO`, `SINCO_ELIMINAR_NUMERO_DE_ORDEN`, `SINCO_CAMBIAR_NUMERO_DE_ORDEN`, `SINCO_ELIMINAR_REQUISA` | Convertir a servicios con transacción y auditoría (nunca borrado físico sin confirmación) |
 | Reportes | `SINCO_IMPRIMIR_ORDENE_DE_TRABAJO(N)`, `SINCO_IMPRIMIR_REQUISAS*`, `SINCO_IMPRIMIR_ORDENES_DE_TRABAJO` | ✅ Fase 7: `ServicioReportes` los invoca con parámetros y `GeneradorPdfReporte` arma el PDF en la API |
-| Notificaciones | `SINCO_NOTIFICAR_CLIENTES`, `SINCO_NOTIFICAR_PROXIMOS_SERVICIOS`, `SINCO_NOTIFICAR_CORREOS_ENVIADOS`, `SINCO_NOTIFICAR_REQUISAS_ERRADAS`, `SINCO_MOVER_NOTIFICACION_DESERVICIOS` | Fase 8: sustituir por `BackgroundService` + correo real con bitácora |
+| Notificaciones | `SINCO_NOTIFICAR_CLIENTES`, `SINCO_NOTIFICAR_PROXIMOS_SERVICIOS`, `SINCO_NOTIFICAR_CORREOS_ENVIADOS`, `SINCO_NOTIFICAR_REQUISAS_ERRADAS`, `SINCO_MOVER_NOTIFICACION_DESERVICIOS` | ✅ Fase 8: `NotificacionBackgroundService` + proveedor SMTP. Los SPs se invocan solo como fuentes de lectura parametrizada (`ILectorSql`, SQL fijo y `SqlParameter`), previa validación de `OBJECT_DEFINITION` y permiso `EXECUTE`. `SINCO_MOVER_NOTIFICACION_DESERVICIOS` queda fuera: muta el staging. |
 | Consultas de costos/cartera | `SINCO_CONSULTAR_*`, `SINCO_SP_CARTERA_ANTIGUEDAD` | ✅ Fase 7: proyectadas como endpoints de `/reportes` con PDF y CSV (la cartera depende de `FUMIPLAGA.FMP`) |
 | Utilitarios | `SINCO_LIMPIAR_TABLAS_DE_TRABAJO`, `SINCO_ACTUALIZAR_DATOSLOCACIONES` | No migrar; sustituir por mantenimiento web |
 
@@ -140,7 +140,7 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ## 4. Fases de migración
 
-### Fase 0 — Fundación (en curso)
+### Fase 0 — Fundación ✅ completada
 **Objetivo:** dejar cerrada la base sobre la que se montan los demás módulos.
 
 - ✅ API + web contra `SINCOERPORKIN`, health, login JWT, "Recordarme", 401 → login.
@@ -238,7 +238,7 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ---
 
-### Fase 6 — Documentos de inventario y Exactus ✅ Completada
+### Fase 6 — Documentos de inventario y Exactus ✅ Completada (corregida por D-22)
 **Objetivo:** reemplazar `FrmDocumentoInventario` y el flujo de exportación.
 
 **Entregables**
@@ -253,7 +253,7 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ---
 
-### Fase 7 — Reportes e impresión
+### Fase 7 — Reportes e impresión ✅ Completada
 **Objetivo:** activar el botón `REPORTES` hoy inerte y dar salida PDF a OT y requisas.
 
 **Decisión cerrada:** se reutilizan los datasets y los SPs `SINCO_IMPRIMIR_*` actuales, y el **PDF se genera desde la API**; la web solo muestra el visor y ofrece la descarga. No se migra `ReportViewer` al cliente.
@@ -275,27 +275,42 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ---
 
-### Fase 8 — Notificaciones
+### Fase 8 — Notificaciones ✅ Completada (commit `68fa784`)
 **Objetivo:** sustituir consola + Windows Service por procesos confiables.
 
 **Entregables**
-- `IHostedService` con programación, reintentos y auditoría (`int.JobEjecucion`, `aud.Notificacion`).
-- Envío real de correo (proveedor configurable), reemplazando la lógica oculta en SPs.
-- Campana de notificaciones del sidebar con estado de envíos.
-- Permisos: `NOTIFICACIONES.VER`, `.CONFIGURAR`.
+- ✅ `NotificacionBackgroundService` con intervalo, lote, reintentos con backoff acotado y auditoría en `int.JobEjecucion`. El job nace apagado (`Notificaciones__HabilitadoJob=false`).
+- ✅ `IProveedorCorreo` → `ProveedorCorreoSmtp`: `SmtpClient` real configurado por `.env` (`Correo__*`), validado al arrancar. Nace apagado (`Correo__Habilitado=false`) para no enviar correo a destinatarios reales por accidente. La clave nunca se devuelve por API.
+- ✅ Cola y bandeja sobre `dbo.NotificacionEnviada` extendida (sin tablas paralelas): `CuerpoHtml`, `ClaveNegocio` con deduplicación, `ProximoIntentoUtc` y `LeidoUtc`.
+- ✅ SPs `SINCO_NOTIFICAR_*` leídos como fuentes parametrizadas y validadas: se comprueban `OBJECT_DEFINITION` (solo lectura) y `HAS_PERMS_BY_NAME(...,'EXECUTE')` antes de invocarlos. Se usan `CORREOS_ENVIADOS` y `REQUISAS_ERRADAS` (esta última solo con `Notificaciones__CorreoInterno` configurado); `CLIENTES` y `PROXIMOS_SERVICIOS` quedan como contrato validado por ser redundantes o exigir `@CodigoCliente`. No se invocó ningún SP que mutara datos.
+- ✅ Campana en el sidebar con badge y sondeo cada minuto; página `/notificaciones` con bandeja, configuración del SMTP/job y acciones sensibles (`Recoger`, `Procesar cola`, `Reenviar`, `Marcar todas`) con tooltips y confirmaciones.
+- ✅ Permisos sembrados: `NOTIFICACIONES.VER` (Administrador, Supervisor, Vendedor) y `NOTIFICACIONES.CONFIGURAR` (Administrador, Supervisor).
 
-**Dependencias:** Fase 3. **Riesgo:** alto — no migrar `MessageBox` ni credenciales incrustadas.
+**Verificación:** build `0 Errores`; 168/168 pruebas — incluyen backoff, guardián de SPs, validación de opciones y servidor SMTP local en `127.0.0.1` con direcciones `ejemplo.local`; API y web levantadas en Development; `bandeja` y `configuracion` responden `200` sin exponer secretos; gating de campana y ruta comprobado; confirmación de `Procesar cola` cancelada sin ninguna petición de envío.
+
+**Dependencias:** Fase 3. **Riesgo:** alto — resuelto sin migrar `MessageBox` ni credenciales incrustadas: el legacy nunca tuvo correo saliente y no había nada que reutilizar.
 
 ---
 
-### Fase 9 — Pricing (preparado, fuera del menú)
+### Fase 9 — Pricing ✅ Cerrada por decisión (preparado, fuera del menú)
 **Objetivo:** resolver la opción inerte del legacy sin construir un módulo sin regla de negocio.
 
-**Decisión cerrada:** `PRICING` se **retira del menú por ahora**. No se elimina la estructura: los permisos `PRICING.VER`, `.EDITAR`, `.APROBAR` y el espacio en el roadmap quedan listos para reactivar el módulo si el cliente lo pide.
+**Decisión cerrada:** `PRICING` se **retira del menú por ahora**. No se elimina la estructura: el espacio en el roadmap y el contrato de abajo quedan listos para reactivar el módulo si el cliente lo pide.
+> Aclaración de implementación: no se siembran hoy permisos `PRICING.*` sin un módulo que los use (D-21: un solo catálogo, una sola API). Los códigos y su destino quedan documentados; se crean en la siembra cuando el cliente defina la regla de negocio.
 
 **Entregables**
-- Opción `PRICING` ausente en el sidebar.
-- Contrato de datos y permisos documentados; implementación diferida.
+- ✅ Opción `PRICING` ausente en el sidebar (comprobado en el menú de la web; el legacy no tiene handler).
+- ✅ Contrato documentado; implementación diferida.
+
+**Contrato preparado (no implementado)**
+
+| Pieza | Compromiso |
+|---|---|
+| Datos | Sin tabla nueva. Precios y vigencias se leen del catálogo compartido existente: `dbo.PrecioProducto`, `dbo.PrecioActivo`, `dbo.TipoCambio` y `dbo.Producto.PrecioVentaActual` (D-20/D-21). El motor de cálculo sigue usando `CostoActual`; `PrecioVentaActual` es informativo. |
+| API | Una sola API de catálogos; no se crea `/api/pricing`. Si se reactiva, se agrega un endpoint al controlador de catálogos con el mismo `Id` de producto. |
+| Permisos prospectivos | `PRICING.VER`, `PRICING.EDITAR`, `PRICING.APROBAR`, con el separador de `SEG.PERMISOS_SEPARADOR`. No se asignan a roles hoy. |
+| Regla de negocio | Bloqueante: el legacy no tiene handler y no hay regla de aprobación documentada. No se inventa flujo, estado ni tabla; se reactiva solo con una regla explícita del cliente. |
+| UI | Ruta futura `/pricing` dentro de `Cotizaciones`, no un botón suelto. Hoy no existe. |
 
 ---
 
@@ -343,7 +358,9 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ## 7. Próximo paso concreto
 
-Con D-20, D-21 y D-22 cerrados y las fases 0–7 completadas, las acciones `IMPRIMIR` de OT y requisas ya están activas y el catálogo `/reportes` genera PDF y CSV desde la API reutilizando los SPs `SINCO_IMPRIMIR_*` y `SINCO_CONSULTAR_*`. El siguiente trabajo es la **Fase 8 — Notificaciones y correos**.
+Con D-20, D-21 y D-22 cerrados y las fases 0–9 completadas, el siguiente trabajo es la **Fase 10 — Corte, endurecimiento y puesta en producción**. No se inicia sin instrucción explícita: incluye rotación de credenciales, paralelo controlado (lectura en legacy, escritura en web) y apagado de instaladores, consola y Windows Service. El correo y el job de notificaciones siguen apagados por configuración hasta que se decida habilitarlos con credenciales reales.
+
+Para la Fase 10 quedan como comprobaciones locales, sin tocar producción: revisar la cobertura de `aud` en operaciones sensibles, confirmar que no queden passwords incrustados en código versionado y actualizar README/docs con el estado final.
 
 Principios que se mantienen para las fases restantes:
 
