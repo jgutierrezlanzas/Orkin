@@ -1,0 +1,335 @@
+@page "/ordenes"
+@attribute [Authorize("OT.VER")]
+@layout MainLayout
+@inject OrdenService ServicioOrdenes
+@inject CatalogoService Catalogos
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Color="Color.Primary">Órdenes de trabajo</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Operación · tablas legacy de Orden_Trabajo (SINCOERPORKIN)
+            </MudText>
+        </div>
+        @if (_puedeEditar)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="NuevaDesdeVisita">Nueva desde visita</MudButton>
+        }
+    </div>
+
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">En el filtro</MudText>
+                <MudText Typo="Typo.h5" Color="Color.Primary">@_ordenes.Count</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Generadas (GE)</MudText>
+                <MudText Typo="Typo.h5" Color="Color.Info">@_ordenes.Count(o => o.Estado == "GE")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Aprobadas (AP)</MudText>
+                <MudText Typo="Typo.h5" Color="Color.Success">@_ordenes.Count(o => o.Estado == "AP")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Anuladas (AN)</MudText>
+                <MudText Typo="Typo.h5" Color="Color.Error">@_ordenes.Count(o => o.Estado == "AN")</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 mb-4" Elevation="1" Outlined="true">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="_texto" Label="Orden, cliente, descripción o dirección" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudSelect T="string?" @bind-Value="_cliente" Label="Cliente" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" Dense="true" Clearable="true">
+                    @foreach (var cliente in _clientes)
+                    {
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Nombre</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudSelect T="string?" @bind-Value="_estado" Label="Estado" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" Dense="true" Clearable="true">
+                    <MudSelectItem T="string?" Value="@("GE")">Generada (GE)</MudSelectItem>
+                    <MudSelectItem T="string?" Value="@("AP")">Aprobada (AP)</MudSelectItem>
+                    <MudSelectItem T="string?" Value="@("AN")">Anulada (AN)</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="1">
+                <MudDatePicker Date="@DesdeDateTime" DateChanged="@((DateTime? v) => DesdeDateTime = v)"
+                               Label="Desde" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="1">
+                <MudDatePicker Date="@HastaDateTime" DateChanged="@((DateTime? v) => HastaDateTime = v)"
+                               Label="Hasta" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="1" Class="d-flex align-center justify-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
+                           OnClick="Cargar">Buscar</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudTable Items="_ordenes" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
+              RowClassFunc="@((o, i) => o.Estado == "AN" ? "mud-text-secondary" : string.Empty)">
+        <HeaderContent>
+            <MudTh>Orden</MudTh>
+            <MudTh>Cliente</MudTh>
+            <MudTh>Fecha</MudTh>
+            <MudTh>Descripción</MudTh>
+            <MudTh>Estado</MudTh>
+            <MudTh>Productos</MudTh>
+            <MudTh>Servicios</MudTh>
+            <MudTh>Equipos</MudTh>
+            <MudTh>Técnicos</MudTh>
+            <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Orden">
+                <MudText Typo="Typo.body2">@context.OrdenNumero</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Visita @context.IdVisita · Plantilla @context.Plantilla</MudText>
+            </MudTd>
+            <MudTd DataLabel="Cliente">@context.ClienteNombre</MudTd>
+            <MudTd DataLabel="Fecha">@context.FechaOrden?.ToString("dd/MM/yyyy")</MudTd>
+            <MudTd DataLabel="Descripción">@context.DescripTrabajo</MudTd>
+            <MudTd DataLabel="Estado">
+                <MudChip T="string" Size="Size.Small" Color="@ColorEstado(context.Estado)">
+                    @EstadoTexto(context.Estado)
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Productos">@context.Detalles</MudTd>
+            <MudTd DataLabel="Servicios">@context.Servicios</MudTd>
+            <MudTd DataLabel="Equipos">@context.Equipos</MudTd>
+            <MudTd DataLabel="Técnicos">@context.Tecnicos</MudTd>
+            <MudTd>
+                @if (_puedeEditar && context.Estado == "GE")
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Primary"
+                                   OnClick="@(() => Editar(context))" aria-label="Editar" />
+                }
+                @if (_puedeAnular && context.Estado == "GE")
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Block" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => Anular(context))" aria-label="Anular" />
+                }
+                @if (_puedeAprobar && context.Estado == "GE")
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.ReceiptLong" Size="Size.Small" Color="Color.Success"
+                                   OnClick="@(() => GenerarRequisa(context))" aria-label="Generar requisa" />
+                }
+            </MudTd>
+        </RowTemplate>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Filas por página" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<OrdenModel> _ordenes = [];
+    private List<ClienteModel> _clientes = [];
+    private string? _texto;
+    private string? _cliente;
+    private string? _estado;
+    private DateOnly? _desde;
+    private DateOnly? _hasta;
+    private bool _cargando;
+    private bool _puedeEditar;
+    private bool _puedeAnular;
+    private bool _puedeAprobar;
+
+    private DateTime? DesdeDateTime
+    {
+        get => _desde?.ToDateTime(TimeOnly.MinValue);
+        set => _desde = value is null ? null : DateOnly.FromDateTime(value.Value);
+    }
+
+    private DateTime? HastaDateTime
+    {
+        get => _hasta?.ToDateTime(TimeOnly.MinValue);
+        set => _hasta = value is null ? null : DateOnly.FromDateTime(value.Value);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+        _puedeEditar = estado.User.HasClaim("orkin:permiso", "OT.EDITAR");
+        _puedeAnular = estado.User.HasClaim("orkin:permiso", "OT.ANULAR");
+        _puedeAprobar = estado.User.HasClaim("orkin:permiso", "OT.APROBAR");
+
+        _clientes = await Catalogos.ListarClientesAsync();
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        _cargando = true;
+        try
+        {
+            _ordenes = await ServicioOrdenes.ListarAsync(_texto, _cliente, _estado, _desde, _hasta);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudieron cargar las órdenes: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task NuevaDesdeVisita()
+    {
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<NuevaOrdenDialogo>(
+            "Nueva orden desde visita", options: opciones);
+        var resultado = await dialogo.Result;
+
+        if (resultado.Canceled || resultado.Data is not long idVisita)
+        {
+            return;
+        }
+
+        try
+        {
+            var orden = await ServicioOrdenes.CrearDesdeVisitaAsync(idVisita);
+            Snackbar.Add($"Orden {orden.OrdenNumero} generada desde la visita {idVisita}.", Severity.Success);
+            await Cargar();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task Editar(OrdenModel orden)
+    {
+        try
+        {
+            var completa = await ServicioOrdenes.ObtenerAsync(orden.OrdenNumero, orden.IdVisita, orden.Plantilla);
+            if (completa is not null)
+            {
+                await AbrirDialogo(completa);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo abrir la orden: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task AbrirDialogo(OrdenModel modelo)
+    {
+        var parametros = new DialogParameters<OrdenDialogo>
+        {
+            { d => d.Modelo, modelo }
+        };
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true };
+        var dialogo = await DialogService.ShowAsync<OrdenDialogo>(
+            $"Orden {modelo.OrdenNumero} · visita {modelo.IdVisita}", parametros, opciones);
+        var resultado = await dialogo.Result;
+
+        if (resultado.Canceled || resultado.Data is not OrdenModel editada)
+        {
+            return;
+        }
+
+        try
+        {
+            await ServicioOrdenes.GuardarAsync(editada);
+            Snackbar.Add("Orden guardada correctamente.", Severity.Success);
+            await Cargar();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task Anular(OrdenModel orden)
+    {
+        var dialogo = await DialogService.ShowAsync<ConfirmarDialogo>(
+            "Anular orden de trabajo", new DialogParameters<ConfirmarDialogo>
+            {
+                { d => d.Titulo, $"Anular la orden {orden.OrdenNumero}" },
+                { d => d.Mensaje, "Se invoca SINCO_ANULAR_ORDENES_DE_TRABAJO. La orden y su requisa pasan a AN; no se borra ninguna fila." }
+            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not true)
+        {
+            return;
+        }
+
+        try
+        {
+            await ServicioOrdenes.AnularAsync(orden);
+            Snackbar.Add($"Orden {orden.OrdenNumero} anulada.", Severity.Success);
+            await Cargar();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task GenerarRequisa(OrdenModel orden)
+    {
+        var dialogo = await DialogService.ShowAsync<ConfirmarDialogo>(
+            "Generar requisa", new DialogParameters<ConfirmarDialogo>
+            {
+                { d => d.Titulo, $"Generar requisa de la orden {orden.OrdenNumero}" },
+                { d => d.Mensaje, "Se invoca SINCO_GENERA_REQUISA. La orden pasa a AP y deja de ser editable, igual que en el WinForms." }
+            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+
+        var resultado = await dialogo.Result;
+        if (resultado.Canceled || resultado.Data is not true)
+        {
+            return;
+        }
+
+        try
+        {
+            await ServicioOrdenes.GenerarRequisaAsync(orden);
+            Snackbar.Add($"Requisa generada para la orden {orden.OrdenNumero}.", Severity.Success);
+            await Cargar();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private static Color ColorEstado(string? estado) => estado switch
+    {
+        "GE" => Color.Info,
+        "AP" => Color.Success,
+        "AN" => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string EstadoTexto(string? estado) => estado switch
+    {
+        "GE" => "Generada",
+        "AP" => "Aprobada",
+        "AN" => "Anulada",
+        _ => estado ?? "—"
+    };
+}

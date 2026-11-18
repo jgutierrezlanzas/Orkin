@@ -40,6 +40,11 @@
         "VISITAS.REVERSAR",
         "VISITAS.GENERAR_OT",
         "VISITAS.IMPORTAR",
+        "OT.VER",
+        "OT.EDITAR",
+        "OT.ANULAR",
+        "OT.APROBAR",
+        "OT.IMPRIMIR",
         "ADMIN.USUARIOS",
         "ADMIN.ROLES",
         "ADMIN.PARAMETROS",
@@ -81,6 +86,11 @@
         "VISITAS.EDITAR",
         "VISITAS.REVERSAR",
         "VISITAS.GENERAR_OT",
+        "OT.VER",
+        "OT.EDITAR",
+        "OT.ANULAR",
+        "OT.APROBAR",
+        "OT.IMPRIMIR",
         "AUDITORIA.VER"
       ]
     },
@@ -104,7 +114,8 @@
         "CLIENTES.EDITAR",
         "CATALOGOS.VER",
         "PLANTILLAS.VER",
-        "VISITAS.VER"
+        "VISITAS.VER",
+        "OT.VER"
       ]
     }
   ]

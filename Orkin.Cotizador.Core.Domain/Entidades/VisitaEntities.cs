@@ -85,20 +85,3 @@ public class PlantillaCalendario
 
     public string? UsuarioCreacion { get; set; }
 }
-
-/// <summary>
-/// Proyección mínima de <c>dbo.Orden_Trabajo</c> (tabla legacy, D-22). Fase 3 solo necesita saber
-/// si una visita ya tiene orden generada —el legacy prohibe reversarla en ese caso— y leer su
-/// número. La gestión completa de órdenes corresponde a la Fase 4.
-/// </summary>
-public class OrdenTrabajoVisita
-{
-    public string OrdenNumero { get; set; } = null!;
-
-    public long IdVisita { get; set; }
-
-    public long Plantilla { get; set; }
-
-    /// <summary><c>GE</c> (generada), <c>AP</c> (aplicada) o <c>AN</c> (anulada).</summary>
-    public string? Estado { get; set; }
-}

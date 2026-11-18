@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TipoCambioService>();
         services.AddScoped<CotizacionService>();
         services.AddScoped<Plantillas.PlantillaService>();
+        services.AddScoped<Ordenes.OrdenTrabajoService>();
         services.AddScoped<Visitas.IGeneradorOrdenTrabajo, Visitas.GeneradorOrdenTrabajoService>();
         services.AddScoped<Visitas.VisitaService>();
         services.AddScoped<Visitas.ImportadorGoogleService>();

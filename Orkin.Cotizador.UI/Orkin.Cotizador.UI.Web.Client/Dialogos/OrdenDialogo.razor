@@ -1,0 +1,431 @@
+@* Edición de una orden de trabajo sobre las cinco tablas legacy existentes (D-22).
+   Los códigos ERP se eligen con descripción real desde la API única de catálogos (D-20/D-21):
+   se guarda el código, se muestra su nombre. El costo unitario se toma de COSTO_PROM_LOC y se
+   puede ajustar a mano; la unidad sale de UNIDAD_VENTA. *@
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="2">
+                <MudTextField Value="@Modelo.OrdenNumero" Label="Orden" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudTextField Value="@Modelo.IdVisita" Label="Visita" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudTextField Value="@Modelo.Plantilla" Label="Plantilla" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField Value="@Modelo.Estado" Label="Estado" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField Value="@Modelo.ClienteNombre" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+
+            <MudItem xs="12" md="4">
+                <MudSelect T="string?" @bind-Value="Modelo.Cliente" Label="Código de cliente" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" Dense="true" Clearable="true">
+                    @foreach (var cliente in _clientes)
+                    {
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Nombre</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudDatePicker Date="@FechaDateTime" DateChanged="@((DateTime? v) => FechaDateTime = v)"
+                               Label="Fecha de orden" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudTimePicker Time="Modelo.Hora" TimeChanged="@((TimeSpan? v) => Modelo.Hora = v)"
+                               Label="Hora" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                 Items="_opciones.Vehiculos" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                 Value="@(Modelo.Vehiculo ?? string.Empty)"
+                                 ValueChanged="@(v => Modelo.Vehiculo = v)"
+                                 TextoValorActual="@TextoActual(Modelo.Vehiculo, _opciones.Vehiculos)"
+                                 Label="Vehículo" Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" md="5">
+                <MudTextField @bind-Value="Modelo.Direccion" Label="Dirección" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.Contacto" Label="Contacto" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudTextField @bind-Value="Modelo.Telefono" Label="Teléfono" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudSelect T="string?" @bind-Value="Modelo.ServicioRealizado" Label="Servicio realizado"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                    <MudSelectItem T="string?" Value="@("SI")">SI</MudSelectItem>
+                    <MudSelectItem T="string?" Value="@("NO")">NO</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="7">
+                <MudTextField @bind-Value="Modelo.DescripTrabajo" Label="Descripción del trabajo" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="5">
+                <MudTextField @bind-Value="Modelo.Notas" Label="Notas" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="Modelo.Instrucciones" Label="Instrucciones" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Lines="3" />
+            </MudItem>
+        </MudGrid>
+
+        <MudTabs Elevation="0" Outlined="true" Class="mt-4" Rounded="true">
+            <MudTabPanel Text="Productos" Icon="@Icons.Material.Filled.Inventory">
+                <div class="d-flex justify-end pa-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarProducto">Agregar producto</MudButton>
+                </div>
+                @foreach (var linea in Modelo.Productos.OrderBy(d => d.Consecutivo))
+                {
+                    <MudPaper Class="pa-3 mb-3" Elevation="1" Outlined="true">
+                        <div class="d-flex justify-space-between align-center mb-2">
+                            <MudText Typo="Typo.subtitle2">Línea @linea.Consecutivo</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => Modelo.Productos.Remove(linea))" aria-label="Quitar producto" />
+                        </div>
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" md="4">
+                                <SelectorLegible TItem="ProductoModel" TValue="string"
+                                                 Items="_productos" ValorDe="p => p.Codigo" TextoDe="TextoProducto"
+                                                 Value="@(linea.CodigoArticulo ?? string.Empty)"
+                                                 ValueChanged="@(v => AlCambiarProducto(linea, v))"
+                                                 TextoValorActual="@TextoProductoActual(linea.CodigoArticulo, linea.DescripcionArticulo)"
+                                                 Label="Artículo (código ERP)" Clearable="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="4">
+                                <MudTextField @bind-Value="linea.DescripcionArticulo" Label="Descripción del artículo"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudNumericField Value="linea.Cantidad" ValueChanged="@((decimal? v) => { linea.Cantidad = v; Recalcular(linea); })"
+                                                 Label="Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudTextField Value="@(linea.Umedida ?? string.Empty)" Label="Unidad (UNIDAD_VENTA)"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="3">
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Plagas" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.TipoPlaga ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.TipoPlaga = v)"
+                                                 TextoValorActual="@TextoActual(linea.TipoPlaga, _opciones.Plagas)"
+                                                 Label="Tipo de plaga" Clearable="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="3">
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Ubicaciones" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.LugarTratar ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.LugarTratar = v)"
+                                                 TextoValorActual="@TextoActual(linea.LugarTratar, _opciones.Ubicaciones)"
+                                                 Label="Lugar a tratar" Clearable="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudNumericField @bind-Value="linea.Area" Label="Área" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudTextField @bind-Value="linea.Concentracion" Label="Concentración" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Dosificaciones" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.CodigoDosificacion ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.CodigoDosificacion = v)"
+                                                 TextoValorActual="@TextoActual(linea.CodigoDosificacion, _opciones.Dosificaciones)"
+                                                 Label="Dosificación" Clearable="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="3">
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Metodos" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.MetodoAplicacion ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.MetodoAplicacion = v)"
+                                                 TextoValorActual="@TextoActual(linea.MetodoAplicacion, _opciones.Metodos)"
+                                                 Label="Método de aplicación" Clearable="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudNumericField Value="linea.CostoUnitario" ValueChanged="@((decimal? v) => { linea.CostoUnitario = v; Recalcular(linea); })"
+                                                 Label="Costo unit." Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudNumericField @bind-Value="linea.CostoTotal" Label="Costo total"
+                                                 Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+                @if (Modelo.Productos.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin productos.</MudText>
+                }
+            </MudTabPanel>
+
+            <MudTabPanel Text="Servicios" Icon="@Icons.Material.Filled.CleaningServices">
+                <div class="d-flex justify-end pa-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarServicio">Agregar servicio</MudButton>
+                </div>
+                @foreach (var linea in Modelo.ServiciosDetalle.OrderBy(s => s.Consecutivo))
+                {
+                    <MudPaper Class="pa-3 mb-3" Elevation="1" Outlined="true">
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" md="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => Modelo.ServiciosDetalle.Remove(linea))" aria-label="Quitar servicio" />
+                            </MudItem>
+                            <MudItem xs="12" md="6">
+                                <MudSelect T="string" Value="linea.CodigoServicio"
+                                           ValueChanged="@((string v) => linea.CodigoServicio = v)"
+                                           Label="Tipo de servicio" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                                    @foreach (var servicio in _tiposServicio)
+                                    {
+                                        <MudSelectItem T="string" Value="@servicio.Codigo">@servicio.Nombre (@servicio.Codigo)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" md="5">
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Frecuencias" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.CodigoFrecuencia ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.CodigoFrecuencia = v)"
+                                                 TextoValorActual="@TextoActual(linea.CodigoFrecuencia, _opciones.Frecuencias)"
+                                                 Label="Frecuencia" Clearable="true" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+                @if (Modelo.ServiciosDetalle.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin servicios.</MudText>
+                }
+            </MudTabPanel>
+
+            <MudTabPanel Text="Equipos" Icon="@Icons.Material.Filled.Build">
+                <div class="d-flex justify-end pa-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarEquipo">Agregar equipo</MudButton>
+                </div>
+                @foreach (var linea in Modelo.EquiposDetalle.OrderBy(e => e.Consecutivo))
+                {
+                    <MudPaper Class="pa-3 mb-3" Elevation="1" Outlined="true">
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" md="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => Modelo.EquiposDetalle.Remove(linea))" aria-label="Quitar equipo" />
+                            </MudItem>
+                            <MudItem xs="12" md="7">
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Equipos" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                                 Value="@(linea.CodigoEquipo ?? string.Empty)"
+                                                 ValueChanged="@(v => linea.CodigoEquipo = v)"
+                                                 TextoValorActual="@TextoActual(linea.CodigoEquipo, _opciones.Equipos)"
+                                                 Label="Equipo" Clearable="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="4">
+                                <MudSelect T="string?" @bind-Value="linea.Utilizado" Label="Utilizado"
+                                           Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                                    <MudSelectItem T="string?" Value="@("SI")">SI</MudSelectItem>
+                                    <MudSelectItem T="string?" Value="@("NO")">NO</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+                @if (Modelo.EquiposDetalle.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin equipos.</MudText>
+                }
+            </MudTabPanel>
+
+            <MudTabPanel Text="Técnicos" Icon="@Icons.Material.Filled.People">
+                <div class="d-flex justify-end pa-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarTecnico">Agregar técnico</MudButton>
+                </div>
+                @foreach (var linea in Modelo.TecnicosDetalle.OrderBy(t => t.Consecutivo))
+                {
+                    <MudPaper Class="pa-3 mb-3" Elevation="1" Outlined="true">
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" md="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => Modelo.TecnicosDetalle.Remove(linea))" aria-label="Quitar técnico" />
+                            </MudItem>
+                            <MudItem xs="12" md="8">
+                                <MudSelect T="string" Value="linea.CodigoTecnico"
+                                           ValueChanged="@((string v) => AlCambiarTecnico(linea, v))"
+                                           Label="Técnico" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                                    @foreach (var tecnico in _tecnicos)
+                                    {
+                                        <MudSelectItem T="string" Value="@tecnico.Codigo">@tecnico.Nombre (@tecnico.Codigo)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" md="3">
+                                <MudTextField @bind-Value="linea.Iniciales" Label="Iniciales" Variant="Variant.Outlined"
+                                              Margin="Margin.Dense" MaxLength="2" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+                @if (Modelo.TecnicosDetalle.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin técnicos.</MudText>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public OrdenModel Modelo { get; set; } = new();
+
+    [Inject]
+    private CatalogoService Catalogos { get; set; } = null!;
+
+    private List<ClienteModel> _clientes = [];
+    private List<TecnicoModel> _tecnicos = [];
+    private List<ProductoModel> _productos = [];
+    private List<TipoServicioModel> _tiposServicio = [];
+    private OpcionesErpModel _opciones = new();
+
+    private DateTime? FechaDateTime
+    {
+        get => Modelo.FechaOrden?.ToDateTime(TimeOnly.MinValue);
+        set => Modelo.FechaOrden = value is null ? null : DateOnly.FromDateTime(value.Value);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tareas = new Task[]
+        {
+            Cargar(() => Catalogos.ListarClientesAsync(), lista => _clientes = lista),
+            Cargar(() => Catalogos.ListarTecnicosAsync(), lista => _tecnicos = lista),
+            Cargar(() => Catalogos.ListarProductosAsync(), lista => _productos = lista),
+            Cargar(() => Catalogos.ListarTiposServicioAsync(), lista => _tiposServicio = lista),
+            CargarDato(() => Catalogos.ListarOpcionesErpAsync(), opciones => _opciones = opciones)
+        };
+        await Task.WhenAll(tareas);
+    }
+
+    private static async Task Cargar<T>(Func<Task<List<T>>> obtener, Action<List<T>> asignar)
+        => asignar(await obtener());
+
+    private static async Task CargarDato<T>(Func<Task<T>> obtener, Action<T> asignar)
+        => asignar(await obtener());
+
+    private static string TextoOpcion(OpcionErpModel opcion)
+    {
+        var datos = new List<string> { opcion.Codigo };
+        if (!string.IsNullOrWhiteSpace(opcion.Detalle))
+        {
+            datos.Add(opcion.Detalle.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(opcion.UnidadMedida))
+        {
+            datos.Add(opcion.UnidadMedida.Trim());
+        }
+
+        return $"{opcion.Descripcion} ({string.Join(" · ", datos)})";
+    }
+
+    private static string TextoProducto(ProductoModel producto)
+        => $"{producto.Nombre} ({producto.Codigo})";
+
+    private static string TextoProductoActual(string? codigo, string? descripcion)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(descripcion)
+            ? $"Código heredado: {codigo.Trim()}"
+            : $"{descripcion.Trim()} ({codigo.Trim()})";
+    }
+
+    private static string TextoActual(string? codigo, IReadOnlyList<OpcionErpModel> opciones)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return string.Empty;
+        }
+
+        var texto = codigo.Trim();
+        var opcion = opciones.FirstOrDefault(o =>
+            string.Equals(o.Codigo, texto, StringComparison.OrdinalIgnoreCase));
+        return opcion is null ? $"Código heredado: {texto}" : TextoOpcion(opcion);
+    }
+
+    private void AgregarProducto() => Modelo.Productos.Add(new OrdenProductoModel
+    {
+        Consecutivo = Modelo.Productos.Count + 1,
+        Cantidad = 1
+    });
+
+    private void AgregarServicio() => Modelo.ServiciosDetalle.Add(new OrdenServicioModel
+    {
+        Consecutivo = Modelo.ServiciosDetalle.Count + 1
+    });
+
+    private void AgregarEquipo() => Modelo.EquiposDetalle.Add(new OrdenEquipoModel
+    {
+        Consecutivo = Modelo.EquiposDetalle.Count + 1,
+        Utilizado = "SI"
+    });
+
+    private void AgregarTecnico() => Modelo.TecnicosDetalle.Add(new OrdenTecnicoModel
+    {
+        Consecutivo = Modelo.TecnicosDetalle.Count + 1
+    });
+
+    private void AlCambiarProducto(OrdenProductoModel linea, string? codigoArticulo)
+    {
+        linea.CodigoArticulo = codigoArticulo;
+        var producto = _productos.FirstOrDefault(p => p.Codigo == codigoArticulo);
+        if (producto is null)
+        {
+            return;
+        }
+
+        linea.DescripcionArticulo = producto.Nombre;
+        linea.Umedida = producto.UnidadMedidaAbreviatura ?? producto.UnidadMedidaNombre;
+        linea.CostoUnitario = producto.CostoActual;
+        Recalcular(linea);
+    }
+
+    private void AlCambiarTecnico(OrdenTecnicoModel linea, string codigoTecnico)
+    {
+        linea.CodigoTecnico = codigoTecnico;
+        var tecnico = _tecnicos.FirstOrDefault(t => t.Codigo == codigoTecnico);
+        if (tecnico is null || !string.IsNullOrWhiteSpace(linea.Iniciales))
+        {
+            return;
+        }
+
+        var palabras = tecnico.Nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var iniciales = palabras.Length == 0
+            ? codigoTecnico
+            : string.Concat(palabras.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+        linea.Iniciales = iniciales.Length > 2 ? iniciales[..2] : iniciales;
+    }
+
+    private static void Recalcular(OrdenProductoModel linea)
+        => linea.CostoTotal = (linea.Cantidad ?? 0) * (linea.CostoUnitario ?? 0);
+
+    private void Aceptar() => Dialogo.Close(DialogResult.Ok(Modelo));
+
+    private void Cancelar() => Dialogo.Cancel();
+}

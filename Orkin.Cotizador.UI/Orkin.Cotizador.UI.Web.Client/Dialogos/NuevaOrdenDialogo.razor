@@ -1,0 +1,105 @@
+@* Alta de orden desde una visita confirmada. El SP legacy SINCO_GENERA_ORDENE_DE_TRABAJO es el
+   único que crea la orden y su consecutivo: acá solo se elige la visita (D-22). *@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+            Se listan visitas confirmadas sin orden de trabajo. Al elegir una se invoca el SP legacy,
+            que copia la plantilla, los técnicos y asigna el consecutivo de 7 dígitos.
+        </MudText>
+        <MudGrid Spacing="2" Class="mb-3">
+            <MudItem xs="12" md="5">
+                <MudTextField @bind-Value="_texto" Label="Visita, cliente o descripción" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudDatePicker Date="@DesdeDateTime" DateChanged="@((DateTime? v) => DesdeDateTime = v)"
+                               Label="Desde" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudDatePicker Date="@HastaDateTime" DateChanged="@((DateTime? v) => HastaDateTime = v)"
+                               Label="Hasta" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" md="1" Class="d-flex align-center justify-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Search" OnClick="Buscar">Buscar</MudButton>
+            </MudItem>
+        </MudGrid>
+
+        <MudTable Items="_visitas" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Visita</MudTh>
+                <MudTh>Cliente</MudTh>
+                <MudTh>Fecha</MudTh>
+                <MudTh>Trabajo</MudTh>
+                <MudTh>Acción</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Visita">@context.IdVisita</MudTd>
+                <MudTd DataLabel="Cliente">@context.ClienteNombre</MudTd>
+                <MudTd DataLabel="Fecha">@context.FechaInicio?.ToString("dd/MM/yyyy") @context.HoraTexto</MudTd>
+                <MudTd DataLabel="Trabajo">@context.DescripTrabajo</MudTd>
+                <MudTd>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               OnClick="@(() => Elegir(context))">Generar orden</MudButton>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Class="pa-4 mud-text-secondary">
+                    No hay visitas confirmadas sin orden en el rango indicado.
+                </MudText>
+            </NoRecordsContent>
+            <PagerContent>
+                <MudTablePager RowsPerPageString="Filas por página" />
+            </PagerContent>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    [Inject]
+    private VisitaService ServicioVisitas { get; set; } = null!;
+
+    private List<VisitaModel> _visitas = [];
+    private string? _texto;
+    private DateOnly? _desde = DateOnly.FromDateTime(DateTime.Today).AddDays(-30);
+    private DateOnly? _hasta = DateOnly.FromDateTime(DateTime.Today).AddDays(60);
+    private bool _cargando;
+
+    private DateTime? DesdeDateTime
+    {
+        get => _desde?.ToDateTime(TimeOnly.MinValue);
+        set => _desde = value is null ? null : DateOnly.FromDateTime(value.Value);
+    }
+
+    private DateTime? HastaDateTime
+    {
+        get => _hasta?.ToDateTime(TimeOnly.MinValue);
+        set => _hasta = value is null ? null : DateOnly.FromDateTime(value.Value);
+    }
+
+    protected override Task OnInitializedAsync() => Buscar();
+
+    private async Task Buscar()
+    {
+        _cargando = true;
+        try
+        {
+            var visitas = await ServicioVisitas.ListarAsync(_desde, _hasta, _texto);
+            _visitas = visitas.Where(v => string.IsNullOrWhiteSpace(v.OrdenNumero)).ToList();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void Elegir(VisitaModel visita) => Dialogo.Close(DialogResult.Ok(visita.IdVisita));
+
+    private void Cancelar() => Dialogo.Cancel();
+}

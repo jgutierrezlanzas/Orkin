@@ -38,6 +38,12 @@
     { "Codigo": "VISITAS.GENERAR_OT", "Nombre": "Generar orden de trabajo", "Descripcion": "Generar la OT desde una visita confirmada invocando el SP legacy.", "ModuloId": "VISITAS", "Orden": 4 },
     { "Codigo": "VISITAS.IMPORTAR", "Nombre": "Importar eventos", "Descripcion": "Importar eventos de Google Calendar a la agenda propia.", "ModuloId": "VISITAS", "Orden": 5 },
 
+    { "Codigo": "OT.VER", "Nombre": "Ver órdenes de trabajo", "Descripcion": "Ver el listado y el detalle de las órdenes sobre las tablas legacy.", "ModuloId": "OT", "Orden": 1 },
+    { "Codigo": "OT.EDITAR", "Nombre": "Editar órdenes de trabajo", "Descripcion": "Generar desde visita y editar cabecera e hijas solo mientras la orden está en GE.", "ModuloId": "OT", "Orden": 2 },
+    { "Codigo": "OT.ANULAR", "Nombre": "Anular órdenes de trabajo", "Descripcion": "Invoca SINCO_ANULAR_ORDENES_DE_TRABAJO; bloquea las órdenes AP y AN.", "ModuloId": "OT", "Orden": 3 },
+    { "Codigo": "OT.APROBAR", "Nombre": "Generar requisa de orden", "Descripcion": "Invoca SINCO_GENERA_REQUISA, que lleva la orden de GE a AP.", "ModuloId": "OT", "Orden": 4 },
+    { "Codigo": "OT.IMPRIMIR", "Nombre": "Imprimir órdenes de trabajo", "Descripcion": "Generar el PDF de la orden y su requisa desde la API.", "ModuloId": "OT", "Orden": 5 },
+
     { "Codigo": "ADMIN.USUARIOS", "Nombre": "Administrar usuarios", "ModuloId": "ADMIN", "Orden": 1 },
     { "Codigo": "ADMIN.ROLES", "Nombre": "Administrar roles y permisos", "ModuloId": "ADMIN", "Orden": 2 },
     { "Codigo": "ADMIN.PARAMETROS", "Nombre": "Administrar parametros", "Descripcion": "Mover umbrales de aprobacion, dias de vigencia, textos del PDF. Es el permiso mas sensible del sistema.", "ModuloId": "ADMIN", "Orden": 3 },

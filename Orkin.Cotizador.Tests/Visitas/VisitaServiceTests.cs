@@ -144,7 +144,7 @@ public sealed class VisitaServiceTests
         await using var laboratorio = new Laboratorio();
         var servicio = Servicio(laboratorio, new GeneradorFalso());
         var creada = await servicio.CrearAsync(DatosBase());
-        laboratorio.Contexto.OrdenTrabajoVisita.Add(new OrdenTrabajoVisita
+        laboratorio.Contexto.OrdenTrabajo.Add(new OrdenTrabajo
         {
             OrdenNumero = "0000123", IdVisita = creada.Visita.IdVisita, Plantilla = 42, Estado = "GE"
         });

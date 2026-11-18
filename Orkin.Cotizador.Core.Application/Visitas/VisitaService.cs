@@ -31,7 +31,7 @@ public sealed class GeneradorOrdenTrabajoService : IGeneradorOrdenTrabajo
             new object[] { idVisita },
             cancellationToken);
 
-        return await _contexto.OrdenTrabajoVisita
+        return await _contexto.OrdenTrabajo
             .AsNoTracking()
             .Where(o => o.IdVisita == idVisita)
             .OrderByDescending(o => o.OrdenNumero)
@@ -188,7 +188,7 @@ public sealed class VisitaService
                 .ToDictionary(g => g.Key, g => g.First().Plantilla);
         }
 
-        var ordenes = await _contexto.OrdenTrabajoVisita.AsNoTracking()
+        var ordenes = await _contexto.OrdenTrabajo.AsNoTracking()
             .Where(o => o.IdVisita >= minId && o.IdVisita <= maxId)
             .ToListAsync(cancellationToken);
         var ordenesPorVisita = ordenes
@@ -242,7 +242,7 @@ public sealed class VisitaService
         var calendarios = await _contexto.PlantillaCalendario.AsNoTracking()
             .Where(c => c.IdCalendario == visita.IdCalendario)
             .OrderBy(c => c.Plantilla).ToListAsync(cancellationToken);
-        var orden = await _contexto.OrdenTrabajoVisita.AsNoTracking()
+        var orden = await _contexto.OrdenTrabajo.AsNoTracking()
             .Where(o => o.IdVisita == idVisita)
             .Select(o => (string?)o.OrdenNumero).FirstOrDefaultAsync(cancellationToken);
         var nombres = await NombresClienteAsync([visita.Cliente], cancellationToken);
@@ -375,7 +375,7 @@ public sealed class VisitaService
             .FirstOrDefaultAsync(v => v.IdVisita == idVisita, cancellationToken)
             ?? throw new InvalidOperationException($"No existe la visita {idVisita}.");
 
-        if (await _contexto.OrdenTrabajoVisita.AnyAsync(o => o.IdVisita == idVisita, cancellationToken))
+        if (await _contexto.OrdenTrabajo.AnyAsync(o => o.IdVisita == idVisita, cancellationToken))
         {
             throw new InvalidOperationException(
                 "No se puede reversar una visita que ya tiene orden de trabajo generada.");

@@ -205,18 +205,20 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ---
 
-### Fase 4 — Órdenes de trabajo
+### Fase 4 — Órdenes de trabajo ✅ Completada
 **Objetivo:** reemplazar `FrmCrudOrdenes` y `FrmPlantillas` en modo `OrdenTrabajo`.
 
 **Entregables**
-- Listado con filtros por fecha/estado y acciones Nueva, Editar, Anular, Imprimir.
-- Formulario con pestañas Productos, Servicios, Equipos, Técnicos y cabecera completa.
-- Estados `GE` (generada), `AP` (aplicada), `AN` (anulada) como catálogo configurable.
-- Generación de requisa desde la OT.
-- Imprimir → Fase 7.
-- Permisos: `OT.VER`, `.EDITAR`, `.ANULAR`, `.APROBAR`, `.IMPRIMIR`.
+- ✅ **Cero tablas paralelas (D-22).** Cinco entidades sobre `dbo.Orden_Trabajo`, `_Detalle`, `_Servicio`, `_Equipos` y `_Tecnicos`, con `ExcludeFromMigrations()`. La clave expuesta por API y UI es la PK real `(ORDEN_NUMERO, ID_VISITA, PLANTILLA)`: no se inventa un `Id` (D-21). Se respeta la inconsistencia histórica de tipo de `PLANTILLA` (`bigint` en cabecera/servicios/técnicos, `int` en detalle/equipos).
+- ✅ **UI `/ordenes`**: KPI de GE/AP/AN, grilla con filtros por texto, cliente, estado y rango de fechas; conteos de hijas por rango de orden y agrupación en memoria para no disparar el `OPENJSON('$')` que falla en el SQL Server del ERP. Acciones Editar/Anular/Requisa con `ConfirmarDialogo` y mensajes legacy.
+- ✅ **Alta desde visita confirmada** (`NuevaOrdenDialogo`): reutiliza `IGeneradorOrdenTrabajo` y `dbo.SINCO_GENERA_ORDENE_DE_TRABAJO`. No se reimplementó la rama manual del WinForms.
+- ✅ **Edición con pestañas** (`OrdenDialogo`): Productos, Servicios, Equipos y Técnicos con combos legibles desde la API única de catálogos (D-20/D-21); costo real desde `COSTO_PROM_LOC`, unidad desde `UNIDAD_VENTA` y precio unitario ajustable. Solo se permite en `GE`.
+- ✅ **Estados y ciclo de vida**: `GE` generada, `AP` aprobada, `AN` anulada. `AP` solo se alcanza hoy al generar la requisa con `dbo.SINCO_GENERA_REQUISA`; no existe SP de aprobación separado. La anulación usa `dbo.SINCO_ANULAR_ORDENES_DE_TRABAJO` y también anula la requisa. Los mensajes `RAISERROR` del legacy se reenvían tal cual.
+- ✅ **Permisos sembrados** `OT.VER`, `.EDITAR`, `.ANULAR`, `.APROBAR`, `.IMPRIMIR` en `seg.Permiso`, `dbo.ModuloPermisoCatalogo` y los tres roles; link `Órdenes de trabajo` en `Operación`.
+- ✅ Imprimir → Fase 7 (el permiso ya existe para no renegociar roles después).
+- ✅ **Verificado**: build `0 Errores`, tests `108/108` (7 pruebas nuevas de Fase 4 sobre proveedor InMemory, sin mutar datos reales).
 
-**Dependencias:** Fases 2 y 3. **Riesgo:** alto — es el corazón operativo.
+**Dependencias:** Fases 2 y 3. **Riesgo:** alto — resuelto delegando el ciclo de vida a los SPs originales y conservando sus mensajes y consecutivos.
 
 ---
 
@@ -330,13 +332,12 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ## 7. Próximo paso concreto
 
-Con D-20, D-21 y D-22 cerrados y las fases 0–3 completadas, el siguiente trabajo es la **Fase 4 — Órdenes de trabajo**:
+Con D-20, D-21 y D-22 cerrados y las fases 0–4 completadas, el siguiente trabajo es la **Fase 5 — Requisas**:
 
-1. Mantener el principio D-22: operar sobre `Orden_Trabajo*` y `Plantilla_Orden_Trabajo*`, sin tablas paralelas.
-2. Reutilizar el catálogo único compartido (técnicos, clientes, plantillas) y la API única; no duplicar catálogos por módulo (D-21).
-3. Respetar la regla legacy: una plantilla no se elimina físicamente mientras tenga filas en `Plantilla_Calendario`.
-4. Aprovechar el puente ya construido: `IGeneradorOrdenTrabajo` y la reversa de visitas de la Fase 3.
-5. Mantener el sidebar con `Catálogos compartidos` y agregar páginas a `Operación` solo cuando existan; nunca duplicar un catálogo entre grupos.
+1. Mantener el principio D-22: operar sobre las tablas legacy de requisa existentes, sin tablas paralelas.
+2. Reutilizar `dbo.SINCO_GENERA_REQUISA` desde la OT: la Fase 4 ya delegó ahí el paso a `AP`, así que la Fase 5 debe leer ese resultado y no volver a generarlo.
+3. Reutilizar el catálogo único compartido (técnicos, clientes, artículos) y la API única; no duplicar catálogos por módulo (D-21).
+4. Mantener el sidebar con `Catálogos compartidos` y agregar páginas a `Operación` solo cuando existan; nunca duplicar un catálogo entre grupos.
 
 ---
 

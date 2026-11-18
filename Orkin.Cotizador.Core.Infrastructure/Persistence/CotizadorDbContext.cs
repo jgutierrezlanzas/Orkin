@@ -51,8 +51,13 @@ public class CotizadorDbContext : DbContext
     public DbSet<ProgramacionVisitaConfirmada> ProgramacionVisitaConfirmada => Set<ProgramacionVisitaConfirmada>();
     public DbSet<ProgramacionVisitaDetalleConfirmada> ProgramacionVisitaDetalleConfirmada => Set<ProgramacionVisitaDetalleConfirmada>();
     public DbSet<PlantillaCalendario> PlantillaCalendario => Set<PlantillaCalendario>();
-    // Proyección mínima de la OT legacy para saber si una visita ya tiene orden (D-22).
-    public DbSet<OrdenTrabajoVisita> OrdenTrabajoVisita => Set<OrdenTrabajoVisita>();
+    // Órdenes de trabajo: las cinco tablas YA EXISTEN en el ERP (D-22). La cabecera también la
+    // consulta la Fase 3 para impedir la reversa de una visita con orden generada.
+    public DbSet<OrdenTrabajo> OrdenTrabajo => Set<OrdenTrabajo>();
+    public DbSet<OrdenTrabajoDetalle> OrdenTrabajoDetalle => Set<OrdenTrabajoDetalle>();
+    public DbSet<OrdenTrabajoEquipo> OrdenTrabajoEquipo => Set<OrdenTrabajoEquipo>();
+    public DbSet<OrdenTrabajoServicio> OrdenTrabajoServicio => Set<OrdenTrabajoServicio>();
+    public DbSet<OrdenTrabajoTecnico> OrdenTrabajoTecnico => Set<OrdenTrabajoTecnico>();
     // Vistas vv* del ERP, solo lectura: validación de códigos sin copiar catálogos (D-20).
     public DbSet<VistaClienteErp> VistaClienteErp => Set<VistaClienteErp>();
     public DbSet<VistaLocacionErp> VistaLocacionErp => Set<VistaLocacionErp>();
@@ -918,6 +923,7 @@ public class CotizadorDbContext : DbContext
 
         ConfigurarPlantillasLegacy(modelBuilder);
         ConfigurarVisitasLegacy(modelBuilder);
+        ConfigurarOrdenesLegacy(modelBuilder);
     }
 
     /// <summary>
@@ -1030,14 +1036,6 @@ public class CotizadorDbContext : DbContext
         calendario.Property(c => c.FechaCreacion).HasColumnName("FECHA_CREACION").HasColumnType("date");
         calendario.Property(c => c.UsuarioCreacion).HasColumnName("USUARIO_CREACION").HasMaxLength(25).IsUnicode(false);
 
-        var orden = modelBuilder.Entity<OrdenTrabajoVisita>();
-        orden.ToTable("Orden_Trabajo", Esquemas.Negocio, t => t.ExcludeFromMigrations());
-        orden.HasKey(o => new { o.OrdenNumero, o.IdVisita, o.Plantilla });
-        orden.Property(o => o.OrdenNumero).HasColumnName("ORDEN_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
-        orden.Property(o => o.IdVisita).HasColumnName("ID_VISITA").ValueGeneratedNever();
-        orden.Property(o => o.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
-        orden.Property(o => o.Estado).HasColumnName("ESTADO").HasMaxLength(2).IsUnicode(false);
-
         // Vistas vv* del ERP: se consultan, no se crean ni se alteran (D-20/D-22). La clave la
         // declare EF solo para poder rastrear/probar las entidades; el código del ERP es único
         // en cada vista y todas las consultas son de solo lectura.
@@ -1088,6 +1086,81 @@ public class CotizadorDbContext : DbContext
 
         ConfigurarVistaErp<VistaEquipoErp>(modelBuilder, "vvTipodeEquipos", "Codigo", "CODIGO", 4);
         ConfigurarOpcionErp<VistaEquipoErp>(modelBuilder, 50);
+    }
+
+    /// <summary>
+    /// Órdenes de trabajo (Fase 4): D-22. Las cinco tablas ya existen en <c>SINCOERPORKIN</c>
+    /// con las claves compuestas y los tipos del WinForms. <c>ExcludeFromMigrations</c> evita que
+    /// EF intente crearlas o alterarlas: solo las lee y escribe.
+    /// </summary>
+    private static void ConfigurarOrdenesLegacy(ModelBuilder modelBuilder)
+    {
+        var orden = modelBuilder.Entity<OrdenTrabajo>();
+        orden.ToTable("Orden_Trabajo", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        orden.HasKey(o => new { o.OrdenNumero, o.IdVisita, o.Plantilla });
+        orden.Property(o => o.OrdenNumero).HasColumnName("ORDEN_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
+        orden.Property(o => o.IdVisita).HasColumnName("ID_VISITA").ValueGeneratedNever();
+        orden.Property(o => o.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        orden.Property(o => o.Cliente).HasColumnName("CLIENTE").HasMaxLength(20).IsUnicode(false);
+        orden.Property(o => o.FechaOrden).HasColumnName("FECHA_ORDEN").HasColumnType("date");
+        orden.Property(o => o.Hora).HasColumnName("HORA").HasColumnType("time");
+        orden.Property(o => o.Direccion).HasColumnName("DIRECCION").HasMaxLength(100).IsUnicode(false);
+        orden.Property(o => o.Contacto).HasColumnName("CONTACTO").HasMaxLength(35).IsUnicode(false);
+        orden.Property(o => o.Telefono).HasColumnName("TELEFONO").HasMaxLength(10).IsUnicode(false);
+        orden.Property(o => o.Vehiculo).HasColumnName("VEHICULO").HasMaxLength(4).IsUnicode(false);
+        orden.Property(o => o.ServicioRealizado).HasColumnName("SERVICIO_REALIZADO").HasMaxLength(2).IsUnicode(false);
+        orden.Property(o => o.DescripTrabajo).HasColumnName("DESCRIP_TRABAJO").HasMaxLength(100).IsUnicode(false);
+        orden.Property(o => o.Notas).HasColumnName("NOTAS").HasMaxLength(100).IsUnicode(false);
+        orden.Property(o => o.Instrucciones).HasColumnName("INSTRUCCIONES").HasColumnType("text");
+        orden.Property(o => o.Estado).HasColumnName("ESTADO").HasMaxLength(2).IsUnicode(false);
+        orden.Property(o => o.FechaCreacion).HasColumnName("FECHA_CREACION").HasColumnType("date");
+        orden.Property(o => o.UsuarioCreacion).HasColumnName("USUARIO_CREACION").HasMaxLength(25).IsUnicode(false);
+
+        var detalle = modelBuilder.Entity<OrdenTrabajoDetalle>();
+        detalle.ToTable("Orden_Trabajo_Detalle", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        detalle.HasKey(d => new { d.OrdenNumero, d.Plantilla, d.Consecutivo });
+        detalle.Property(d => d.OrdenNumero).HasColumnName("ORDEN_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
+        detalle.Property(d => d.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        detalle.Property(d => d.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
+        detalle.Property(d => d.CodigoArticulo).HasColumnName("CODIGO_ARTICULO").HasMaxLength(10).IsUnicode(false);
+        detalle.Property(d => d.DescripArticulo).HasColumnName("DESCRIP_ARTICULO").HasMaxLength(50).IsUnicode(false);
+        detalle.Property(d => d.TipoPlaga).HasColumnName("TIPO_PLAGA").HasMaxLength(4).IsUnicode(false);
+        detalle.Property(d => d.LugarTratar).HasColumnName("LUGAR_TRATAR").HasMaxLength(100).IsUnicode(false);
+        detalle.Property(d => d.Area).HasColumnName("AREA").HasColumnType("numeric(15,2)");
+        detalle.Property(d => d.Concentracion).HasColumnName("CONCENTRACION").HasMaxLength(20).IsUnicode(false);
+        detalle.Property(d => d.CodigoDosificacion).HasColumnName("CODIGO_DOSIFICACION").HasMaxLength(4).IsUnicode(false);
+        detalle.Property(d => d.MetodoAplicacion).HasColumnName("METODO_APLICACION").HasMaxLength(4).IsUnicode(false);
+        detalle.Property(d => d.Cantidad).HasColumnName("CANTIDAD").HasColumnType("decimal(18,0)");
+        detalle.Property(d => d.Umedida).HasColumnName("UMEDIDA").HasMaxLength(6).IsUnicode(false);
+        detalle.Property(d => d.CostoUnitario).HasColumnName("COSTO_UNITARIO").HasColumnType("decimal(18,6)");
+        detalle.Property(d => d.CostoTotal).HasColumnName("COSTO_TOTAL").HasColumnType("decimal(15,2)");
+
+        var equipo = modelBuilder.Entity<OrdenTrabajoEquipo>();
+        equipo.ToTable("Orden_Trabajo_Equipos", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        equipo.HasKey(e => new { e.OrdenNumero, e.Plantilla, e.Consecutivo });
+        equipo.Property(e => e.OrdenNumero).HasColumnName("ORDEN_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
+        equipo.Property(e => e.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        equipo.Property(e => e.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
+        equipo.Property(e => e.CodigoEquipo).HasColumnName("CODIGO_EQUIPO").HasMaxLength(4).IsUnicode(false);
+        equipo.Property(e => e.Utilizado).HasColumnName("UTILIZADO").HasMaxLength(2).IsUnicode(false);
+
+        var servicio = modelBuilder.Entity<OrdenTrabajoServicio>();
+        servicio.ToTable("Orden_Trabajo_Servicio", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        servicio.HasKey(s => new { s.OrdenNumero, s.Plantilla, s.Consecutivo, s.CodigoServicio, s.CodigoFrecuencia });
+        servicio.Property(s => s.OrdenNumero).HasColumnName("ORDEN_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
+        servicio.Property(s => s.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        servicio.Property(s => s.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
+        servicio.Property(s => s.CodigoServicio).HasColumnName("CODIGO_SERVICIO").HasMaxLength(4).IsUnicode(false).IsRequired().ValueGeneratedNever();
+        servicio.Property(s => s.CodigoFrecuencia).HasColumnName("CODIGO_FRECUENCIA").HasMaxLength(4).IsUnicode(false).IsRequired().ValueGeneratedNever();
+
+        var tecnico = modelBuilder.Entity<OrdenTrabajoTecnico>();
+        tecnico.ToTable("Orden_Trabajo_Tecnicos", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        tecnico.HasKey(t => new { t.OrdenNumero, t.Plantilla, t.Consecutivo, t.CodigoTecnico, t.Iniciales });
+        tecnico.Property(t => t.OrdenNumero).HasColumnName("ORDEN_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
+        tecnico.Property(t => t.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        tecnico.Property(t => t.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
+        tecnico.Property(t => t.CodigoTecnico).HasColumnName("CODIGO_TECNICO").HasMaxLength(4).IsUnicode(false).IsRequired().ValueGeneratedNever();
+        tecnico.Property(t => t.Iniciales).HasColumnName("INICIALES").HasMaxLength(2).IsUnicode(false).IsRequired().ValueGeneratedNever();
     }
 
     private static void ConfigurarOpcionErp<TEntidad>(ModelBuilder modelBuilder, int longitudDescripcion)
