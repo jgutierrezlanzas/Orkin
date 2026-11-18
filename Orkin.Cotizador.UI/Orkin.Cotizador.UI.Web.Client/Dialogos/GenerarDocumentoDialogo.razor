@@ -1,0 +1,29 @@
+@* Generación de documento desde una requisa. El SP legacy valida estado, documento previo y
+   devolución total; acá solo se pide el número y se confirma la acción sensible. *@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+            Se ejecutará <b>SINCO_GENERA_DOCINV_EXACTUS</b> con el número de requisa. El documento
+            toma el consecutivo que le asigna el ERP y la requisa pasa a aprobada.
+        </MudText>
+        <MudTextField @bind-Value="_requisaNumero" Label="Número de requisa" Variant="Variant.Outlined"
+                      Margin="Margin.Dense" AutoFocus="true" Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Numbers" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   Disabled="@string.IsNullOrWhiteSpace(_requisaNumero)" OnClick="Generar">Generar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    private string? _requisaNumero;
+
+    private void Generar() => Dialogo.Close(DialogResult.Ok(_requisaNumero!.Trim()));
+
+    private void Cancelar() => Dialogo.Cancel();
+}

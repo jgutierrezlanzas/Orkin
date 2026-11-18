@@ -1,0 +1,294 @@
+@page "/inventario/documentos"
+@attribute [Authorize("INVENTARIO.VER")]
+@layout MainLayout
+@inject InventarioService ServicioInventario
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Color="Color.Primary">Documentos de inventario</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Operación · Documento_Inv y Documento_Inv_linea (SINCOERPORKIN)
+            </MudText>
+        </div>
+        @if (_puedeEditar)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="GenerarDesdeRequisa">Generar desde requisa</MudButton>
+        }
+    </div>
+
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">En el filtro</MudText>
+                <MudText Typo="Typo.h5" Color="Color.Primary">@_documentos.Count</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Transferidos (SI)</MudText>
+                <MudText Typo="Typo.h5" Color="Color.Success">@_documentos.Count(d => d.Transferido == "SI")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Pendientes (NO)</MudText>
+                <MudText Typo="Typo.h5" Color="Color.Warning">@_documentos.Count(d => d.Transferido == "NO")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Líneas</MudText>
+                <MudText Typo="Typo.h5" Color="Color.Info">@_documentos.Sum(d => d.Lineas)</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 mb-4" Elevation="1" Outlined="true">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="5">
+                <MudTextField @bind-Value="_texto" Label="Documento, requisa, referencia o usuario" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudSelect T="string" @bind-Value="_transferido" Label="Transferido" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" Dense="true">
+                    <MudSelectItem T="string" Value="@("Todos")">Todos</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("SI")">Transferido</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("NO")">No transferido</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudDatePicker Date="@DesdeDateTime" DateChanged="@((DateTime? v) => DesdeDateTime = v)"
+                               Label="Desde" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudDatePicker Date="@HastaDateTime" DateChanged="@((DateTime? v) => HastaDateTime = v)"
+                               Label="Hasta" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="1" Class="d-flex align-center justify-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
+                           OnClick="Cargar">Buscar</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudTable Items="_documentos" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Documento</MudTh>
+            <MudTh>Requisa / orden</MudTh>
+            <MudTh>Referencia</MudTh>
+            <MudTh>Fecha</MudTh>
+            <MudTh>Bodega</MudTh>
+            <MudTh>Transferido</MudTh>
+            <MudTh>Líneas</MudTh>
+            <MudTh>Usuario</MudTh>
+            <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Documento">
+                <MudText Typo="Typo.body2">@context.DocumentoInv</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.PaqueteInventario · @context.Consecutivo</MudText>
+            </MudTd>
+            <MudTd DataLabel="Requisa / orden">
+                <MudText Typo="Typo.body2">@context.RequisaNumero</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Orden @context.OrdenNumero</MudText>
+            </MudTd>
+            <MudTd DataLabel="Referencia">@context.Referencia</MudTd>
+            <MudTd DataLabel="Fecha">@context.FechaDocumento.ToString("dd/MM/yyyy")</MudTd>
+            <MudTd DataLabel="Bodega">@TextoBodega(context.Bodega, context.NombreBodega)</MudTd>
+            <MudTd DataLabel="Transferido">
+                <MudChip T="string" Size="Size.Small" Color="@ColorTransferido(context.Transferido)">
+                    @context.Transferido
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Líneas">@context.Lineas</MudTd>
+            <MudTd DataLabel="Usuario">@context.Usuario</MudTd>
+            <MudTd>
+                <MudTooltip Text="Ver detalle por artículo con descripción real">
+                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Color="Color.Primary"
+                                   OnClick="@(() => VerDetalle(context))" aria-label="Detalle" />
+                </MudTooltip>
+                @if (_puedeTransferir && context.Transferido != "SI")
+                {
+                    <MudTooltip Text="Esta seguro que desea trasladar el documento de inventario a Exactus, esta operación no puede ser reversada">
+                        <MudIconButton Icon="@Icons.Material.Filled.Send" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => Transferir(context))" aria-label="Trasladar a Exactus" />
+                    </MudTooltip>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Typo="Typo.body2" Class="pa-4 mud-text-secondary">No hay documentos para el filtro indicado.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Filas por página" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private const string ConfirmacionTraslado =
+        "Esta seguro que desea trasladar el documento de inventario a Exactus, esta operación no puede ser reversada";
+
+    private List<DocumentoModel> _documentos = [];
+    private string? _texto;
+    private string _transferido = "Todos";
+    private DateOnly? _desde;
+    private DateOnly? _hasta;
+    private bool _cargando;
+    private bool _puedeEditar;
+    private bool _puedeTransferir;
+
+    private DateTime? DesdeDateTime
+    {
+        get => _desde?.ToDateTime(TimeOnly.MinValue);
+        set => _desde = value is null ? null : DateOnly.FromDateTime(value.Value);
+    }
+
+    private DateTime? HastaDateTime
+    {
+        get => _hasta?.ToDateTime(TimeOnly.MinValue);
+        set => _hasta = value is null ? null : DateOnly.FromDateTime(value.Value);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+        _puedeEditar = estado.User.HasClaim("orkin:permiso", "INVENTARIO.EDITAR");
+        _puedeTransferir = estado.User.HasClaim("orkin:permiso", "INVENTARIO.TRANSFERIR");
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        _cargando = true;
+        try
+        {
+            _documentos = await ServicioInventario.ListarAsync(_texto, _transferido, _desde, _hasta);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudieron cargar los documentos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task GenerarDesdeRequisa()
+    {
+        var opciones = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+        var seleccion = await DialogService.ShowAsync<GenerarDocumentoDialogo>(
+            "Generar documento de inventario", options: opciones);
+        var resultado = await seleccion.Result;
+
+        if (resultado.Canceled || resultado.Data is not string requisaNumero)
+        {
+            return;
+        }
+
+        var confirmacion = await DialogService.ShowAsync<ConfirmarDialogo>(
+            "Generar documento", new DialogParameters<ConfirmarDialogo>
+            {
+                { d => d.Titulo, $"Generar documento desde la requisa {requisaNumero}" },
+                { d => d.Mensaje, "Se invoca SINCO_GENERA_DOCINV_EXACTUS. La requisa debe estar en GE; el SP valida si ya tiene documento o si fue devuelta por completo." }
+            }, opciones);
+
+        var aceptado = await confirmacion.Result;
+        if (aceptado.Canceled || aceptado.Data is not true)
+        {
+            return;
+        }
+
+        try
+        {
+            var generado = await ServicioInventario.GenerarDesdeRequisaAsync(requisaNumero);
+            Snackbar.Add(generado.Mensaje, Severity.Success);
+            if (!string.IsNullOrWhiteSpace(generado.ResultadoSp))
+            {
+                Snackbar.Add($"Resultado del SP: {generado.ResultadoSp}", Severity.Info);
+            }
+            await Cargar();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task VerDetalle(DocumentoModel documento)
+    {
+        try
+        {
+            var completo = await ServicioInventario.ObtenerAsync(documento.PaqueteInventario, documento.DocumentoInv);
+            if (completo is null)
+            {
+                Snackbar.Add("El documento ya no existe en el ERP.", Severity.Warning);
+                return;
+            }
+
+            var parametros = new DialogParameters<DocumentoInventarioDialogo>
+            {
+                { d => d.Modelo, completo }
+            };
+            var opciones = new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseButton = true };
+            await DialogService.ShowAsync<DocumentoInventarioDialogo>(
+                $"Documento {completo.DocumentoInv} · requisa {completo.RequisaNumero}", parametros, opciones);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo abrir el documento: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task Transferir(DocumentoModel documento)
+    {
+        var confirmacion = await DialogService.ShowAsync<ConfirmarDialogo>(
+            "Trasladar a Exactus", new DialogParameters<ConfirmarDialogo>
+            {
+                { d => d.Titulo, $"Trasladar el documento {documento.DocumentoInv}" },
+                { d => d.Mensaje, ConfirmacionTraslado }
+            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+
+        var resultado = await confirmacion.Result;
+        if (resultado.Canceled || resultado.Data is not true)
+        {
+            return;
+        }
+
+        try
+        {
+            const string mensajeLegacy =
+                "Documento de inventario trasladado a Exactus satisfactoriamente.";
+            var trasladado = await ServicioInventario.TransferirAsync(documento);
+            Snackbar.Add(string.IsNullOrWhiteSpace(trasladado.Mensaje) ? mensajeLegacy : trasladado.Mensaje, Severity.Success);
+            if (!string.IsNullOrWhiteSpace(trasladado.ResultadoSp))
+            {
+                Snackbar.Add($"Resultado del SP: {trasladado.ResultadoSp}", Severity.Info);
+            }
+            await Cargar();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private static string TextoBodega(string? codigo, string? nombre)
+        => string.IsNullOrWhiteSpace(codigo)
+            ? "—"
+            : string.IsNullOrWhiteSpace(nombre) ? codigo : $"{nombre} ({codigo})";
+
+    private static Color ColorTransferido(string transferido) => transferido switch
+    {
+        "SI" => Color.Success,
+        "NO" => Color.Warning,
+        _ => Color.Default
+    };
+}

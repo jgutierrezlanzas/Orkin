@@ -11,7 +11,8 @@
     { "Codigo": "VISITAS", "Nombre": "Visitas", "Descripcion": "Agenda propia de visitas sobre las tablas legacy de programacion.", "Orden": 7 },
     { "Codigo": "OT", "Nombre": "Ordenes de trabajo", "Descripcion": "Ordenes de trabajo legacy: cabecera, productos, servicios, equipos, tecnicos y requisa.", "Orden": 8 },
     { "Codigo": "REQUISAS", "Nombre": "Requisas", "Descripcion": "Requisas generadas desde orden de trabajo: cabecera, lineas, tecnicos y anulacion.", "Orden": 9 },
-    { "Codigo": "ADMIN", "Nombre": "Administracion", "Descripcion": "Usuarios, roles, permisos, parametros.", "Orden": 10 },
-    { "Codigo": "AUDITORIA", "Nombre": "Auditoria", "Descripcion": "Consulta de la bitacora. Solo lectura.", "Orden": 11 }
+    { "Codigo": "INVENTARIO", "Nombre": "Documentos de inventario", "Descripcion": "Documentos de inventario legacy y envio a Exactus: listado, detalle, generacion y traslado.", "Orden": 10 },
+    { "Codigo": "ADMIN", "Nombre": "Administracion", "Descripcion": "Usuarios, roles, permisos, parametros.", "Orden": 11 },
+    { "Codigo": "AUDITORIA", "Nombre": "Auditoria", "Descripcion": "Consulta de la bitacora. Solo lectura.", "Orden": 12 }
   ]
 }

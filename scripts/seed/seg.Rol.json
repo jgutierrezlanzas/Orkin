@@ -49,6 +49,9 @@
         "REQUISAS.EDITAR",
         "REQUISAS.ANULAR",
         "REQUISAS.IMPRIMIR",
+        "INVENTARIO.VER",
+        "INVENTARIO.EDITAR",
+        "INVENTARIO.TRANSFERIR",
         "ADMIN.USUARIOS",
         "ADMIN.ROLES",
         "ADMIN.PARAMETROS",
@@ -99,6 +102,9 @@
         "REQUISAS.EDITAR",
         "REQUISAS.ANULAR",
         "REQUISAS.IMPRIMIR",
+        "INVENTARIO.VER",
+        "INVENTARIO.EDITAR",
+        "INVENTARIO.TRANSFERIR",
         "AUDITORIA.VER"
       ]
     },
@@ -124,7 +130,8 @@
         "PLANTILLAS.VER",
         "VISITAS.VER",
         "OT.VER",
-        "REQUISAS.VER"
+        "REQUISAS.VER",
+        "INVENTARIO.VER"
       ]
     }
   ]

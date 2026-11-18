@@ -61,6 +61,29 @@ public class VistaBodegaErp
     public string? Activo { get; set; }
 }
 
+/// <summary>
+/// <c>vvArticulos</c>: origen de la descripción real de los artículos de un documento de
+/// inventario. El detalle legacy hace <c>INNER JOIN vvArticulos ON ARTICULO = CODIGO_ARTICULO</c>;
+/// acá se consulta la misma vista, sin copiar el catálogo (D-20).
+/// </summary>
+public class VistaArticuloErp
+{
+    public string CodigoArticulo { get; set; } = null!;
+    public string? Clasificacion { get; set; }
+    public string? Descripcion { get; set; }
+    public string? DescripArticulo { get; set; }
+    public string? UnidadAlmacen { get; set; }
+    public string? UnidadEmpaque { get; set; }
+    public string? UnidadVenta { get; set; }
+    public decimal? CostoUnitario { get; set; }
+    public string? Tipo { get; set; }
+    public string? ArticuloCuenta { get; set; }
+    public string? CCOSTO { get; set; }
+    public string? CuentaCosto { get; set; }
+    public string? Amortizable { get; set; }
+    public string? Activo { get; set; }
+}
+
 /// <summary>Contrato mínimo de las vistas que solo aportan código, descripción y activo.</summary>
 public interface IOpcionErpView
 {

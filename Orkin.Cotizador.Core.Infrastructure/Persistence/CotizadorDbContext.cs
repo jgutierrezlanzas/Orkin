@@ -63,6 +63,10 @@ public class CotizadorDbContext : DbContext
     public DbSet<Requisa> Requisa => Set<Requisa>();
     public DbSet<RequisaDetalle> RequisaDetalle => Set<RequisaDetalle>();
     public DbSet<RequisaTecnico> RequisaTecnico => Set<RequisaTecnico>();
+    // Documentos de inventario (Fase 6): las dos tablas YA EXISTEN en el ERP (D-22). Se mapean
+    // con ExcludeFromMigrations en la configuración: EF las lee, nunca las crea ni altera.
+    public DbSet<DocumentoInventario> DocumentoInventario => Set<DocumentoInventario>();
+    public DbSet<DocumentoInventarioLinea> DocumentoInventarioLinea => Set<DocumentoInventarioLinea>();
     // Vistas vv* del ERP, solo lectura: validación de códigos sin copiar catálogos (D-20).
     public DbSet<VistaClienteErp> VistaClienteErp => Set<VistaClienteErp>();
     public DbSet<VistaLocacionErp> VistaLocacionErp => Set<VistaLocacionErp>();
@@ -76,6 +80,7 @@ public class CotizadorDbContext : DbContext
     public DbSet<VistaFrecuenciaErp> VistaFrecuenciaErp => Set<VistaFrecuenciaErp>();
     public DbSet<VistaEquipoErp> VistaEquipoErp => Set<VistaEquipoErp>();
     public DbSet<VistaBodegaErp> VistaBodegaErp => Set<VistaBodegaErp>();
+    public DbSet<VistaArticuloErp> VistaArticuloErp => Set<VistaArticuloErp>();
     public DbSet<ParametroGeneral> ParametroGeneral => Set<ParametroGeneral>();
     public DbSet<Consecutivo> Consecutivo => Set<Consecutivo>();
     public DbSet<NotificacionEnviada> NotificacionEnviada => Set<NotificacionEnviada>();
@@ -931,8 +936,10 @@ public class CotizadorDbContext : DbContext
         ConfigurarVisitasLegacy(modelBuilder);
         ConfigurarOrdenesLegacy(modelBuilder);
 
-        // Requisas (Fase 5): tablas legacy existentes, sin tablas paralelas (D-22).
+        // Requisas (Fase 5) y documentos de inventario (Fase 6): tablas legacy existentes, sin
+        // tablas paralelas (D-22).
         ConfigurarRequisasLegacy(modelBuilder);
+        ConfigurarDocumentosInventarioLegacy(modelBuilder);
     }
 
     /// <summary>
@@ -1106,6 +1113,23 @@ public class CotizadorDbContext : DbContext
         modelBuilder.Entity<VistaBodegaErp>().Property(v => v.ConsecutivoTraslados).HasColumnName("CONSEC_TRASLADOS").HasMaxLength(10).IsUnicode(false);
         modelBuilder.Entity<VistaBodegaErp>().Property(v => v.BodegaPrincipal).HasColumnName("BODEGA_PRINCIPAL").HasMaxLength(2).IsUnicode(false);
         modelBuilder.Entity<VistaBodegaErp>().Property(v => v.Activo).HasColumnName("U_ACTIVO").HasMaxLength(2).IsUnicode(false);
+
+        // vvArticulos da la descripción real de cada línea del documento de inventario (D-20).
+        ConfigurarVistaErp<VistaArticuloErp>(modelBuilder, "vvArticulos", "CodigoArticulo", "CODIGO_ARTICULO", 20);
+        var articulo = modelBuilder.Entity<VistaArticuloErp>();
+        articulo.Property(v => v.Clasificacion).HasColumnName("CLASIFICACION").HasMaxLength(12).IsUnicode(false);
+        articulo.Property(v => v.Descripcion).HasColumnName("DESCRIPCION").HasMaxLength(40).IsUnicode(false);
+        articulo.Property(v => v.DescripArticulo).HasColumnName("DESCRIP_ARTICULO").HasMaxLength(254).IsUnicode(false);
+        articulo.Property(v => v.UnidadAlmacen).HasColumnName("UNIDAD_ALMACEN").HasMaxLength(6).IsUnicode(false);
+        articulo.Property(v => v.UnidadEmpaque).HasColumnName("UNIDAD_EMPAQUE").HasMaxLength(6).IsUnicode(false);
+        articulo.Property(v => v.UnidadVenta).HasColumnName("UNIDAD_VENTA").HasMaxLength(6).IsUnicode(false);
+        articulo.Property(v => v.CostoUnitario).HasColumnName("COSTO_UNITARIO").HasColumnType("decimal(18,6)");
+        articulo.Property(v => v.Tipo).HasColumnName("TIPO").HasMaxLength(1).IsUnicode(false);
+        articulo.Property(v => v.ArticuloCuenta).HasColumnName("ARTICULO_CUENTA").HasMaxLength(4).IsUnicode(false);
+        articulo.Property(v => v.CCOSTO).HasColumnName("CCOSTO").HasMaxLength(25).IsUnicode(false);
+        articulo.Property(v => v.CuentaCosto).HasColumnName("CUENTA_COSTO").HasMaxLength(25).IsUnicode(false);
+        articulo.Property(v => v.Amortizable).HasColumnName("AMORTIZABLE").HasMaxLength(2).IsUnicode(false);
+        articulo.Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(1).IsUnicode(false);
     }
 
     /// <summary>
@@ -1230,6 +1254,63 @@ public class CotizadorDbContext : DbContext
         tecnico.Property(t => t.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
         tecnico.Property(t => t.CodigoTecnico).HasColumnName("CODIGO_TECNICO").HasMaxLength(4).IsUnicode(false).IsRequired().ValueGeneratedNever();
         tecnico.Property(t => t.Iniciales).HasColumnName("INICIALES").HasMaxLength(2).IsUnicode(false).IsRequired().ValueGeneratedNever();
+    }
+
+    /// <summary>
+    /// Documentos de inventario (Fase 6): D-22. Las dos tablas ya existen en <c>SINCOERPORKIN</c>
+    /// con las claves del WinForms. <c>ExcludeFromMigrations</c> evita que EF intente crearlas o
+    /// alterarlas: solo se leen. Las líneas las inserta <c>SINCO_GENERA_DOCINV_EXACTUS</c>, nunca
+    /// este contexto (D-21: un solo origen para cada entidad).
+    /// </summary>
+    private static void ConfigurarDocumentosInventarioLegacy(ModelBuilder modelBuilder)
+    {
+        var cabecera = modelBuilder.Entity<DocumentoInventario>();
+        cabecera.ToTable("Documento_Inv", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        cabecera.HasKey(d => new { d.PaqueteInventario, d.DocumentoInv });
+        cabecera.Property(d => d.PaqueteInventario).HasColumnName("PAQUETE_INVENTARIO").HasMaxLength(4).IsUnicode(false).ValueGeneratedNever();
+        cabecera.Property(d => d.DocumentoInv).HasColumnName("DOCUMENTO_INV").HasMaxLength(50).IsUnicode(false).ValueGeneratedNever();
+        cabecera.Property(d => d.Consecutivo).HasColumnName("CONSECUTIVO").HasMaxLength(10).IsUnicode(false);
+        cabecera.Property(d => d.OrdenNumero).HasColumnName("ORDEN_NUMERO").HasMaxLength(10).IsUnicode(false);
+        cabecera.Property(d => d.RequisaNumero).HasColumnName("REQUISA_NUMERO").HasMaxLength(10).IsUnicode(false).IsRequired();
+        cabecera.Property(d => d.Referencia).HasColumnName("REFERENCIA").HasMaxLength(250).IsUnicode(false).IsRequired();
+        cabecera.Property(d => d.FechaHorCreacion).HasColumnName("FECHA_HOR_CREACION").HasColumnType("datetime");
+        cabecera.Property(d => d.FechaDocumento).HasColumnName("FECHA_DOCUMENTO").HasColumnType("datetime");
+        cabecera.Property(d => d.Seleccionado).HasColumnName("SELECCIONADO").HasMaxLength(1).IsUnicode(false).IsRequired();
+        cabecera.Property(d => d.Usuario).HasColumnName("USUARIO").HasMaxLength(25).IsUnicode(false).IsRequired();
+        cabecera.Property(d => d.MensajeSistema).HasColumnName("MENSAJE_SISTEMA").HasColumnType("text");
+        cabecera.Property(d => d.UsuarioApro).HasColumnName("USUARIO_APRO").HasMaxLength(25).IsUnicode(false);
+        cabecera.Property(d => d.FechaHoraAprob).HasColumnName("FECHA_HORA_APROB").HasColumnType("datetime");
+        cabecera.Property(d => d.Aprobado).HasColumnName("APROBADO").HasMaxLength(1).IsUnicode(false);
+        cabecera.Property(d => d.Transferido).HasColumnName("TRANSFERIDO").HasMaxLength(2).IsUnicode(false).IsRequired();
+
+        var linea = modelBuilder.Entity<DocumentoInventarioLinea>();
+        linea.ToTable("Documento_Inv_linea", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        linea.HasKey(l => new { l.PaqueteInventario, l.DocumentoInv, l.LineaDocInv });
+        linea.Property(l => l.PaqueteInventario).HasColumnName("PAQUETE_INVENTARIO").HasMaxLength(4).IsUnicode(false).ValueGeneratedNever();
+        linea.Property(l => l.DocumentoInv).HasColumnName("DOCUMENTO_INV").HasMaxLength(50).IsUnicode(false).ValueGeneratedNever();
+        linea.Property(l => l.LineaDocInv).HasColumnName("LINEA_DOC_INV").ValueGeneratedNever();
+        linea.Property(l => l.AjusteConfig).HasColumnName("AJUSTE_CONFIG").HasMaxLength(4).IsUnicode(false).IsRequired();
+        linea.Property(l => l.Nit).HasColumnName("NIT").HasMaxLength(20).IsUnicode(false);
+        linea.Property(l => l.Articulo).HasColumnName("ARTICULO").HasMaxLength(20).IsUnicode(false).IsRequired();
+        linea.Property(l => l.Bodega).HasColumnName("BODEGA").HasMaxLength(4).IsUnicode(false);
+        linea.Property(l => l.Localizacion).HasColumnName("LOCALIZACION").HasMaxLength(8).IsUnicode(false);
+        linea.Property(l => l.Lote).HasColumnName("LOTE").HasMaxLength(15).IsUnicode(false);
+        linea.Property(l => l.Tipo).HasColumnName("TIPO").HasMaxLength(1).IsUnicode(false).IsRequired();
+        linea.Property(l => l.Subtipo).HasColumnName("SUBTIPO").HasMaxLength(1).IsUnicode(false).IsRequired();
+        linea.Property(l => l.Subsubtipo).HasColumnName("SUBSUBTIPO").HasMaxLength(1).IsUnicode(false).IsRequired();
+        linea.Property(l => l.Cantidad).HasColumnName("CANTIDAD").HasColumnType("decimal(28,8)");
+        linea.Property(l => l.CostoUnitario).HasColumnName("COSTO_UNITARIO").HasColumnType("decimal(18,6)");
+        linea.Property(l => l.CostoTotalLocal).HasColumnName("COSTO_TOTAL_LOCAL").HasColumnType("decimal(28,8)");
+        linea.Property(l => l.CostoTotalDolar).HasColumnName("COSTO_TOTAL_DOLAR").HasColumnType("decimal(28,8)");
+        linea.Property(l => l.PrecioTotalLocal).HasColumnName("PRECIO_TOTAL_LOCAL").HasColumnType("decimal(28,8)");
+        linea.Property(l => l.PrecioTotalDolar).HasColumnName("PRECIO_TOTAL_DOLAR").HasColumnType("decimal(28,8)");
+        linea.Property(l => l.BodegaDestino).HasColumnName("BODEGA_DESTINO").HasMaxLength(4).IsUnicode(false);
+        linea.Property(l => l.LocalizacionDest).HasColumnName("LOCALIZACION_DEST").HasMaxLength(8).IsUnicode(false);
+        linea.Property(l => l.UnidadDistribucion).HasColumnName("UNIDAD_DISTRIBUCIO").HasMaxLength(6).IsUnicode(false);
+        linea.Property(l => l.CentroCosto).HasColumnName("CENTRO_COSTO").HasMaxLength(25).IsUnicode(false);
+        linea.Property(l => l.CuentaContable).HasColumnName("CUENTA_CONTABLE").HasMaxLength(25).IsUnicode(false);
+        linea.Property(l => l.NoteExistsFlag).HasColumnName("NoteExistsFlag");
+        linea.Property(l => l.RecordDate).HasColumnName("RecordDate").HasColumnType("datetime");
     }
 
     private static void ConfigurarOpcionErp<TEntidad>(ModelBuilder modelBuilder, int longitudDescripcion)

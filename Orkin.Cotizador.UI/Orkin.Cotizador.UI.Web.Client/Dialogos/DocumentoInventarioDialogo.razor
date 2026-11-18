@@ -1,0 +1,95 @@
+@* Detalle del documento legacy. Los códigos ERP se muestran siempre con la descripción real de
+   vvArticulos y vvBodegas (D-20/D-21); el costo unitario se calcula como en el WinForms:
+   COSTO_TOTAL_LOCAL / CANTIDAD. *@
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="2">
+                <MudTextField Value="@Modelo.PaqueteInventario" Label="Paquete" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField Value="@Modelo.DocumentoInv" Label="Documento" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudTextField Value="@Modelo.RequisaNumero" Label="Requisa" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudTextField Value="@(Modelo.OrdenNumero ?? string.Empty)" Label="Orden" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField Value="@Modelo.FechaDocumento.ToString("dd/MM/yyyy")" Label="Fecha documento" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField Value="@Modelo.Referencia" Label="Referencia" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" Lines="2" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField Value="@Modelo.Transferido" Label="Transferido a Exactus" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField Value="@BodegaDescripcion()" Label="Bodega (vvBodegas)" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField Value="@(Modelo.MensajeSistema ?? string.Empty)" Label="Mensaje del sistema" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle1" Class="mt-5 mb-2">Detalle del documento</MudText>
+        <MudTable Items="@Modelo.LineasDetalle" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm" Elevation="0" Outlined="true">
+            <HeaderContent>
+                <MudTh>Lín.</MudTh>
+                <MudTh>Artículo</MudTh>
+                <MudTh>Bodega</MudTh>
+                <MudTh>Bodega destino</MudTh>
+                <MudTh Style="text-align:right">Cantidad</MudTh>
+                <MudTh Style="text-align:right">Costo unitario</MudTh>
+                <MudTh Style="text-align:right">Costo total local</MudTh>
+                <MudTh>Centro de costo / cuenta</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Lín.">@context.Linea</MudTd>
+                <MudTd DataLabel="Artículo">
+                    <MudText Typo="Typo.body2">@context.DescripcionArticulo</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Articulo · @context.Unidad</MudText>
+                </MudTd>
+                <MudTd DataLabel="Bodega">@TextoBodega(context.Bodega, context.NombreBodega)</MudTd>
+                <MudTd DataLabel="Bodega destino">@TextoBodega(context.BodegaDestino, context.NombreBodegaDestino)</MudTd>
+                <MudTd DataLabel="Cantidad" Style="text-align:right">@context.Cantidad.ToString("N2")</MudTd>
+                <MudTd DataLabel="Costo unitario" Style="text-align:right">@context.CostoUnitario.ToString("N6")</MudTd>
+                <MudTd DataLabel="Costo total local" Style="text-align:right">@context.CostoTotalLocal.ToString("N2")</MudTd>
+                <MudTd DataLabel="Centro de costo / cuenta">
+                    <MudText Typo="Typo.body2">@context.CentroCosto</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.CuentaContable</MudText>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Class="pa-4 mud-text-secondary">El documento no tiene líneas.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+
+        <MudText Typo="Typo.caption" Class="mud-text-secondary mt-3">
+            Nota heredada: el SP de traslado coloca el COSTO_UNITARIO de origen en la columna
+            COSTO_TOTAL_LOCAL de Exactus; se conserva el comportamiento del ERP.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Cerrar">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public DocumentoModel Modelo { get; set; } = new();
+
+    private static string TextoBodega(string? codigo, string? nombre)
+        => string.IsNullOrWhiteSpace(codigo)
+            ? "—"
+            : string.IsNullOrWhiteSpace(nombre) ? codigo : $"{nombre} ({codigo})";
+
+    private string BodegaDescripcion()
+        => TextoBodega(Modelo.Bodega, Modelo.NombreBodega);
+
+    private void Cerrar() => Dialogo.Close();
+}

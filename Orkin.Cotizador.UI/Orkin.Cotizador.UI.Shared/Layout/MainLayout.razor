@@ -71,7 +71,8 @@
                    página existe. Ningún catálogo se repite en este grupo: los catálogos viven
                    en "Catálogos compartidos" (D-21). *@
                 @if (TienePermiso("PLANTILLAS.VER") || TienePermiso("VISITAS.VER") ||
-                     TienePermiso("OT.VER") || TienePermiso("REQUISAS.VER"))
+                     TienePermiso("OT.VER") || TienePermiso("REQUISAS.VER") ||
+                     TienePermiso("INVENTARIO.VER"))
                 {
                     <MudNavGroup Title="Operación" Icon="@Icons.Material.Filled.Build" Expanded="true">
                         @if (TienePermiso("PLANTILLAS.VER"))
@@ -89,6 +90,10 @@
                         @if (TienePermiso("REQUISAS.VER"))
                         {
                             <MudNavLink Href="/requisas" Icon="@Icons.Material.Filled.Inventory">Requisas</MudNavLink>
+                        }
+                        @if (TienePermiso("INVENTARIO.VER"))
+                        {
+                            <MudNavLink Href="/inventario/documentos" Icon="@Icons.Material.Filled.LocalShipping">Documentos de inventario</MudNavLink>
                         }
                     </MudNavGroup>
                 }

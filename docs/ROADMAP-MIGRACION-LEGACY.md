@@ -61,8 +61,8 @@ Leyenda de estado: ✅ ya cubierto · 🔶 parcial · 🆕 por construir · ❓ 
 | 22 | Generar requisa desde OT | `SINCO_GENERA_REQUISA` | Acción en detalle de OT | 🆕 | 4/5 |
 | 23 | Requisas generadas (listado + ABM + anular) | `FrmPlantillas`, `FrmCrudRequisas` | `/requisas` + `/requisas/nueva|editar|detalle` | 🆕 | 5 |
 | 24 | Detalle requisa: entregado / utilizado / devuelto / SobFal | `FormDetalleRequisa` | Componente de línea con cálculo de SobFal | 🆕 | 5 |
-| 25 | Documentos de inventario + detalle | `FrmDocumentoInventario` | `/inventario/documentos` | 🆕 | 6 |
-| 26 | Generar / trasladar documento a Exactus | SPs `SINCO_GENERA_DOCINV_EXACTUS`, `SINCO_TRASLADAR_DOCINV_EXACTUS` | Servicio `IExactusService` envolviendo los SPs con parámetros | 🆕 decisión cerrada | 6 |
+| 25 | Documentos de inventario + detalle | `FrmDocumentoInventario` | `/inventario/documentos` | ✅ | 6 |
+| 26 | Generar / trasladar documento a Exactus | SPs `SINCO_GENERA_DOCINV_EXACTUS`, `SINCO_TRASLADAR_DOCINV_EXACTUS` | Servicio `IExactusService` envolviendo los SPs con parámetros | ✅ | 6 |
 | 27 | Imprimir orden de trabajo | `FrmReportViewer` + `OrdenesDeTrabajo.rdlc` | `/ordenes/{id}/imprimir` — PDF generado en la API desde los SPs | 🆕 decisión cerrada | 7 |
 | 28 | Reportes de requisas y costos | SPs `SINCO_IMPRIMIR_REQUISAS*`, `SINCO_CONSULTAR_*` | `/reportes` — PDF desde API + datasets existentes | 🆕 decisión cerrada | 7 |
 | 29 | Notificaciones de visitas y correos | Consola + Windows Service + SPs `SINCO_NOTIFICAR_*` | `IHostedService` + proveedor de correo | 🆕 | 8 |
@@ -238,16 +238,18 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ---
 
-### Fase 6 — Documentos de inventario y Exactus
+### Fase 6 — Documentos de inventario y Exactus ✅ Completada
 **Objetivo:** reemplazar `FrmDocumentoInventario` y el flujo de exportación.
 
 **Entregables**
-- Listado de documentos con filtro transferido `SI/NO`.
-- Detalle por artículo y mensajes del proceso.
-- Servicio `IExactusService` que envuelve los SPs de generación y traslado con parámetros y registro de resultado.
-- Permisos: `INVENTARIO.VER`, `.EDITAR`, `.TRANSFERIR`.
+- ✅ **Cero tablas paralelas (D-22).** Dos entidades sobre `dbo.Documento_Inv` y `dbo.Documento_Inv_linea` con `ExcludeFromMigrations()`; claves legacy `(PAQUETE_INVENTARIO, DOCUMENTO_INV)` y `(PAQUETE_INVENTARIO, DOCUMENTO_INV, LINEA_DOC_INV)` (D-21). Las líneas las produce el SP, nunca el contexto. Descripciones de artículos desde `dbo.vvArticulos` y de bodegas desde `dbo.vvBodegas`, sin copiar catálogos (D-20).
+- ✅ **UI `/inventario/documentos`**: KPIs del filtro (en el filtro / SI / NO / líneas), grilla con documento, requisa u orden, referencia, fecha, bodega con descripción, estado de traslado, líneas y usuario; filtros por texto, transferido `Todos/SI/NO` y rango de fechas. Conteos y nombres por rango y agrupación en memoria, sin `OPENJSON('$')`.
+- ✅ **Detalle por artículo** (`DocumentoInventarioDialogo`): descripción real, unidad, bodega y bodega destino con nombre, cantidades y costos. `COSTO_UNITARIO` se calcula como `COSTO_TOTAL_LOCAL / CANTIDAD`, igual que el WinForms; se documenta el quirk heredado del SP de traslado (unitario de origen copiado en `COSTO_TOTAL_LOCAL` de Exactus).
+- ✅ **`IExactusService`**: envuelve `dbo.SINCO_GENERA_DOCINV_EXACTUS(@Requisa_Numero)` y `dbo.SINCO_TRASLADAR_DOCINV_EXACTUS(@Documento_Inventario)` con parámetros, sin concatenación SQL; captura el `SELECT ... AS RESULTADO` que el WinForms descartaba, registra usuario/clave/resultado con `ILogger` y reenvía los mensajes `RAISERROR` y de éxito exactos (incluida la confirmación textual del traslado irreversible).
+- ✅ **Permisos sembrados** `INVENTARIO.VER`, `.EDITAR`, `.TRANSFERIR` en `seg.Permiso`, `dbo.ModuloPermisoCatalogo` y los tres roles; link `Documentos de inventario` en `Operación`.
+- ✅ **Verificado**: build `0 Errores`; tests `122/122` (7 pruebas nuevas de Fase 6 sobre proveedor InMemory con `ExactusFalso`; los SPs no se ejecutaron). API real: filtro `transferido=NO` y detalle de `CN-0025666` (requisa `0026433`) contra `SINCOERPORKIN`, sin mutar documentos. UI real: menú, KPIs, grilla, filtro `Todos/SI/NO`, detalle, tooltips y consola sin errores.
 
-**Dependencias:** Fase 5. **Riesgo:** alto — dependencia externa Exactus, pero con la interfaz ya definida: se envuelven los SPs actuales con parámetros y se registra el resultado de cada llamada.
+**Dependencias:** Fase 5. **Riesgo:** alto — resuelto envolviendo los SPs actuales con parámetros, registrando su resultado y conservando sus mensajes; no se reimplementó ninguna regla de Exactus.
 
 ---
 
@@ -334,7 +336,7 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ## 7. Próximo paso concreto
 
-Con D-20, D-21 y D-22 cerrados y las fases 0–5 completadas, el siguiente trabajo es la **Fase 6 — Documentos de inventario y Exactus**, con la **Fase 7 — Reportes e impresión** como cierre de las acciones pendientes (`IMPRIMIR` ya sembrado y deshabilitado en OT y requisas).
+Con D-20, D-21 y D-22 cerrados y las fases 0–6 completadas, el siguiente trabajo es la **Fase 7 — Reportes e impresión**, que cierra las acciones pendientes (`IMPRIMIR` ya sembrado y deshabilitado en OT y requisas) reutilizando los SPs `SINCO_IMPRIMIR_*` y generando el PDF desde la API.
 
 Principios que se mantienen para las fases restantes:
 

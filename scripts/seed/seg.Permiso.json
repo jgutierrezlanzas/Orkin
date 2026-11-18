@@ -49,6 +49,10 @@
     { "Codigo": "REQUISAS.ANULAR", "Nombre": "Anular requisas", "Descripcion": "Invoca SINCO_ANULAR_ORDENES_DE_TRABAJO desde la orden relacionada.", "ModuloId": "REQUISAS", "Orden": 3 },
     { "Codigo": "REQUISAS.IMPRIMIR", "Nombre": "Imprimir requisas", "Descripcion": "Generar el PDF de la requisa desde la API. La impresion se implementa en la Fase 7.", "ModuloId": "REQUISAS", "Orden": 4 },
 
+    { "Codigo": "INVENTARIO.VER", "Nombre": "Ver documentos de inventario", "Descripcion": "Ver el listado y el detalle por articulo de Documento_Inv sobre las tablas legacy.", "ModuloId": "INVENTARIO", "Orden": 1 },
+    { "Codigo": "INVENTARIO.EDITAR", "Nombre": "Generar documentos de inventario", "Descripcion": "Invoca SINCO_GENERA_DOCINV_EXACTUS desde una requisa en GE.", "ModuloId": "INVENTARIO", "Orden": 2 },
+    { "Codigo": "INVENTARIO.TRANSFERIR", "Nombre": "Trasladar a Exactus", "Descripcion": "Invoca SINCO_TRASLADAR_DOCINV_EXACTUS. Operacion no reversible.", "ModuloId": "INVENTARIO", "Orden": 3 },
+
     { "Codigo": "ADMIN.USUARIOS", "Nombre": "Administrar usuarios", "ModuloId": "ADMIN", "Orden": 1 },
     { "Codigo": "ADMIN.ROLES", "Nombre": "Administrar roles y permisos", "ModuloId": "ADMIN", "Orden": 2 },
     { "Codigo": "ADMIN.PARAMETROS", "Nombre": "Administrar parametros", "Descripcion": "Mover umbrales de aprobacion, dias de vigencia, textos del PDF. Es el permiso mas sensible del sistema.", "ModuloId": "ADMIN", "Orden": 3 },
