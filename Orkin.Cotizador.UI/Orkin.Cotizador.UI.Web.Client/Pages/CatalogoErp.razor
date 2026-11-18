@@ -1,0 +1,165 @@
+@page "/catalogos/clientes"
+@page "/catalogos/articulos"
+@page "/catalogos/unidades-medida"
+@page "/catalogos/categorias-producto"
+@page "/catalogos/tipos-servicio"
+@page "/catalogos/tecnicos"
+@page "/catalogos/activos-amortizables"
+@page "/catalogos/dosificacion"
+@page "/catalogos/frecuencia"
+@page "/catalogos/vehiculos"
+@page "/catalogos/plagas"
+@page "/catalogos/ubicaciones"
+@page "/catalogos/metodos"
+@page "/catalogos/equipos"
+@page "/catalogos/bodegas"
+@page "/catalogos/locaciones"
+@attribute [Authorize("CATALOGOS.VER")]
+@layout MainLayout
+@inject CatalogoService CatalogoService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4 gap-4">
+        <MudText Typo="Typo.h4" Color="Color.Primary">@_titulo</MudText>
+        <MudTextField T="string" Value="_filtro" ValueChanged="CambiarFiltro"
+                      Placeholder="Filtrar por código o descripción" Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search" Immediate="true"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-0" Style="max-width: 320px;" />
+    </div>
+
+    @if (_cargando)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+    }
+    else if (_catalogoDesconocido)
+    {
+        <MudAlert Severity="Severity.Warning">El catálogo solicitado no está disponible.</MudAlert>
+    }
+    else
+    {
+        <MudTable Items="_filtradas" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Código</MudTh>
+                <MudTh>Descripción</MudTh>
+                @if (_tieneDetalle) { <MudTh>Detalle</MudTh> }
+                @if (_tieneUnidad) { <MudTh>Unidad</MudTh> }
+                @if (_tieneClasificacion) { <MudTh>Clasificación</MudTh> }
+                @if (_tieneCosto) { <MudTh>Costo</MudTh> }
+                <MudTh Style="text-align: right;">Acción</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Código"><MudChip T="string" Size="Size.Small" Variant="Variant.Text">@context.Codigo</MudChip></MudTd>
+                <MudTd DataLabel="Descripción">@context.Descripcion</MudTd>
+                @if (_tieneDetalle) { <MudTd DataLabel="Detalle">@(context.Detalle ?? "-")</MudTd> }
+                @if (_tieneUnidad) { <MudTd DataLabel="Unidad">@(context.UnidadMedida ?? "-")</MudTd> }
+                @if (_tieneClasificacion) { <MudTd DataLabel="Clasificación">@(context.Clasificacion ?? "-")</MudTd> }
+                @if (_tieneCosto) { <MudTd DataLabel="Costo">@(context.Costo?.ToString("N2") ?? "-")</MudTd> }
+                <MudTd Style="text-align: right;">
+                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                   Title="Copiar código ERP" OnClick="@(() => Copiar(context.Codigo))" />
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager RowsPerPageString="Filas por página" />
+            </PagerContent>
+        </MudTable>
+    }
+</MudContainer>
+
+@code {
+    private sealed record Definicion(
+        string Titulo,
+        Func<OpcionesErpModel, List<OpcionErpModel>> Filas);
+
+    private static readonly Dictionary<string, Definicion> Catalogos = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["clientes"] = new("Clientes", o => o.Clientes),
+        ["articulos"] = new("Artículos", o => o.Articulos),
+        ["unidades-medida"] = new("Unidades de medida", o => o.Unidades),
+        ["categorias-producto"] = new("Categorías de producto", o => o.Clasificaciones),
+        ["tipos-servicio"] = new("Tipos de servicio", o => o.TiposServicio),
+        ["tecnicos"] = new("Técnicos", o => o.Tecnicos),
+        ["activos-amortizables"] = new("Activos amortizables", o => o.ActivosAmortizables),
+        ["dosificacion"] = new("Dosificación", o => o.Dosificaciones),
+        ["frecuencia"] = new("Frecuencia", o => o.Frecuencias),
+        ["vehiculos"] = new("Vehículos", o => o.Vehiculos),
+        ["plagas"] = new("Tipos de plaga", o => o.Plagas),
+        ["ubicaciones"] = new("Lugares a tratar", o => o.Ubicaciones),
+        ["metodos"] = new("Métodos de aplicación", o => o.Metodos),
+        ["equipos"] = new("Tipos de equipo", o => o.Equipos),
+        ["bodegas"] = new("Bodegas", o => o.Bodegas),
+        ["locaciones"] = new("Locaciones", o => o.Locaciones)
+    };
+
+    private List<OpcionErpModel> _filas = [];
+    private List<OpcionErpModel> _filtradas = [];
+    private string _filtro = string.Empty;
+    private string _titulo = string.Empty;
+    private bool _cargando = true;
+    private bool _catalogoDesconocido;
+    private bool _tieneDetalle;
+    private bool _tieneUnidad;
+    private bool _tieneClasificacion;
+    private bool _tieneCosto;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var relativa = Navigation.ToBaseRelativePath(Navigation.Uri);
+            var slug = relativa.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? string.Empty;
+
+            if (!Catalogos.TryGetValue(slug, out var definicion))
+            {
+                _catalogoDesconocido = true;
+                return;
+            }
+
+            _titulo = definicion.Titulo;
+            var opciones = await CatalogoService.ListarOpcionesErpAsync();
+            _filas = definicion.Filas(opciones);
+            _filtradas = _filas;
+
+            _tieneDetalle = _filas.Any(f => !string.IsNullOrWhiteSpace(f.Detalle));
+            _tieneUnidad = _filas.Any(f => !string.IsNullOrWhiteSpace(f.UnidadMedida));
+            _tieneClasificacion = _filas.Any(f => !string.IsNullOrWhiteSpace(f.Clasificacion));
+            _tieneCosto = _filas.Any(f => f.Costo.HasValue);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void CambiarFiltro(string? valor)
+    {
+        _filtro = valor ?? string.Empty;
+        var texto = _filtro.Trim();
+
+        _filtradas = string.IsNullOrWhiteSpace(texto)
+            ? _filas
+            : _filas.Where(f =>
+                f.Codigo.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                f.Descripcion.Contains(texto, StringComparison.OrdinalIgnoreCase) ||
+                (f.Detalle?.Contains(texto, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (f.UnidadMedida?.Contains(texto, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (f.Clasificacion?.Contains(texto, StringComparison.OrdinalIgnoreCase) ?? false))
+              .ToList();
+    }
+
+    private async Task Copiar(string codigo)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", codigo);
+            Snackbar.Add($"Código {codigo} copiado", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add($"Código ERP: {codigo}", Severity.Info);
+        }
+    }
+}

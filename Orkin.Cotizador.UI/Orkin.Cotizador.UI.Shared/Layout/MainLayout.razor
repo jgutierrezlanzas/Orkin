@@ -55,10 +55,26 @@
                 }
                 @if (TienePermiso("CATALOGOS.VER"))
                 {
-                    @* Los catálogos del ERP se consultan en vivo: no hay copias locales que
-                       administrar ni flujos de carga que configurar desde esta pantalla. *@
+                    @* Catálogos del ERP en vivo (D-24): mismas opciones del submenú legacy
+                       (FrmprincipalCatalogos) más las que consume el cotizador. Se presentan
+                       como grillas de solo lectura; no hay tablas espejo ni carga local. *@
                     <MudNavGroup Title="Catálogos" Icon="@Icons.Material.Filled.List" Expanded="true">
-                        <MudText Typo="Typo.caption" Class="px-4 mud-text-secondary">Catálogos del ERP en vivo · sin copias locales · Fuente: Softland / SINCOERPORKIN</MudText>
+                        <MudNavLink Href="/catalogos/clientes" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
+                        <MudNavLink Href="/catalogos/articulos" Icon="@Icons.Material.Filled.Inventory">Artículos</MudNavLink>
+                        <MudNavLink Href="/catalogos/unidades-medida" Icon="@Icons.Material.Filled.Numbers">Unidades de medida</MudNavLink>
+                        <MudNavLink Href="/catalogos/categorias-producto" Icon="@Icons.Material.Filled.TableRows">Categorías de producto</MudNavLink>
+                        <MudNavLink Href="/catalogos/tipos-servicio" Icon="@Icons.Material.Filled.CleaningServices">Tipos de servicio</MudNavLink>
+                        <MudNavLink Href="/catalogos/tecnicos" Icon="@Icons.Material.Filled.Person">Técnicos</MudNavLink>
+                        <MudNavLink Href="/catalogos/activos-amortizables" Icon="@Icons.Material.Filled.Build">Activos amortizables</MudNavLink>
+                        <MudNavLink Href="/catalogos/dosificacion" Icon="@Icons.Material.Filled.Notes">Dosificación</MudNavLink>
+                        <MudNavLink Href="/catalogos/frecuencia" Icon="@Icons.Material.Filled.Schedule">Frecuencia</MudNavLink>
+                        <MudNavLink Href="/catalogos/vehiculos" Icon="@Icons.Material.Filled.DirectionsCar">Vehículos</MudNavLink>
+                        <MudNavLink Href="/catalogos/plagas" Icon="@Icons.Material.Filled.Block">Tipos de plaga</MudNavLink>
+                        <MudNavLink Href="/catalogos/ubicaciones" Icon="@Icons.Material.Filled.Place">Lugares a tratar</MudNavLink>
+                        <MudNavLink Href="/catalogos/metodos" Icon="@Icons.Material.Filled.Tune">Métodos de aplicación</MudNavLink>
+                        <MudNavLink Href="/catalogos/equipos" Icon="@Icons.Material.Filled.Workspaces">Tipos de equipo</MudNavLink>
+                        <MudNavLink Href="/catalogos/bodegas" Icon="@Icons.Material.Filled.Archive">Bodegas</MudNavLink>
+                        <MudNavLink Href="/catalogos/locaciones" Icon="@Icons.Material.Filled.List">Locaciones</MudNavLink>
                         <MudNavLink Href="/catalogos/tipos-cambio" Icon="@Icons.Material.Filled.CurrencyExchange">Tipos de cambio</MudNavLink>
                     </MudNavGroup>
                 }
