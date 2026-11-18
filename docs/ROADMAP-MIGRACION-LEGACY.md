@@ -1,6 +1,6 @@
 # ORKIN — Roadmap de migración del legacy `sinco_wos`
 
-> **Estado:** 🟢 Fases 0–9 cerradas (Fase 10 pendiente de instrucción explícita; D-23 y D-24 pendientes de decisión; sin push) · **Fecha:** 2026-11-18
+> **Estado:** 🟢 Fases 0–9 cerradas (Fase 10 pendiente de instrucción explícita; D-23 pendiente de decisión; D-24 decidida, refactor a códigos ERP pendiente de implementación; sin push) · **Fecha:** 2026-11-18
 > **Origen:** `D:\repos\sinco-orkin-lagacy\sinco_wos`
 > **Destino:** plataforma web .NET 10 / Blazor WebAssembly / MudBlazor / EF Core 10, con `SINCOERPORKIN` como BD principal.
 >
@@ -448,7 +448,9 @@ Conclusión: la degradación sería **parcial y silenciosa**, no un apagón visi
 - La UI de "Orígenes de datos" está expuesta a Administrador/Gestor aunque no haya flujos nuevos que configurar.
 - La carga Excel comparte `ProcesoCargaService` con el ETL; eliminar el motor rompería `/api/carga/excel/PRODUCTOS`.
 
-### 8.6 Decisión propuesta
+### 8.6 Decisión propuesta (supersedida por §8.7 y §8.8)
+
+> Esta recomendación quedó superada: el usuario autorizó migrar el cotizador a códigos ERP y retirar los espejos. Se conserva como registro del análisis inicial.
 
 **Conservar el núcleo y los 8 loaders; no eliminar tablas ni FKs de procedencia en Fase 10.** El ETL hoy no es una integración externa: es el mecanismo de refresco de los maestros con `Id` propio del cotizador y el mismo orquestador que usa la carga Excel. Sí sobra, en cambio, la narrativa de "motor ETL completo con mapeo declarativo"; las tablas de homologación y validación del diseño original no existen en código.
 
@@ -479,7 +481,7 @@ Mientras no haya respuesta, queda documentado y **no se cambia código**. El men
 
 **Costo real:** SQL Server no permite FK hacia una vista, así que se pierde la integridad referencial declarativa de `Cotizacion` y hay que validar en aplicación, igual que ya hace `PlantillaService` con `vv*`. Además hay que decidir el destino de las filas `EXCEL`/`SISTEMA` que no existen en el ERP y mantener aparte el único flujo con origen externo real: `TipoCambio` desde `FUMIPLAGA`.
 
-**Recomendación revisada (pendiente de autorización):**
+**Recomendación revisada (autorizada por el usuario el 2026-11-18; ver §8.8):**
 
 1. No crear más flujos espejo desde `vv*`; congelar los existentes.
 2. Refactorizar `Cotizacion` para guardar códigos ERP y validarlos contra las vistas, sin columnas nuevas en tablas legacy.
@@ -487,11 +489,32 @@ Mientras no haya respuesta, queda documentado y **no se cambia código**. El men
 4. Retirar los loaders y tablas espejo, y dejar únicamente un lector estrecho para `TipoCambio` (o consulta directa parametrizada a `FUMIPLAGA`).
 5. Ejecutarlo **antes del corte**, nunca después; no se inicia en Fase 10 sin instrucción explícita.
 
+### 8.8 Decisiones del usuario sobre los objetos no-ERP (2026-11-18)
+
+Principio rector confirmado: **el ERP es la fuente de verdad**. Todo vuelve a él —inventario, facturación y contabilidad—, así que el dato debe nacer bien ahí. No se homologa el desorden heredado del Excel.
+
+| Grupo | Decisión | Consecuencia |
+|---|---|---|
+| **12 unidades locales** | El ERP prevalece. Aquí no se hace nada: se presentan solo las 7 unidades del ERP. Si falta una, se crea **en el ERP**, no en la plataforma. | Se descartan `ML`, `GR`, `LB`, `BLD`, `LT`, `GAL`, `LTS`, `M2`, `KM`, `HH`, `ROLLO`, `YARDA`. No se crean unidades locales ni se mapean alias. |
+| **10 categorías locales** | Por ahora se mantiene `CLASIFICACION` tal cual la trae el ERP. Opcionalmente se agregará una vista nueva sobre `FUMIPLAGA.FMP.CLASIFICACION` para exponer `DESCRIPCION`, `AGRUPACION`, `USA_NUMEROS_SERIE`, `PLANTILLA_SERIE`, `APORTE_CODIGO`, `TIPO_CODIGO_BARRAS` y `UNIDAD_MEDIDA`. Después se ve si el cliente quiere cambiarla. | Se descartan las 10 categorías sembradas. El cotizador usa el código ERP (`01`–`99`) y su descripción. |
+| **11 tipos de servicio locales** | Igual que las unidades: se presentan solo los `S000`–`S042` del ERP. Si el cliente quiere otros, se crean en el ERP o se decide después. | Se descartan `SAN`, `GEN`, `TER`, `CUC`, `MOS`, `ROD`, `GAR`, `MUR`, `ZOM`, `HOR`, `FOS`. No se mapean a códigos ERP "parecidos". |
+
+Constatación previa: los 33 códigos tienen **0 usos** en productos, activos, márgenes, plantillas, órdenes, notificaciones, visitas, cotizaciones y detalles; `Cotizacion`, `CotizacionAprobacion`, `DetalleInsumo`, `DetalleAmortizable`, `TipoServicioMargen`, `PrecioProducto` y `PrecioActivo` están vacías. No hay datos que reconvertir.
+
+### 8.9 Plan de implementación del refactor (antes del corte, fuera de Fase 10)
+
+1. **Contrato de catálogos ERP.** Centralizar la validación contra `vv*` en un servicio único, reutilizando el patrón de `PlantillaService`. Exponer por `opciones-erp`: unidades desde `vvArticulos.UNIDAD_VENTA`, clasificaciones desde `vvArticulos.CLASIFICACION`, tipos de servicio desde `vvTipoServicios`, clientes, técnicos y códigos operativos. Si se agrega la vista sobre `FUMIPLAGA.FMP.CLASIFICACION`, mapearla como `DbSet` con `ExcludeFromMigrations()`, igual que las demás `vv*`.
+2. **`Cotizacion` con códigos ERP.** Sustituir los `Guid` por códigos texto: `ClienteCodigo`, `TipoServicioCodigo`, `TecnicoCodigo`, `ProductoCodigo`, `UnidadMedidaCodigo`, `CategoriaCodigo` y `ActivoCodigo`. Quitar las FKs a tablas locales de `CotizadorDbContext` y validar en aplicación (SQL Server no permite FK hacia una vista). `TipoCambio` se resuelve por fecha/fuente, no por `Guid` local.
+3. **Combos de la UI.** Cotizador y diálogos legacy pasan a `opciones-erp` cuando el campo guarde código; dejan de resolver nombres desde `dbo.Cliente`/`dbo.Tecnico`/`dbo.Producto`. Los campos que guarden `Guid` legítimo (parámetros, estados, permisos) se quedan en tablas locales.
+4. **Retiro de espejos y ETL.** Quitar los 7 loaders espejo, los 17 endpoints de `/api/origenes`, el enlace "Orígenes de datos" y el permiso `CATALOGOS.ORIGENES`. Después de que ningún módulo lea las tablas, eliminar FKs de procedencia, índices y tablas con migración explícita, en ese orden. Queda únicamente un lector estrecho y parametrizado para `TipoCambio` desde `FUMIPLAGA`.
+5. **Semillas.** Retirar los 33 códigos de `scripts/seed/dbo.UnidadMedida.json`, `dbo.CategoriaProducto.json` y `dbo.TipoServicio.json`, y actualizar sus comentarios para que el ERP figure como única fuente.
+6. **Verificación.** Build de la solución, suite con el runner permitido y consultas de solo lectura para confirmar que no queden referencias a los códigos retirados. No se aplican migraciones a la BD real sin instrucción explícita.
+
 ---
 
 ## 9. Próximo paso concreto
 
-Con D-20, D-21, D-22, D-23 y D-24 documentadas y las fases 0–9 completadas, el siguiente trabajo es la **Fase 10 — Corte, endurecimiento y puesta en producción**. No se inicia sin instrucción explícita: incluye rotación de credenciales, paralelo controlado (lectura en legacy, escritura en web) y apagado de instaladores, consola y Windows Service. El correo y el job de notificaciones siguen apagados por configuración hasta que se decida habilitarlos con credenciales reales. D-23 y D-24 quedan fuera de Fase 10 y solo se retoman con respuesta del cliente; D-24 no autoriza eliminar el ETL ni reconfigurar flujos.
+Con D-20, D-21, D-22 y D-24 documentadas (D-24 ya decidida, con refactor pendiente) y las fases 0–9 completadas, el siguiente trabajo es la **Fase 10 — Corte, endurecimiento y puesta en producción**. No se inicia sin instrucción explícita: incluye rotación de credenciales, paralelo controlado (lectura en legacy, escritura en web) y apagado de instaladores, consola y Windows Service. El correo y el job de notificaciones siguen apagados por configuración hasta que se decida habilitarlos con credenciales reales. D-23 queda fuera de Fase 10 y solo se retoma con respuesta del cliente. D-24 quedó decidida y su refactor (§8.9) debe ejecutarse **antes** del corte, no dentro de Fase 10.
 
 Para la Fase 10 quedan como comprobaciones locales, sin tocar producción: revisar la cobertura de `aud` en operaciones sensibles, confirmar que no queden passwords incrustados en código versionado, verificar que los flujos ETL no ejecuten SQL libre con credenciales privilegiadas (D-24) y actualizar README/docs con el estado final.
 
