@@ -42,7 +42,10 @@ public sealed class CargaController : ControllerBase
     [Consumes("multipart/form-data")]
     public async Task<IResult> CargarDesdeExcel(
         string catalogo,
-        [FromForm] IFormFile archivo,
+        // ASP.NET ya infiere BindingSource.FormFile por el tipo IFormFile. Decorarlo con
+        // [FromForm] lo cambia a BindingSource.Form y rompe ApiExplorer: Swagger 10 deja de
+        // generar /swagger/v1/swagger.json y el endpoint responde 500.
+        IFormFile archivo,
         [FromQuery] string? hoja = null,
         [FromQuery] int filaEncabezado = 0,
         CancellationToken cancellationToken = default)
