@@ -4,7 +4,7 @@
 > **Runtime:** .NET 10 (`net10.0`) · EF Core 10.0.12 · `Microsoft.EntityFrameworkCore.SqlServer`.
 > **ORM:** EF Core 10 · Code First + migraciones (`dotnet ef`), nunca `EnsureCreated`.
 > **Base de datos de la plataforma:** `SINCOERPORKIN` en `10.40.50.1` (legacy convertido en BD principal).
-> **Estado:** 🟡 En revisión — migrado a `SINCOERPORKIN`, pendiente flujos ETL.
+> **Estado:** 🟡 En revisión — migrado a `SINCOERPORKIN`, flujos ETL implementados y ejecutados en BD real; pendiente decisión D-24.
 > **Fecha:** 2026-09-27 · **Actualizado:** 2026-11-16
 
 Este documento es la **especificación de la base de datos**. El código de las entidades y del
@@ -821,7 +821,7 @@ recalculan al leer, se leen tal como quedaron al guardar (RN-03 a RN-08).
 | `VigenciaDias` | `smallint` | Sí | `NULL` | Regla de negocio; `NULL` = sin vencimiento |
 | `Estado` | `tinyint` | No | — | FK → `EstadoCotizacionCatalogo`. Sin `DEFAULT`: lo resuelve el servicio leyendo el catálogo (§5.2) |
 | `Modalidad` | `tinyint` | Sí | `NULL` | FK → `ModalidadCatalogo`. Sin `DEFAULT`; el valor predeterminado lo define la siembra (§5.4) |
-| `TecnicoAsignadoId` | `uniqueidentifier` | Sí | `NULL` | FK → `seg.Usuario` |
+| `TecnicoAsignadoId` | `uniqueidentifier` | Sí | `NULL` | FK → `dbo.Tecnico` (catálogo único, D-21) |
 | `FechaEstimada` | `date` | Sí | `NULL` | Fecha de ejecución prevista |
 | **Motor de cálculo** | | | | |
 | `MargenAplicado` | `decimal(5,4)` | No | — | Fracción. `CHECK 0..1` → **H-02** |
@@ -1790,9 +1790,10 @@ desactivado con cotizaciones abiertas es un problema comercial, no un detalle t�
 `ErpSincronizacionBackgroundService` (un `BackgroundService` con `PeriodicTimer` de 5 s) hace,
 en un solo ciclo:
 
-1. **Disparar por evento** — leer `int.EventoRecibido` con `Estado = 1` (índice filtrado), resolver el
-   flujo y encolar la ejecución. Latencia típica: **2–5 s**.
-2. **Disparar por programa** — `SELECT` de `int.ErpFlujo` donde `TipoDisparador IN (2,4)`,
+1. **Disparo manual** — `TipoDisparador = 1`; lo ejecuta la API/bandeja. El disparador por evento
+   (`5`) está modelado, pero `int.EventoRecibido` no existe en código: hoy se atiende como
+   programado con sondeo.
+2. **Disparar por programa** — `SELECT` de `int.ErpFlujo` donde `TipoDisparador = 3`,
    `Estado = 3`, y
    `DATEADD(SECOND, IntervaloSegundos, UltimaEjecucionUtc) <= SYSUTCDATETIME() + DesfaseSegundos`.
    Con `IntervaloSegundos = 30` se cumple a los 30 s ± el desfase.

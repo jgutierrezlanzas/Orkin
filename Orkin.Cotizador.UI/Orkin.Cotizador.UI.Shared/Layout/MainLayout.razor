@@ -55,11 +55,11 @@
                 }
                 @if (_permisosCatalogos.Count > 0)
                 {
-                    @* Un solo grupo de catálogos para toda la plataforma: los mismos datos
-                       los usa el cotizador y los módulos que vienen del legacy. El origen es
-                       Softland/SINCOERPORKIN; no se crea un catálogo por módulo. *@
-                    <MudNavGroup Title="Catálogos compartidos" Icon="@Icons.Material.Filled.List" Expanded="true">
-                        <MudText Typo="Typo.caption" Class="px-4 mud-text-secondary">Origen: Softland / SINCOERPORKIN</MudText>
+                    @* Un solo conjunto de catálogos para toda la plataforma: una sola copia en
+                       dbo, una sola API por entidad y una sola fuente (Softland/SINCOERPORKIN).
+                       No se crea un catálogo por módulo. *@
+                    <MudNavGroup Title="Catálogos" Icon="@Icons.Material.Filled.List" Expanded="true">
+                        <MudText Typo="Typo.caption" Class="px-4 mud-text-secondary">Una sola copia · una sola API · Fuente: Softland / SINCOERPORKIN</MudText>
 
                         @if (TienePermiso("CLIENTES.VER"))
                         {
@@ -91,7 +91,7 @@
                 @* Operación: las capacidades que vienen del legacy (plantillas, visitas,
                    órdenes, requisas, inventario, reportes). Solo se agrega un link cuando la
                    página existe. Ningún catálogo se repite en este grupo: los catálogos viven
-                   en "Catálogos compartidos" (D-21). *@
+                   en "Catálogos" (D-21). *@
                 @if (TienePermiso("PLANTILLAS.VER") || TienePermiso("VISITAS.VER") ||
                      TienePermiso("OT.VER") || TienePermiso("REQUISAS.VER") ||
                      TienePermiso("INVENTARIO.VER") || TienePermiso("REPORTES.VER"))
@@ -220,7 +220,7 @@
             _permisos.Add($"{d}__DENEGADO");
         }
 
-        // Clientes también es un catálogo compartido: se agrupa con el resto aunque su permiso
+        // Clientes también es un catálogo único: se agrupa con el resto aunque su permiso
         // sea propio. Sin esto, un rol que solo puede ver clientes no vería el grupo en el sidebar.
         if (TienePermiso("CLIENTES.VER"))
         {

@@ -1,12 +1,12 @@
 # ORKIN — Roadmap de migración del legacy `sinco_wos`
 
-> **Estado:** 🟢 Fases 0–9 cerradas (Fase 10 pendiente de instrucción explícita; D-23 pendiente de decisión; sin push) · **Fecha:** 2026-11-18
+> **Estado:** 🟢 Fases 0–9 cerradas (Fase 10 pendiente de instrucción explícita; D-23 y D-24 pendientes de decisión; sin push) · **Fecha:** 2026-11-18
 > **Origen:** `D:\repos\sinco-orkin-lagacy\sinco_wos`
 > **Destino:** plataforma web .NET 10 / Blazor WebAssembly / MudBlazor / EF Core 10, con `SINCOERPORKIN` como BD principal.
 >
 > **Principio rector:** no se migra código, se migran **capacidades**. Se conservan las reglas de negocio válidas y se corrigen los defectos del legacy (SQL concatenado, credenciales incrustadas, estados ambiguos, servicios incompletos). El cotizador es el **módulo 1**; este roadmap cubre el resto de las opciones que hoy solo existen en el WinForms.
 >
-> **Regla de oro de catálogos (D-20):** **no se copian a la plataforma catálogos que ya existen en SOFTLAND/FUMIPLAGA o en las vistas `vv*` de `SINCOERPORKIN`.** Solo se modelan localmente los datos que el cotizador realmente necesita y que no tienen origen en esos sistemas. Si el dato ya está en el ERP, se consume desde ahí (vista o conexión configurada), se homologa en tablas y se muestra en la grilla del flujo ETL; no se crea una tabla paralela "por si acaso".
+> **Regla de oro de catálogos (D-20):** **no se copian catálogos operativos del legacy** que ya existen en SOFTLAND/FUMIPLAGA o en las vistas `vv*` de `SINCOERPORKIN` (frecuencia, locación, plaga, ubicación, dosificación, método, equipo, vehículo, bodega): se leen en vivo y solo se guarda el código ERP. Los **maestros de cotización** (cliente, producto, unidad, categoría, tipo de servicio, tipo de cambio, técnico y activo amortizable) sí se materializan una sola vez en `dbo` porque el cotizador los usa con `Id` propio, auditoría y CRUD; no se crea una tabla paralela "por si acaso". Ver D-24 (§8).
 >
 > **Regla de oro de lo legacy (D-22):** para las capacidades del WinForms **se usan las estructuras de BD que ya existen** (`Plantilla_Orden_Trabajo`, `_Detalle`, `_Servicio`, `_Equipos`, `Plantilla_Calendario`, `TmpPlantillas`). Lo que se migra es **cómo se gestionan y se visualizan** (API + frontend), no su esquema. No se crean tablas nuevas ni se importan datos a tablas paralelas.
 
@@ -104,9 +104,9 @@ No se migran "como están". Se clasifican y envuelven:
 
 ### 3.3 Vistas `vv*`
 
-Las 16 vistas siguen siendo la fuente de los catálogos ETL (`vvArticulos`, `vvClientes`, `vvTecnicos`, `vvFrecuencia`, etc.). Se respeta el patrón actual: **homologación en tabla, mapeo visible en la grilla del flujo, simulación antes de ejecutar, una corrida activa por (conexión, catálogo)**.
+Las vistas `vv*` tienen dos papeles distintos: son el **origen ETL de los maestros de cotización** (`vvArticulos`, `vvClientes`, `vvTecnicos`, `vvTipoServicios`) y la **fuente de solo lectura de los códigos operativos** (`vvFrecuencia`, `vvLocacionesClientes`, `vvBodegas`, etc.), que no generan tabla destino (D-20). Se respeta el patrón actual: homologación en tabla, mapeo visible en la grilla del flujo, simulación antes de ejecutar y una corrida activa por (conexión, catálogo). Ver D-24 (§8).
 
-### 3.4 Catálogo único compartido (D-20 / D-21)
+### 3.4 Catálogo único (D-20 / D-21)
 
 La plataforma es **una sola aplicación** para el cotizador y para las capacidades del legacy. Por lo tanto hay **un solo conjunto de catálogos**, no uno por módulo:
 
@@ -120,7 +120,7 @@ SOFTLAND / FUMIPLAGA  →  vv* de SINCOERPORKIN  →  ETL con homologación  →
 - **Una sola copia local:** los catálogos que el cotizador necesita tener en la plataforma (productos, clientes, unidades, categorías, tipos de servicio, tipos de cambio, técnicos) viven una sola vez en `dbo` y son usados por todos los módulos.
 - **Una sola API:** un mismo endpoint por entidad, con un mismo `Id`. No habrá `/catalogos/tecnicos/cotizador` y `/catalogos/tecnicos/ordenes`.
 - **Mantenimiento manual solo donde aplique:** se permite corregir precios o datos propios del cotizador; nunca se "mantienen" manualmente catálogos que son propiedad de Softland.
-- **Ejemplo resuelto:** frecuencias, locaciones, métodos de aplicación, tipos de plaga, tipos de ubicación y vehículos se retiraron del código porque ya están en el ERP. Cuando las órdenes de trabajo o las visitas los necesiten, leerán el mismo catálogo compartido, sin tablas nuevas.
+- **Ejemplo resuelto:** frecuencias, locaciones, métodos de aplicación, tipos de plaga, tipos de ubicación y vehículos se retiraron del código porque ya están en el ERP. Cuando las órdenes de trabajo o las visitas los necesiten, leerán el mismo catálogo único, sin tablas nuevas.
 
 ### 3.5 Menú unificado
 
@@ -130,7 +130,7 @@ El sidebar es de la **plataforma**, no del cotizador:
 |---|---|---|
 | `Dashboard` | KPIs de toda la operación | ✅ |
 | `Cotizaciones` | Módulo 1 | ✅ |
-| `Catálogos compartidos` | Clientes, productos, unidades, categorías, tipos de servicio, tipos de cambio, técnicos y orígenes ETL | ✅ |
+| `Catálogos` | Clientes, productos, unidades, categorías, tipos de servicio, tipos de cambio y técnicos. Las conexiones/orígenes ETL se muestran aparte, con permiso propio. | ✅ |
 | `Operación` | Plantillas, visitas, órdenes, requisas, inventario, reportes | ✅ Plantillas (Fase 2), visitas (Fase 3), órdenes (Fase 4), requisas (Fase 5), inventario (Fase 6) y reportes (Fase 7) |
 | `Administración` | Usuarios, roles, parámetros, bitácora, cambiar contraseña | ✅ |
 
@@ -180,7 +180,7 @@ El sidebar es de la **plataforma**, no del cotizador:
 - ✅ Permisos sembrados en BD: `PLANTILLAS.VER` (Administrador, Supervisor, Vendedor), `.EDITAR`, `.COPIAR` y `.ELIMINAR` (Administrador, Supervisor).
 - ✅ Verificado: build `0 Errores`, tests `88/88`, migración aplicada (0 tablas nuevas; `PlantillasSoloLegacy` es la última en `__EFMigrationsHistory`) y API end-to-end contra datos reales: `soloActivas=true` → **3.218**, `soloActivas=false` → **3.503**, detalle de la plantilla 1 con 4 productos / 1 servicio / 1 equipo y nombres de cliente de `dbo.Cliente`. Sin registros `PRUEBA/TEST/DEMO`.
 
-**Dependencias:** Fase 1 (catálogos compartidos). **Riesgo:** medio — resuelto respetando las claves compuestas y los códigos ERP del legacy, sin migración de datos ni reconciliación por `Id` artificial.
+**Dependencias:** Fase 1 (catálogos únicos). **Riesgo:** medio — resuelto respetando las claves compuestas y los códigos ERP del legacy, sin migración de datos ni reconciliación por `Id` artificial.
 
 ---
 
@@ -333,7 +333,7 @@ El sidebar es de la **plataforma**, no del cotizador:
 3. **Sin SQL concatenado.** Parámetros siempre. Sin credenciales en código ni en `appsettings` versionados.
 4. **Catálogos del ERP:** homologación en tablas, visible en la grilla de mapeo del flujo ETL, sin JSON crudo como configuración visible.
 5. **Baja lógica**, nunca borrado físico sin confirmación explícita. Todo cambio queda en `aud`.
-6. **UI coherente:** sidebar de la plataforma con grupos estables (Cotizaciones, Catálogos compartidos, Operación, Administración), color corporativo `#E31837`, dashboard con cards KPI y tabla debajo, formularios unificados.
+6. **UI coherente:** sidebar de la plataforma con grupos estables (Cotizaciones, Catálogos, Operación, Administración), color corporativo `#E31837`, dashboard con cards KPI y tabla debajo, formularios unificados.
 7. **Datos limpios:** solo lo que viene del ERP; sin registros de prueba; cada carga con `OrigenDatoId`, `ErpConexionId` y hash de contenido.
 
 ---
@@ -349,9 +349,9 @@ El sidebar es de la **plataforma**, no del cotizador:
 | 5 | Estados `GE/AP/AN` | Catálogo configurable con esos mismos códigos para no romper reportes ni SPs. |
 | 6 | Usuarios legacy `Seguridad_Usuarios` | Mapear a `seg.Usuario` e importar sin passwords en claro. |
 | 7 | **D-20 — catálogos duplicados** | **No copiar a la plataforma catálogos que ya existen en SOFTLAND/FUMIPLAGA o en `SINCOERPORKIN.vv*`.** Solo modelar localmente lo que el cotizador realmente necesita y no tiene origen. Se cancela `AgregarCatalogosLegacy` y se retiran los 6 catálogos nuevos. |
-| 8 | **D-21 — catálogo compartido y menú** | Una sola copia de cada catálogo, una sola API y un solo grupo `Catálogos compartidos` en el menú, consumido por cotizador y por los módulos legacy. Todo termina viniendo de Softland; no se crean catálogos por aplicación. |
+| 8 | **D-21 — catálogo único y menú** | Una sola copia de cada catálogo maestro, una sola API por entidad y un solo grupo `Catálogos` en el menú, consumido por cotizador y por los módulos legacy. Una sola fuente (Softland / SINCOERPORKIN); no se crean catálogos por aplicación. |
 | 9 | **D-22 — BD legacy existente** | Las capacidades del WinForms operan sobre **las tablas que ya existen** en `SINCOERPORKIN` (`Plantilla_Orden_Trabajo*`, `Plantilla_Calendario`, `TmpPlantillas`, etc.). Se migra la API y el frontend, **no el esquema**: no se crean tablas nuevas ni se importan datos a tablas paralelas. Se corrige la Fase 2, que había creado `dbo.Plantilla` y sus hijas; esas tablas se eliminaron con `PlantillasSoloLegacy`. |
-| 10 | **Calendarios por técnico** | Cada técnico activo del catálogo compartido es un calendario con su color (D-21). El color se guarda en `dbo.Tecnico.ColorCalendario` y si falta se deriva de forma determinística; se permite activar/desactivar calendarios y ver una vista `Semana × técnico`. No se crea una tabla de calendarios ni se guarda el color en JSON. |
+| 10 | **Calendarios por técnico** | Cada técnico activo del catálogo único es un calendario con su color (D-21). El color se guarda en `dbo.Tecnico.ColorCalendario` y si falta se deriva de forma determinística; se permite activar/desactivar calendarios y ver una vista `Semana × técnico`. No se crea una tabla de calendarios ni se guarda el color en JSON. |
 | 11 | **Excepción permitida en la Fase 3** | El importador de Google sí agrega tres tablas `int.*` de staging/auditoría/homologación; no son copias de catálogos ni de visitas, por lo que no violan D-20/D-22. |
 
 ---
@@ -390,18 +390,99 @@ Mientras no haya respuesta, queda documentado y **no se implementa**. No es Fase
 
 ---
 
-## 8. Próximo paso concreto
+## 8. Análisis D-24 — Catálogos: vistas `vv*` vs ETL
 
-Con D-20, D-21, D-22 y D-23 documentadas y las fases 0–9 completadas, el siguiente trabajo es la **Fase 10 — Corte, endurecimiento y puesta en producción**. No se inicia sin instrucción explícita: incluye rotación de credenciales, paralelo controlado (lectura en legacy, escritura en web) y apagado de instaladores, consola y Windows Service. El correo y el job de notificaciones siguen apagados por configuración hasta que se decida habilitarlos con credenciales reales. D-23 queda fuera de Fase 10 y solo se retoma con respuesta del cliente.
+> **Estado:** 🟡 Análisis cerrado; decisión de implementación pendiente. No se elimina ni se reconfigura nada en Fase 10 sin instrucción explícita.
 
-Para la Fase 10 quedan como comprobaciones locales, sin tocar producción: revisar la cobertura de `aud` en operaciones sensibles, confirmar que no queden passwords incrustados en código versionado y actualizar README/docs con el estado final.
+**Pregunta de origen:** si las vistas `vv*` ya entregan los datos del ERP, ¿para qué sirve el ETL y podríamos dejar todo como en el legacy a nivel de carga de catálogos?
+
+### 8.1 Qué hay realmente
+
+Verificado el 2026-11-18 con consultas de **solo lectura** a `SINCOERPORKIN`:
+
+| Hallazgo | Dato real |
+|---|---|
+| Ubicación de las vistas | La API apunta a `10.40.50.1 / SINCOERPORKIN`, **la misma base** donde viven las `vv*`. No es un ERP remoto. |
+| Flujos configurados | 2 conexiones, 8 flujos, 14 ejecuciones. **7 de 8 flujos** leen `dbo.vv*` y escriben tablas `dbo.*` de esa misma BD. |
+| Único origen externo | `FUMIPLAGA.FMP.TIPO_CAMBIO_HIST` para tipos de cambio. |
+| Disparo | Los 8 flujos son manuales (`TipoDisparador = 1`), con `UltimaEjecucionUtc` del 2026-11-17 y sin `ProximaEjecucionUtc`. No hay programación activa. |
+| Versionado | No hay seeds de `int.ErpConexion` ni `int.ErpFlujo`. El GUID `80ae2da2-…` del catálogo de técnicos existe en la BD real, pero en el repositorio solo aparece en documentación. |
+| Motor implementado | 4 tablas núcleo (`ErpConexion`, `ErpFlujo`, `SincronizacionEjecucion`, `ErpMapeoTipoCliente`), 17 endpoints en `/api/origenes`, 8 loaders `ICargadorCatalogo`, hosted service con reclamo atómico, simulación, pausa y bitácora. |
+| Motor **documentado pero no implementado** | `ErpOrigen`, `ErpMapeoCampo`, `ErpValidacion`, `ErpRechazo`, `ErpDestino`, `ErpDependencia`, `ErpSimulacion`, `EventoRecibido`. No deben citarse como existentes. |
+| Controles decorativos | `LoteRegistros`, `MaximoRegistrosPorCorrida`, `ModoExtraccion` y el disparador `EVENTO` se persisten pero no se aplican en `CorrerFlujoAsync`. |
+
+### 8.2 Dos canales que hoy conviven
+
+| Canal | Entidades | Fuente | Consumo |
+|---|---|---|---|
+| **Maestros materializados** | `Cliente`, `Producto`, `UnidadMedida`, `CategoriaProducto`, `TipoServicio`, `TipoCambio`, `Tecnico`, `ActivoAmortizable` | ETL/upsert + CRUD web + semilla | Cotizaciones por `Guid` con FK real; combos y nombres en plantillas, órdenes, visitas y requisas |
+| **Códigos operativos en vivo** | Locación, bodega, frecuencia, plaga, ubicación, dosificación, método, equipo, vehículo | Solo vistas `vv*` | `/api/catalogos/opciones-erp`, validaciones y grillas; se guarda el **código ERP como texto**, sin tabla local |
+
+El riesgo no es que existan dos canales, sino que los diálogos legacy **mezclen ambos**: guardan un código ERP string pero resuelven el nombre desde una tabla local. Si el espejo local se desactualiza, el código sigue siendo correcto y la grilla muestra un nombre viejo o vacío.
+
+### 8.3 Los espejos locales no son copias exactas
+
+| Entidad | Tabla local | Vista ERP | Diferencia |
+|---|---:|---:|---|
+| `Cliente` | 935 | 935 | Cuadra |
+| `Producto` | 188 | 201 (`vvArticulos`) | Cuadra con la partición 188 productos + 13 amortizables |
+| `Tecnico` | 14 | 14 | Cuadra |
+| `UnidadMedida` | 19 | 7 | 12 filas adicionales de semilla `EXCEL`/`SISTEMA` |
+| `CategoriaProducto` | 28 | 18 | 10 filas adicionales `MANUAL`/`EXCEL`/`SISTEMA` |
+| `TipoServicio` | 54 | 43 | 11 filas adicionales `EXCEL` |
+
+`OrigenDato` real: `1 = MANUAL`, `2 = EXCEL`, `3 = ERP`, `4 = SISTEMA`. Esas filas adicionales no son `PRUEBA/TEST/DEMO`, pero **tampoco vienen del ERP**: son complementos del cotizador. Borrar las tablas locales o el ETL sin migrarlas perdería ese dato.
+
+### 8.4 Qué pasa si el ETL desaparece mañana
+
+**Se rompe:** alta/cálculo de cotizaciones (FKs por `Guid`), combos de cliente/producto/técnico/tipo de servicio, nombres en grillas legacy y, sobre todo, la vigencia de `TipoCambio` (precios incorrectos en fechas futuras).
+
+**Sigue funcionando:** opciones `vv*`, validación de plantillas e importador de Google, bodegas/locaciones en requisas, descripciones de inventario y firmas de reportes.
+
+Conclusión: la degradación sería **parcial y silenciosa**, no un apagón visible. Eso es peor que un error explícito.
+
+### 8.5 Riesgos de conservarlo tal cual
+
+- `ErpFlujo.Origen` acepta **SQL arbitrario** y `LectorSqlServer` lo ejecuta; `EsSoloLectura = 1` solo protege nuestra tabla, no lo que el usuario de BD puede hacer en el ERP.
+- La conexión usa `TrustServerCertificate = true` y no `ApplicationIntent=ReadOnly`.
+- La UI de "Orígenes de datos" está expuesta a Administrador/Gestor aunque no haya flujos nuevos que configurar.
+- La carga Excel comparte `ProcesoCargaService` con el ETL; eliminar el motor rompería `/api/carga/excel/PRODUCTOS`.
+
+### 8.6 Decisión propuesta
+
+**Conservar el núcleo y los 8 loaders; no eliminar tablas ni FKs de procedencia en Fase 10.** El ETL hoy no es una integración externa: es el mecanismo de refresco de los maestros con `Id` propio del cotizador y el mismo orquestador que usa la carga Excel. Sí sobra, en cambio, la narrativa de "motor ETL completo con mapeo declarativo"; las tablas de homologación y validación del diseño original no existen en código.
+
+Trabajo recomendado, **fuera de Fase 10** salvo las comprobaciones documentales:
+
+1. Declarar una sola fuente por entidad: tabla local para los 8 maestros; `vv*` solo para códigos sin tabla local.
+2. Unificar los combos legacy para que dejen de mezclar ambos canales: si el campo guarda un `Guid`, usar la API local; si guarda un código ERP, usar `opciones-erp`.
+3. Endurecer antes de producción: allowlist de vistas/tablas en lugar de SQL libre, `ApplicationIntent=ReadOnly` y usuario de BD con `SELECT` restringido.
+4. Implementar o retirar de DTO/UI `LoteRegistros`, `MaximoRegistrosPorCorrida`, `ModoExtraccion` y el disparador `EVENTO`.
+5. Solo si se decide ir a un modelo puramente `vv*`: primero verificar que ningún módulo depende de `ErpConexionId`/`UltimaSyncUtc`; después quitar FKs e índices de procedencia con migración explícita; por último retirar loaders y endpoints. **Nunca al revés.**
+
+**Preguntas abiertas**
+
+1. ¿Los maestros del cotizador son canónicos en `dbo`, o se migran las FKs a códigos ERP y se eliminan las tablas materializadas?
+2. ¿Qué se hace con las filas `EXCEL`/`SISTEMA` que no existen en las vistas?
+3. ¿Se autoriza el endurecimiento de SQL/TLS descrito en el punto 3?
+4. ¿Se unifican los combos legacy en Fase 11?
+
+Mientras no haya respuesta, queda documentado y **no se cambia código**. El menú ya se llama solo `Catálogos`; "Orígenes de datos" sigue siendo un enlace aparte con permiso `CATALOGOS.ORIGENES`.
+
+---
+
+## 9. Próximo paso concreto
+
+Con D-20, D-21, D-22, D-23 y D-24 documentadas y las fases 0–9 completadas, el siguiente trabajo es la **Fase 10 — Corte, endurecimiento y puesta en producción**. No se inicia sin instrucción explícita: incluye rotación de credenciales, paralelo controlado (lectura en legacy, escritura en web) y apagado de instaladores, consola y Windows Service. El correo y el job de notificaciones siguen apagados por configuración hasta que se decida habilitarlos con credenciales reales. D-23 y D-24 quedan fuera de Fase 10 y solo se retoman con respuesta del cliente; D-24 no autoriza eliminar el ETL ni reconfigurar flujos.
+
+Para la Fase 10 quedan como comprobaciones locales, sin tocar producción: revisar la cobertura de `aud` en operaciones sensibles, confirmar que no queden passwords incrustados en código versionado, verificar que los flujos ETL no ejecuten SQL libre con credenciales privilegiadas (D-24) y actualizar README/docs con el estado final.
 
 Principios que se mantienen para las fases restantes:
 
 1. Mantener el principio D-22: operar sobre las tablas legacy existentes, sin tablas paralelas.
 2. Reutilizar los SPs originales: `dbo.SINCO_GENERA_DOCINV_EXACTUS` y los de traslado/reportes, con parámetros y registro de resultado, sin reimplementarlos.
-3. Reutilizar el catálogo único compartido (técnicos, clientes, artículos, bodegas) y la API única; no duplicar catálogos por módulo (D-21).
-4. Mantener el sidebar con `Catálogos compartidos` y agregar páginas a `Operación` solo cuando existan; nunca duplicar un catálogo entre grupos.
+3. Reutilizar el catálogo único (técnicos, clientes, artículos, bodegas) y la API única; no duplicar catálogos por módulo (D-21).
+4. Mantener el sidebar con `Catálogos` y agregar páginas a `Operación` solo cuando existan; nunca duplicar un catálogo entre grupos.
 
 ---
 
