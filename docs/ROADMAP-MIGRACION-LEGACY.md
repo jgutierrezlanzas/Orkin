@@ -1,6 +1,6 @@
 # ORKIN — Roadmap de migración del legacy `sinco_wos`
 
-> **Estado:** 🟢 Fases 0–9 cerradas (Fase 10 pendiente de instrucción explícita; sin push) · **Fecha:** 2026-11-18
+> **Estado:** 🟢 Fases 0–9 cerradas (Fase 10 pendiente de instrucción explícita; D-23 pendiente de decisión; sin push) · **Fecha:** 2026-11-18
 > **Origen:** `D:\repos\sinco-orkin-lagacy\sinco_wos`
 > **Destino:** plataforma web .NET 10 / Blazor WebAssembly / MudBlazor / EF Core 10, con `SINCOERPORKIN` como BD principal.
 >
@@ -356,9 +356,43 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ---
 
-## 7. Próximo paso concreto
+## 7. Decisión pendiente de negocio (D-23) — Cotización → plantilla
 
-Con D-20, D-21 y D-22 cerrados y las fases 0–9 completadas, el siguiente trabajo es la **Fase 10 — Corte, endurecimiento y puesta en producción**. No se inicia sin instrucción explícita: incluye rotación de credenciales, paralelo controlado (lectura en legacy, escritura en web) y apagado de instaladores, consola y Windows Service. El correo y el job de notificaciones siguen apagados por configuración hasta que se decida habilitarlos con credenciales reales.
+> **Origen:** este puente **no existe en el legacy**. El cotizador es nuevo en este proyecto y la plantilla es un concepto operativo del WinForms. Por eso es una decisión de producto nueva, **no una migración**, y no se incluye en Fase 10.
+
+**Validación del flujo:** no es correcto crear la plantilla automáticamente al aprobar. `APROBADA` significa **aprobación interna, todavía no enviada al cliente** (`dbo.EstadoCotizacionCatalogo.json:7`); la señal de “ya nació el servicio” es `CONVERTIDA_EN_SERVICIO` + `ConvertidaUtc` (`:12`, `CotizacionEntities.cs:171-172`). Tampoco hay hoy un flujo de aprobación ejecutable: están el esquema, los estados y los permisos, pero no hay endpoint/UI que escriba `AprobadaUtc`/`AprobadaPor`. La conversión debe ser una **acción explícita y asistida**, nunca un efecto oculto del cambio de estado.
+
+**Evidencia de que no hay precedente:** búsqueda en `sinco_wos` de `cotiz|Cotiz|COTIZ` → 0 coincidencias; en `SINCOERPORKIN`, 0 SPs con `PLANTILLA` en el nombre o `COTIZ` en la definición. La plantilla siempre se armó a mano en `FrmCrudPlantillas`.
+
+**Contrato propuesto (no implementado)**
+
+| Pieza | Compromiso |
+|---|---|
+| Señal de entrada | `CONVERTIDA_EN_SERVICIO` con `ConvertidaUtc` (aceptación/orden de compra en ERP, D-20). No `APROBADA`. La aprobación interna queda en `APROBACIONES.DECIDIR` + `AprobadaUtc`/`AprobadaPor`; el envío al cliente en `COTIZACIONES.ENVIAR`. |
+| Datos precargables | `Cliente` desde `dbo.Cliente` (resolviendo `Codigo` vs `CodigoExterno`); `DireccionServicio`; `Tecnico` desde `dbo.Tecnico`; `TipoServicio` → `CodigoServicio`; insumos → `CodigoArticulo`, `DescripArticulo`, `Cantidad`, `Umedida`, `CostoUnitario` y `CostoTotal`. `Contacto`/`Telefono` solo si se llegan a poblar hoy (el controlador actual no los llena). |
+| Datos que el usuario debe completar | Locación (`vvLocacionesClientes`), frecuencia (`vvFrecuencia`), vehículo, plaga, lugar a tratar, dosificación, método, área, concentración, `MAXIMO_PERMITIDO`, `UTILIZADO` y los códigos ERP efectivos. No se inventan. |
+| Equipos | **No mapear `DetalleAmortizable` a `Plantilla_Orden_Trabajo_Equipos`**: son conceptos distintos (activo amortizable vs catálogo `vvTipodeEquipos`). Los equipos se eligen del catálogo ERP. |
+| Escritura | Solo al confirmar, vía `PlantillaService.CrearAsync` sobre `Plantilla_Orden_Trabajo*` (D-22). El prellenado no escribe. Sin columnas nuevas en tablas legacy y sin tablas paralelas. |
+| Permisos | `COTIZACIONES.CONVERTIR` (ya sembrado, hoy solo Administrador) para la acción, más `PLANTILLAS.EDITAR` para escribir en plantillas. Separado de `APROBACIONES.DECIDIR` y `COTIZACIONES.ENVIAR`. |
+| Idempotencia | Usar `CONVERTIDA_EN_SERVICIO` + `ConvertidaUtc` como guard; bloquear una segunda conversión. Si hace falta además el número de plantilla, se propone una columna nullable en `dbo.Cotizacion` (tabla de la plataforma, nunca en la tabla legacy). No escribir el número en `NOTAS` sin decisión de negocio. |
+| Datos reales | Verificado el 2026-11-18: `dbo.Cotizacion` y `dbo.CotizacionAprobacion` están vacías. No hay evidencia para probar el mapeo. |
+
+**Preguntas abiertas para el cliente**
+
+1. ¿La plantilla es un **molde reutilizable** o la **ejecución única** del servicio cotizado? Si es ejecución única, el destino natural es una orden de trabajo, no una plantilla.
+2. ¿La conversión ocurre al aprobar, al enviar o solo al aceptar/orden de compra? La recomendación es **solo al aceptar**.
+3. ¿Cliente nuevo sin `ClienteId`/código ERP queda bloqueado hasta su alta? Recomendación: sí.
+4. ¿Qué códigos se usan: `Codigo` o `CodigoExterno` para cliente, artículo, servicio y técnico?
+5. ¿Las cantidades `decimal(18,4)` se redondean a `decimal(18,0)`, se bloquean o cambian de unidad? Hoy el servicio redondea y `COSTO_TOTAL` se calcula con la cantidad original, no con la redondeada.
+6. ¿Se autoriza escribir trazabilidad en `NOTAS`? Recomendación: no.
+
+Mientras no haya respuesta, queda documentado y **no se implementa**. No es Fase 10; se propone como trabajo nuevo posterior al corte (Fase 11 del README), después de cerrar la aprobación de cotizaciones.
+
+---
+
+## 8. Próximo paso concreto
+
+Con D-20, D-21, D-22 y D-23 documentadas y las fases 0–9 completadas, el siguiente trabajo es la **Fase 10 — Corte, endurecimiento y puesta en producción**. No se inicia sin instrucción explícita: incluye rotación de credenciales, paralelo controlado (lectura en legacy, escritura en web) y apagado de instaladores, consola y Windows Service. El correo y el job de notificaciones siguen apagados por configuración hasta que se decida habilitarlos con credenciales reales. D-23 queda fuera de Fase 10 y solo se retoma con respuesta del cliente.
 
 Para la Fase 10 quedan como comprobaciones locales, sin tocar producción: revisar la cobertura de `aud` en operaciones sensibles, confirmar que no queden passwords incrustados en código versionado y actualizar README/docs con el estado final.
 
