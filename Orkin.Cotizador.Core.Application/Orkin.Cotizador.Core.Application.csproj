@@ -12,11 +12,9 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
     <!--
-      Solo las abstracciones, y solo por el motor de sincronizacion programada
-      (SincronizacionBackgroundService): BackgroundService y PeriodicTimer viven acá. Van en esta
-      capa y no en infraestructura porque el motor necesita a IntegracionService, que es de
-      aplicacion, y la dependencia entre capas va en un solo sentido. Se traen las abstracciones y
-      no el paquete entero para que esta capa siga sin saber como se hospeda.
+      Solo las abstracciones, y solo por el job de notificaciones
+      (NotificacionBackgroundService): BackgroundService y PeriodicTimer viven acá. Se traen las
+      abstracciones y no el paquete entero para que esta capa siga sin saber como se hospeda.
     -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />

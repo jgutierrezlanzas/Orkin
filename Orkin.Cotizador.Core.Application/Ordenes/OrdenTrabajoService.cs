@@ -59,6 +59,7 @@ public sealed record OrdenGuardar(
 /// </summary>
 public sealed class OrdenTrabajoService
 {
+    private const string ActivoCorto = "S";
     private const string Generada = "GE";
     private const string Aprobada = "AP";
     private const string Anulada = "AN";
@@ -162,7 +163,7 @@ public sealed class OrdenTrabajoService
 
         return cabeceras.Select(o => new OrdenResumen(
             o,
-            o.Cliente is null ? null : nombres.GetValueOrDefault(o.Cliente),
+            o.Cliente is null ? null : nombres.GetValueOrDefault(o.Cliente.Trim()),
             detalles.GetValueOrDefault((o.OrdenNumero, o.Plantilla)),
             servicios.GetValueOrDefault((o.OrdenNumero, o.Plantilla)),
             equipos.GetValueOrDefault((o.OrdenNumero, o.Plantilla)),
@@ -210,7 +211,7 @@ public sealed class OrdenTrabajoService
             servicios,
             equipos,
             tecnicos,
-            cabecera.Cliente is null ? null : nombres.GetValueOrDefault(cabecera.Cliente));
+            cabecera.Cliente is null ? null : nombres.GetValueOrDefault(cabecera.Cliente.Trim()));
     }
 
     // ── Escritura ─────────────────────────────────────────────────────────────────
@@ -409,22 +410,34 @@ public sealed class OrdenTrabajoService
         IEnumerable<string?> codigos,
         CancellationToken cancellationToken)
     {
-        var lista = codigos.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!).Distinct().ToList();
+        var lista = codigos
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         if (lista.Count == 0)
         {
-            return new Dictionary<string, string>();
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
+        // Rango en SQL + conjuntos en memoria: evita el OPENJSON('$') que falla en el ERP.
         var min = lista.Min();
         var max = lista.Max();
-        var clientes = await _contexto.Cliente.AsNoTracking()
-            .Where(c => string.Compare(c.Codigo, min) >= 0 && string.Compare(c.Codigo, max) <= 0)
-            .Select(c => new { c.Codigo, c.Nombre })
+        var clientes = await _contexto.VistaClienteErp.AsNoTracking()
+            .Where(v => v.Activo == ActivoCorto &&
+                        string.Compare(v.Cliente, min) >= 0 &&
+                        string.Compare(v.Cliente, max) <= 0)
+            .Select(v => new { Codigo = v.Cliente.Trim(), Nombre = v.NombreCliente })
             .ToListAsync(cancellationToken);
+
         return clientes
-            .Where(c => lista.Contains(c.Codigo))
-            .GroupBy(c => c.Codigo)
-            .ToDictionary(g => g.Key, g => g.First().Nombre);
+            .Where(v => lista.Contains(v.Codigo, StringComparer.OrdinalIgnoreCase))
+            .GroupBy(v => v.Codigo, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(v => v.Nombre)
+                    .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))?.Trim() ?? g.Key,
+                StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task GuardarHijosAsync(

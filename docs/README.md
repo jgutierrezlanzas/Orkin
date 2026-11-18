@@ -9,7 +9,7 @@
 |---|---|---|---|
 | 00 | [`../README.md`](../README.md) | Análisis del Excel, reglas de negocio, hallazgos, decisiones, arquitectura, estructura de solución, **plan de fases con estados** | 🟡 En curso |
 | 01 | [`BASE-DE-DATOS.md`](BASE-DE-DATOS.md) | **Estructura completa de la base de datos** en SQL Server: esquemas, tablas, columnas, tipos, índices, `CHECK`, vistas, scripts, y el **motor ETL de integración con ERP** (§7) | 🔵 En revisión |
-| 02 | [`INTEGRACION-ERP.md`](INTEGRACION-ERP.md) | Diseño conceptual del ETL con ERP: **alcance de una sola dirección (D-19)**, flujo, origen, transformación, validación, destino, **alta y baja de productos**, **frecuencia recomendada**, conflictos, riesgos y plan de la Fase 12 | 🟢 Implementado en BD real (8 loaders, `/api/origenes`, flujos ejecutados); pendiente decisión D-24 |
+| 02 | [`INTEGRACION-ERP.md`](INTEGRACION-ERP.md) | Diseño conceptual del ETL con ERP: **alcance de una sola dirección (D-19)**, flujo, origen, transformación, validación, destino, **alta y baja de productos**, **frecuencia recomendada**, conflictos, riesgos y plan de la Fase 12 | 🔵 Documento histórico: D-24 retiró los loaders espejo, `/api/origenes` y las tablas duplicadas; solo queda el lector estrecho de `TipoCambio` |
 | 03 | `MIGRACION-EXCEL.md` | Estrategia, mapeo y script de importación del `.xlsm` a las tablas del catálogo | ⬜ Se escribe en Fase 2 |
 | 04 | `MOTOR-CALCULO.md` | Contrato del motor de cálculo, casos golden master contra el Excel y reglas corregidas | ⬜ Se escribe en Fase 3 |
 | 05 | `SEGURIDAD.md` | Matriz de roles y permisos, emisión/validación de JWT, flujo de login y del enlace público de aprobación | ⬜ Se escribe en Fase 1 |

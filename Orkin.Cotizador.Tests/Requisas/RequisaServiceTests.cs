@@ -5,7 +5,6 @@
 
 using Microsoft.EntityFrameworkCore;
 using Orkin.Cotizador.Core.Application.Ordenes;
-using Orkin.Cotizador.Core.Domain.Catalogos;
 using Orkin.Cotizador.Core.Application.Requisas;
 using Orkin.Cotizador.Core.Application.Visitas;
 using Orkin.Cotizador.Core.Domain.Entidades;
@@ -78,8 +77,14 @@ public sealed class RequisaServiceTests
     private static void Sembrar(Laboratorio laboratorio)
     {
         var contexto = laboratorio.Contexto;
-        contexto.Cliente.Add(new Cliente { Codigo = "000081", Nombre = "CLIENTE REAL", TipoClienteId = 1 });
-        contexto.Cliente.Add(new Cliente { Codigo = "000099", Nombre = "OTRO CLIENTE", TipoClienteId = 1 });
+        contexto.VistaClienteErp.Add(new VistaClienteErp
+        {
+            Cliente = "000081", NombreCliente = "CLIENTE REAL", Activo = "S"
+        });
+        contexto.VistaClienteErp.Add(new VistaClienteErp
+        {
+            Cliente = "000099", NombreCliente = "OTRO CLIENTE", Activo = "S"
+        });
         contexto.VistaLocacionErp.Add(new VistaLocacionErp
         {
             Codigo = "L0001", Cliente = "000081", Nombre = "LOCACION REAL", Activo = "SI"
@@ -96,7 +101,10 @@ public sealed class RequisaServiceTests
         {
             Codigo = "B99", Descripcion = "BODEGA INACTIVA", Activo = "NO"
         });
-        contexto.Tecnico.Add(new Tecnico { Codigo = "T001", Nombre = "JUAN PEREZ" });
+        contexto.VistaTecnicoErp.Add(new VistaTecnicoErp
+        {
+            Codigo = "T001", NombreCompleto = "JUAN PEREZ", Activo = "SI"
+        });
 
         contexto.Requisa.AddRange(
             Cabecera("0000001", "0000001", "000081", "L0001", "GE", new DateOnly(2026, 1, 10)),

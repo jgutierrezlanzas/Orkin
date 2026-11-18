@@ -7,7 +7,7 @@ namespace Orkin.Cotizador.UI.Web.Client.Services;
 /// <summary>
 /// Resuelve <em>cualquier</em> nombre de política a un permiso, sin tener que registrar uno por
 /// uno.
-/// <para><b>Por qué hace falta.</b> El código de un permiso (<c>CATALOGOS.ORIGENES</c>) es
+/// <para><b>Por qué hace falta.</b> El código de un permiso (<c>CATALOGOS.VER</c>) es
 /// también el nombre de la política de autorización, por contrato con la API — así lo dice
 /// <c>Claims.Permiso</c>—. Pero Blazor WASM no tiene idea de qué permisos existen: no lee
 /// <c>seg.Permiso</c>, y registrar las políticas a mano en el cliente obligaría a tocar el

@@ -31,7 +31,7 @@
                 <MudSelect T="string?" @bind-Value="_cliente" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
                     @foreach (var cliente in _clientes)
                     {
-                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Nombre</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Descripcion (@cliente.Codigo)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -93,7 +93,7 @@
 
 @code {
     private List<PlantillaModel> _plantillas = [];
-    private List<ClienteModel> _clientes = [];
+    private List<OpcionErpModel> _clientes = [];
     private string? _texto;
     private string? _cliente;
     private bool _soloActivas = true;
@@ -114,7 +114,7 @@
             Cargar());
     }
 
-    private async Task CargarCatalogo() => _clientes = await Catalogos.ListarClientesAsync();
+    private async Task CargarCatalogo() => _clientes = (await Catalogos.ListarOpcionesErpAsync()).Clientes;
 
     private async Task Cargar()
     {

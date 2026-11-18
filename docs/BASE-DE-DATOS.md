@@ -4,8 +4,11 @@
 > **Runtime:** .NET 10 (`net10.0`) · EF Core 10.0.12 · `Microsoft.EntityFrameworkCore.SqlServer`.
 > **ORM:** EF Core 10 · Code First + migraciones (`dotnet ef`), nunca `EnsureCreated`.
 > **Base de datos de la plataforma:** `SINCOERPORKIN` en `10.40.50.1` (legacy convertido en BD principal).
-> **Estado:** 🟡 En revisión — migrado a `SINCOERPORKIN`, flujos ETL implementados y ejecutados en BD real; pendiente decisión D-24.
-> **Fecha:** 2026-09-27 · **Actualizado:** 2026-11-16
+> **Estado:** 🟡 En revisión — migrado a `SINCOERPORKIN`. La §7 describe el motor ETL como registro
+> histórico: D-24 lo retiró para catálogos y dejó las vistas `vv*` como única fuente, con un lector
+> estrecho para `TipoCambio`. Estado vigente en
+> [`ROADMAP-MIGRACION-LEGACY.md`](ROADMAP-MIGRACION-LEGACY.md) §8.9.
+> **Fecha:** 2026-09-27 · **Actualizado:** 2026-11-18
 
 Este documento es la **especificación de la base de datos**. El código de las entidades y del
 `DbContext` se generará a partir de aquí (tarea 0.4 y 0.7 del README).

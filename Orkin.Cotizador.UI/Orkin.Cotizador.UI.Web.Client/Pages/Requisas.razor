@@ -62,7 +62,7 @@
                            Margin="Margin.Dense" Dense="true" Clearable="true">
                     @foreach (var cliente in _clientes)
                     {
-                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Nombre (@cliente.Codigo)</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Descripcion (@cliente.Codigo)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -164,7 +164,7 @@
 
 @code {
     private List<RequisaModel> _requisas = [];
-    private List<ClienteModel> _clientes = [];
+    private List<OpcionErpModel> _clientes = [];
     private string? _texto;
     private string? _cliente;
     private string? _estado;
@@ -194,7 +194,7 @@
         _puedeAnular = estado.User.HasClaim("orkin:permiso", "REQUISAS.ANULAR");
         _puedeImprimir = estado.User.HasClaim("orkin:permiso", "REQUISAS.IMPRIMIR");
 
-        _clientes = await Catalogos.ListarClientesAsync();
+        _clientes = (await Catalogos.ListarOpcionesErpAsync()).Clientes;
         await Cargar();
     }
 

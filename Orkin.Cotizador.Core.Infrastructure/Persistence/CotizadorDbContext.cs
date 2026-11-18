@@ -30,11 +30,6 @@ public class CotizadorDbContext : DbContext
     public const string Collation = "SQL_Latin1_General_CP1_CI_AS";
 
     // ── dbo · Negocio ────────────────────────────────────────────────────────────
-    public DbSet<Cliente> Cliente => Set<Cliente>();
-    public DbSet<Producto> Producto => Set<Producto>();
-    public DbSet<PrecioProducto> PrecioProducto => Set<PrecioProducto>();
-    public DbSet<ActivoAmortizable> ActivoAmortizable => Set<ActivoAmortizable>();
-    public DbSet<PrecioActivo> PrecioActivo => Set<PrecioActivo>();
     public DbSet<TipoCambio> TipoCambio => Set<TipoCambio>();
     public DbSet<Cotizacion> Cotizacion => Set<Cotizacion>();
     public DbSet<DetalleInsumo> DetalleInsumo => Set<DetalleInsumo>();
@@ -86,19 +81,12 @@ public class CotizadorDbContext : DbContext
     public DbSet<NotificacionEnviada> NotificacionEnviada => Set<NotificacionEnviada>();
     public DbSet<DocumentoGenerado> DocumentoGenerado => Set<DocumentoGenerado>();
 
-    // ── dbo · Catálogos maestros (editables desde Administración) ─────────────────
-    public DbSet<UnidadMedida> UnidadMedida => Set<UnidadMedida>();
-    public DbSet<CategoriaProducto> CategoriaProducto => Set<CategoriaProducto>();
-    public DbSet<TipoServicio> TipoServicio => Set<TipoServicio>();
-    public DbSet<TipoServicioMargen> TipoServicioMargen => Set<TipoServicioMargen>();
-
     // ── dbo · Catálogos de dominio (solo lectura, ADR-018) ──────────────────────
     public DbSet<MetodoCosteoCatalogo> MetodoCosteoCatalogo => Set<MetodoCosteoCatalogo>();
     public DbSet<TipoClienteCatalogo> TipoClienteCatalogo => Set<TipoClienteCatalogo>();
 
-    public DbSet<Tecnico> Tecnico => Set<Tecnico>();
-
-    // D-20: frecuencias, locaciones, métodos de aplicación, plagas, ubicaciones y vehículos
+    // D-20/D-24: frecuencias, locaciones, métodos de aplicación, plagas, ubicaciones, vehículos,
+    // clientes, técnicos y servicios viven en el ERP; acá solo se consultan sus vistas vv*.
     // NO se modelan acá: ya existen en SOFTLAND/FUMIPLAGA o en SINCOERPORKIN.vv*.
 
     public DbSet<EstadoCotizacionCatalogo> EstadoCotizacionCatalogo => Set<EstadoCotizacionCatalogo>();
@@ -146,8 +134,6 @@ public class CotizadorDbContext : DbContext
     public DbSet<ErpMapeoEventoGoogle> ErpMapeoEventoGoogle => Set<ErpMapeoEventoGoogle>();
     public DbSet<ImportacionGoogleLote> ImportacionGoogleLote => Set<ImportacionGoogleLote>();
     public DbSet<ImportacionGoogleEvento> ImportacionGoogleEvento => Set<ImportacionGoogleEvento>();
-    public DbSet<ErpFlujo> ErpFlujo => Set<ErpFlujo>();
-    public DbSet<SincronizacionEjecucion> SincronizacionEjecucion => Set<SincronizacionEjecucion>();
 
     /// <summary>Auditoría de corridas de jobs (Fase 8). No es un flujo ETL del ERP.</summary>
     public DbSet<JobEjecucion> JobEjecucion => Set<JobEjecucion>();
@@ -196,7 +182,6 @@ public class CotizadorDbContext : DbContext
         ConfigurarSeguridad(modelBuilder);
         ConfigurarAuditoria(modelBuilder);
         ConfigurarNegocio(modelBuilder);
-        ConfigurarCatalogosMaestros(modelBuilder);
         ConfigurarSistema(modelBuilder);
         ConfigurarIntegracion(modelBuilder);
     }
@@ -263,12 +248,9 @@ public class CotizadorDbContext : DbContext
     }
 
     /// <summary>
-    /// Las cuatro columnas de procedencia de un dato maestro (ADR-013): con qué clave en el ERP
-    /// vino, con qué huella y cuándo se confirmó. Están en <c>Cliente</c>, <c>Producto</c>,
-    /// <c>ActivoAmortizable</c>, <c>TipoCambio</c> y en los catálogos maestros.
-    /// <para>Se resuelven por nombre de propiedad y no con un tipo genérico porque las entidades no
-    /// comparten una clase base: <c>Producto</c> usa <c>OrigenPrecioId</c> y <c>Cliente</c> usa
-    /// <c>OrigenDatoId</c>, y ese matiz es justamente el que hay que hacer explícito.</para>
+    /// Columnas de procedencia de un dato maestro (ADR-013): con qué huella se confirmó y desde
+    /// qué conexión del ERP vino. Después de D-24 solo <c>TipoCambio</c> conserva este bloque: los
+    /// catálogos espejo que también lo tenían se retiraron porque el ERP es la única fuente.
     /// </summary>
     private static void ConfigurarProcedencia<T>(EntityTypeBuilder<T> builder)
         where T : class
@@ -291,33 +273,6 @@ public class CotizadorDbContext : DbContext
             .WithMany()
             .HasForeignKey("ErpConexionId")
             .OnDelete(DeleteBehavior.Restrict);
-    }
-
-    /// <summary>
-    /// Los dos índices que la sincronización necesita para no recorrer el catálogo entero
-    /// (§5.20 y §5.24 de `BASE-DE-DATOS.md`).
-    /// <para><b>El único filtrado:</b> el par <c>(ErpConexionId, CodigoExterno)</c> identifica un
-    /// dato <i>sincronizado</i>. Una fila cargada a mano o desde Excel no tiene conexión ni código
-    /// externo, así que <c>NULL</c> no compite con <c>NULL</c>: la base no los considera
-    /// duplicados. Por eso el índice lleva <c>WHERE</c> en vez de confiar en la lógica de SQL
-    /// Server, que sí trataría esas filas como iguales entre sí.</para>
-    /// <para><b>Por qué no es único el segundo:</b> alimenta la detección de cambios por
-    /// <c>HashContenido</c> —busca las filas cuya huella no coincide con la del origen— y ahí
-    /// puede haber muchas con la misma huella sin que eso sea un error.</para>
-    /// </summary>
-    private static void ConfigurarIndicesProcedencia<T>(
-        EntityTypeBuilder<T> builder,
-        string nombreUnico,
-        string nombrePendientes)
-        where T : class
-    {
-        builder.HasIndex("ErpConexionId", "CodigoExterno")
-            .IsUnique()
-            .HasFilter("[ErpConexionId] IS NOT NULL AND [CodigoExterno] IS NOT NULL")
-            .HasDatabaseName(nombreUnico);
-
-        builder.HasIndex("ErpConexionId", "HashContenido")
-            .HasDatabaseName(nombrePendientes);
     }
 
     /// <summary>
@@ -344,9 +299,8 @@ public class CotizadorDbContext : DbContext
     /// esquema entero, no un detalle de este método.</para>
     /// <para><b>Por qué el nombre de la propiedad va como texto y no con <c>nameof</c>:</b> el
     /// contexto declara un <c>DbSet</c> por entidad con el nombre de la entidad, y dentro de estos
-    /// métodos ese nombre tiene alcance: <c>nameof(Cliente.OrigenDatoId)</c> compila como si
-    /// <c>Cliente</c> fuera el conjunto y no el tipo. Es el mismo motivo por el que
-    /// <see cref="ConfigurarProcedencia{T}"/> recibe sus cuatro columnas como texto.</para>
+    /// métodos ese nombre tiene alcance. Por eso las propiedades de procedencia se declaran como
+    /// cadenas, igual que en <see cref="ConfigurarProcedencia{T}"/>.</para>
     /// </summary>
     private static void ConfigurarFkOrigen<T>(
         EntityTypeBuilder<T> builder,
@@ -677,98 +631,6 @@ public class CotizadorDbContext : DbContext
 
     private static void ConfigurarNegocio(ModelBuilder modelBuilder)
     {
-        // ── dbo.Cliente ──────────────────────────────────────────────────────────
-        var cliente = modelBuilder.Entity<Cliente>();
-        ConfigurarBase(cliente);
-        ConfigurarProcedencia(cliente);
-        cliente.ToTable("Cliente", Esquemas.Negocio);
-        cliente.Property(c => c.Codigo).HasColumnName("Codigo").HasMaxLength(40).IsRequired();
-        cliente.Property(c => c.Nombre).HasColumnName("Nombre").HasMaxLength(200).IsRequired();
-        cliente.Property(c => c.RazonSocial).HasColumnName("RazonSocial").HasMaxLength(200);
-        cliente.Property(c => c.TipoClienteId).HasColumnName("TipoCliente").IsRequired();
-        cliente.Property(c => c.CedulaORuc).HasColumnName("CedulaORuc").HasMaxLength(30);
-        cliente.Property(c => c.IdentificacionFiscal).HasColumnName("IdentificacionFiscal").HasMaxLength(30);
-        cliente.Property(c => c.Direccion).HasColumnName("Direccion").HasMaxLength(300);
-        cliente.Property(c => c.Ciudad).HasColumnName("Ciudad").HasMaxLength(100);
-        cliente.Property(c => c.Departamento).HasColumnName("Departamento").HasMaxLength(100);
-        cliente.Property(c => c.Telefono).HasColumnName("Telefono").HasMaxLength(30);
-        cliente.Property(c => c.Correo).HasColumnName("Correo").HasMaxLength(256);
-        cliente.Property(c => c.ContactoNombre).HasColumnName("ContactoNombre").HasMaxLength(150);
-        cliente.Property(c => c.ContactoCargo).HasColumnName("ContactoCargo").HasMaxLength(100);
-        cliente.Property(c => c.SitioWeb).HasColumnName("SitioWeb").HasMaxLength(256);
-        cliente.Property(c => c.Notas).HasColumnName("Notas").HasMaxLength(1000);
-        ConfigurarFkOrigen(cliente, "OrigenDatoId", "OrigenDatoId", typeof(OrigenDatoCatalogo));
-        cliente.HasIndex(c => c.Codigo).IsUnique().HasDatabaseName("UX_Cliente_Codigo");
-        cliente.HasIndex(c => c.Nombre).HasDatabaseName("IX_Cliente_Nombre");
-        ConfigurarIndicesProcedencia(cliente, "UX_Cliente_ErpCodigoExterno", "IX_Cliente_ErpPendientes");
-        cliente.HasOne(c => c.TipoCliente).WithMany().HasForeignKey(c => c.TipoClienteId).OnDelete(DeleteBehavior.Restrict);
-
-        // ── dbo.Producto ─────────────────────────────────────────────────────────
-        var producto = modelBuilder.Entity<Producto>();
-        ConfigurarBase(producto);
-        ConfigurarProcedencia(producto);
-        producto.ToTable("Producto", Esquemas.Negocio);
-        producto.Property(p => p.Codigo).HasColumnName("Codigo").HasMaxLength(40).IsRequired();
-        producto.Property(p => p.Nombre).HasColumnName("Nombre").HasMaxLength(250).IsRequired();
-        producto.Property(p => p.Descripcion).HasColumnName("Descripcion").HasMaxLength(500);
-        producto.Property(p => p.CategoriaId).HasColumnName("CategoriaId");
-        producto.Property(p => p.CostoActual).HasColumnName("CostoActual").HasPrecision(18, 6).IsRequired();
-        producto.Property(p => p.PrecioVentaActual).HasColumnName("PrecioVentaActual").HasPrecision(18, 6);
-        producto.Property(p => p.VidaUtilMeses).HasColumnName("VidaUtilMeses");
-        ConfigurarFkOrigen(producto, "OrigenPrecioId", "OrigenPrecio", typeof(OrigenPrecioCatalogo));
-        producto.HasIndex(p => p.Codigo).IsUnique().HasDatabaseName("UX_Producto_Codigo");
-        producto.HasIndex(p => new { p.Nombre, p.IsActive }).HasDatabaseName("IX_Producto_Nombre");
-        ConfigurarIndicesProcedencia(producto, "UX_Producto_ErpCodigoExterno", "IX_Producto_ErpPendientes");
-        producto.HasOne(p => p.Categoria).WithMany().HasForeignKey(p => p.CategoriaId).OnDelete(DeleteBehavior.Restrict);
-        producto.HasOne(p => p.UnidadMedida).WithMany().HasForeignKey(p => p.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
-        producto.HasMany(p => p.Precios).WithOne(pe => pe.Producto).HasForeignKey(pe => pe.ProductoId).OnDelete(DeleteBehavior.Cascade);
-
-        // ── dbo.PrecioProducto ───────────────────────────────────────────────────
-        var precioProducto = modelBuilder.Entity<PrecioProducto>();
-        ConfigurarBase(precioProducto);
-        precioProducto.ToTable("PrecioProducto", Esquemas.Negocio);
-        precioProducto.Property(p => p.VigenteDesde).HasColumnName("VigenteDesde").HasColumnType("date").IsRequired();
-        precioProducto.Property(p => p.VigenteHasta).HasColumnName("VigenteHasta").HasColumnType("date");
-        precioProducto.Property(p => p.Costo).HasColumnName("Costo").HasPrecision(18, 6).IsRequired();
-        precioProducto.Property(p => p.PrecioVenta).HasColumnName("PrecioVenta").HasPrecision(18, 6);
-        ConfigurarFkOrigen(precioProducto, "OrigenPrecioId", "OrigenPrecio", typeof(OrigenPrecioCatalogo));
-        precioProducto.HasIndex(p => new { p.ProductoId, p.VigenteDesde })
-            .IsUnique().HasDatabaseName("UX_PrecioProducto_Producto_Inicio");
-
-        // ── dbo.ActivoAmortizable ────────────────────────────────────────────────
-        var activo = modelBuilder.Entity<ActivoAmortizable>();
-        ConfigurarBase(activo);
-        ConfigurarProcedencia(activo);
-        activo.ToTable("ActivoAmortizable", Esquemas.Negocio, t => t.HasCheckConstraint(
-            "CK_ActivoAmortizable_MesesVidaUtil", "[MesesVidaUtil] > 0"));
-        activo.Property(a => a.Codigo).HasColumnName("Codigo").HasMaxLength(40).IsRequired();
-        activo.Property(a => a.Nombre).HasColumnName("Nombre").HasMaxLength(250).IsRequired();
-        activo.Property(a => a.Descripcion).HasColumnName("Descripcion").HasMaxLength(500);
-        activo.Property(a => a.CategoriaId).HasColumnName("CategoriaId");
-        activo.Property(a => a.CostoActual).HasColumnName("CostoActual").HasPrecision(18, 6).IsRequired();
-        activo.Property(a => a.ValorResidual).HasColumnName("ValorResidual").HasPrecision(18, 6);
-        activo.Property(a => a.Cantidad).HasColumnName("Cantidad").HasPrecision(18, 4).HasDefaultValue(1m);
-        // H-04: el CHECK sigue rechazando 0 y negativos. La columna es nullable porque el ERP
-        // de ORKIN no trae vida útil: se define como override en cada cotización (D-04).
-        activo.Property(a => a.MesesVidaUtil).HasColumnName("MesesVidaUtil");
-        ConfigurarFkOrigen(activo, "OrigenPrecioId", "OrigenPrecio", typeof(OrigenPrecioCatalogo));
-        activo.HasIndex(a => a.Codigo).IsUnique().HasDatabaseName("UX_ActivoAmortizable_Codigo");
-        ConfigurarIndicesProcedencia(activo, "UX_ActivoAmortizable_ErpCodigoExterno", "IX_ActivoAmortizable_ErpPendientes");
-        activo.HasOne(a => a.Categoria).WithMany().HasForeignKey(a => a.CategoriaId).OnDelete(DeleteBehavior.Restrict);
-        activo.HasOne(a => a.UnidadMedida).WithMany().HasForeignKey(a => a.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
-        activo.HasMany(a => a.Precios).WithOne(p => p.ActivoAmortizable).HasForeignKey(p => p.ActivoAmortizableId).OnDelete(DeleteBehavior.Cascade);
-
-        // ── dbo.PrecioActivo ─────────────────────────────────────────────────────
-        var precioActivo = modelBuilder.Entity<PrecioActivo>();
-        ConfigurarBase(precioActivo);
-        precioActivo.ToTable("PrecioActivo", Esquemas.Negocio);
-        precioActivo.Property(p => p.VigenteDesde).HasColumnName("VigenteDesde").HasColumnType("date").IsRequired();
-        precioActivo.Property(p => p.VigenteHasta).HasColumnName("VigenteHasta").HasColumnType("date");
-        precioActivo.Property(p => p.Costo).HasColumnName("Costo").HasPrecision(18, 6).IsRequired();
-        ConfigurarFkOrigen(precioActivo, "OrigenPrecioId", "OrigenPrecio", typeof(OrigenPrecioCatalogo));
-        precioActivo.HasIndex(p => new { p.ActivoAmortizableId, p.VigenteDesde })
-            .IsUnique().HasDatabaseName("UX_PrecioActivo_Activo_Inicio");
-
         // ── dbo.TipoCambio ───────────────────────────────────────────────────────
         var tipoCambio = modelBuilder.Entity<TipoCambio>();
         ConfigurarBase(tipoCambio);
@@ -1351,84 +1213,6 @@ public class CotizadorDbContext : DbContext
     }
 
     // ═════════════════════════════════════════════════════════════════════════════
-    //  Catálogos maestros editables
-    // ═════════════════════════════════════════════════════════════════════════════
-
-    private static void ConfigurarCatalogosMaestros(ModelBuilder modelBuilder)
-    {
-        // ── dbo.Tecnico ──────────────────────────────────────────────────────────
-        // El catálogo se mapea por convención; solo se fija aquí el ancho del color para que la
-        // migración no cree un nvarchar(max) y la UI pueda validar el formato #RRGGBB (D-21).
-        modelBuilder.Entity<Tecnico>()
-            .Property(t => t.ColorCalendario).HasColumnName("ColorCalendario").HasMaxLength(7)
-            .IsUnicode(false);
-
-        // ── dbo.UnidadMedida ─────────────────────────────────────────────────────
-        var unidad = modelBuilder.Entity<UnidadMedida>();
-        ConfigurarBase(unidad);
-        ConfigurarProcedencia(unidad);
-        unidad.ToTable("UnidadMedida", Esquemas.Negocio);
-        unidad.Property(u => u.Codigo).HasColumnName("Codigo").HasMaxLength(10).IsRequired();
-        unidad.Property(u => u.Nombre).HasColumnName("Nombre").HasMaxLength(100).IsRequired();
-        unidad.Property(u => u.Abreviatura).HasColumnName("Abreviatura").HasMaxLength(15).IsRequired();
-        unidad.Property(u => u.Orden).HasColumnName("Orden").HasDefaultValue(0);
-        unidad.Property(u => u.PermiteDecimales).HasColumnName("PermiteDecimales").HasDefaultValue(true);
-        ConfigurarFkOrigen(unidad, "OrigenDatoId", "OrigenDatoId", typeof(OrigenDatoCatalogo));
-        unidad.Property(u => u.EsSembrado).HasColumnName("EsSembrado").HasDefaultValue(true);
-        unidad.HasIndex(u => u.Codigo).IsUnique().HasDatabaseName("UX_UnidadMedida_Codigo");
-
-        // ── dbo.CategoriaProducto ────────────────────────────────────────────────
-        var categoria = modelBuilder.Entity<CategoriaProducto>();
-        ConfigurarBase(categoria);
-        ConfigurarProcedencia(categoria);
-        categoria.ToTable("CategoriaProducto", Esquemas.Negocio);
-        categoria.Property(c => c.Codigo).HasColumnName("Codigo").HasMaxLength(20).IsRequired();
-        categoria.Property(c => c.Nombre).HasColumnName("Nombre").HasMaxLength(120).IsRequired();
-        categoria.Property(c => c.Descripcion).HasColumnName("Descripcion").HasMaxLength(300);
-        categoria.Property(c => c.Orden).HasColumnName("Orden").HasDefaultValue(0);
-        ConfigurarFkOrigen(categoria, "OrigenDatoId", "OrigenDatoId", typeof(OrigenDatoCatalogo));
-        categoria.Property(c => c.EsSembrado).HasColumnName("EsSembrado").HasDefaultValue(true);
-        categoria.HasIndex(c => c.Codigo).IsUnique().HasDatabaseName("UX_CategoriaProducto_Codigo");
-
-        // ── dbo.TipoServicio ─────────────────────────────────────────────────────
-        var tipoServicio = modelBuilder.Entity<TipoServicio>();
-        ConfigurarBase(tipoServicio);
-        ConfigurarProcedencia(tipoServicio);
-        tipoServicio.ToTable("TipoServicio", Esquemas.Negocio);
-        tipoServicio.Property(t => t.Codigo).HasColumnName("Codigo").HasMaxLength(20).IsRequired();
-        tipoServicio.Property(t => t.Nombre).HasColumnName("Nombre").HasMaxLength(150).IsRequired();
-        tipoServicio.Property(t => t.Descripcion).HasColumnName("Descripcion").HasMaxLength(500);
-        tipoServicio.Property(t => t.UnidadMedidaId).HasColumnName("UnidadMedidaId");
-        tipoServicio.Property(t => t.Orden).HasColumnName("Orden").HasDefaultValue(0);
-        tipoServicio.Property(t => t.EsResidencialPorDefecto).HasColumnName("EsResidencialPorDefecto").HasDefaultValue(false);
-        tipoServicio.Property(t => t.EsEmpresarialPorDefecto).HasColumnName("EsEmpresarialPorDefecto").HasDefaultValue(false);
-        ConfigurarFkOrigen(tipoServicio, "OrigenDatoId", "OrigenDatoId", typeof(OrigenDatoCatalogo));
-        tipoServicio.Property(t => t.EsSembrado).HasColumnName("EsSembrado").HasDefaultValue(true);
-        tipoServicio.HasIndex(t => t.Codigo).IsUnique().HasDatabaseName("UX_TipoServicio_Codigo");
-        tipoServicio.HasOne(t => t.UnidadMedida).WithMany().HasForeignKey(t => t.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
-
-        // D-20: acá NO se configuran frecuencias, locaciones, métodos de aplicación,
-        // tipos de plaga, tipos de ubicación ni vehículos. Ya existen en el ERP y se
-        // consumen desde su origen; crear tablas propias sería duplicar catálogos.
-
-        // ── dbo.TipoServicioMargen ───────────────────────────────────────────────
-        // El margen vive con vigencia, y como fracción. H-02 / RN-10.
-        var margen = modelBuilder.Entity<TipoServicioMargen>();
-        ConfigurarBase(margen);
-        margen.ToTable("TipoServicioMargen", Esquemas.Negocio, t =>
-        {
-            t.HasCheckConstraint("CK_TipoServicioMargen_Margen", "[Margen] >= 0 AND [Margen] <= 1");
-            t.HasCheckConstraint("CK_TipoServicioMargen_Vigencia", "[VigenteHasta] IS NULL OR [VigenteHasta] >= [VigenteDesde]");
-        });
-        margen.Property(m => m.VigenteDesde).HasColumnName("VigenteDesde").HasColumnType("date").IsRequired();
-        margen.Property(m => m.VigenteHasta).HasColumnName("VigenteHasta").HasColumnType("date");
-        margen.Property(m => m.Margen).HasColumnName("Margen").HasPrecision(5, 4).IsRequired();
-        ConfigurarFkOrigen(margen, "OrigenDatoId", "OrigenDatoId", typeof(OrigenDatoCatalogo));
-        margen.HasIndex(m => new { m.TipoServicioId, m.VigenteDesde }).IsUnique().HasDatabaseName("UX_TipoServicioMargen_Inicio");
-        margen.HasOne(m => m.TipoServicio).WithMany().HasForeignKey(m => m.TipoServicioId).OnDelete(DeleteBehavior.Cascade);
-    }
-
-    // ═════════════════════════════════════════════════════════════════════════════
     //  Sistema: parámetros, consecutivos, notificaciones, documentos
     // ═════════════════════════════════════════════════════════════════════════════
 
@@ -1508,8 +1292,8 @@ public class CotizadorDbContext : DbContext
     // ═════════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// El anclaje ETL: la conexión al ERP del cliente, el flujo que llena un catálogo y la
-    /// bitácora de cada corrida.
+    /// Integración sin ETL local (D-24): la conexión al ERP, su mapeo de tipo de cliente, el
+    /// staging del importador de Google y la bitácora de jobs que no son flujos de sincronización.
     /// <para><b>El <c>CHECK (EsSoloLectura = 1)</c> es deliberado (D-19):</b> convierte
     /// "no escribimos en el ERP del cliente" en una restricción de base, no en una promesa del
     /// código. La columna se conserva para que la prohibición sea explícita y auditable.</para>
@@ -1609,104 +1393,6 @@ public class CotizadorDbContext : DbContext
         evento.HasIndex(e => new { e.LoteId, e.EventoId }).IsUnique()
             .HasDatabaseName("UX_ImportacionGoogleEvento_LoteEvento");
         evento.HasOne(e => e.Lote).WithMany().HasForeignKey(e => e.LoteId).OnDelete(DeleteBehavior.Cascade);
-
-        // ── int.ErpFlujo ─────────────────────────────────────────────────────────
-        var flujo = modelBuilder.Entity<ErpFlujo>();
-        ConfigurarBase(flujo);
-        // Los tres CHECK viven en la base y no en el código a propósito. La validación de la API
-        // es una cortesía para quien usa la pantalla; la de la base es la que se cumple. Un
-        // intervalo de 2 segundos no es «un valor raro»: son 43.200 consultas diarias contra el
-        // ERP de un cliente, y tiene que ser imposible escribirlo por cualquier vía.
-        flujo.ToTable("ErpFlujo", Esquemas.Integracion, t =>
-        {
-            t.HasCheckConstraint("CK_ErpFlujo_IntervaloMinimo",
-                "[IntervaloSegundos] IS NULL OR [IntervaloSegundos] >= 10");
-            t.HasCheckConstraint("CK_ErpFlujo_Desfase",
-                "[DesfaseSegundos] BETWEEN 0 AND 30");
-            t.HasCheckConstraint("CK_ErpFlujo_Fallos",
-                "[MaximoFallosConsecutivos] > 0");
-        });
-        flujo.Property(f => f.ErpConexionId).HasColumnName("ErpConexionId").IsRequired();
-        flujo.Property(f => f.Nombre).HasColumnName("Nombre").HasMaxLength(150).IsRequired();
-        flujo.Property(f => f.Descripcion).HasColumnName("Descripcion").HasMaxLength(500);
-        flujo.Property(f => f.Catalogo).HasColumnName("Catalogo").HasMaxLength(40).IsRequired();
-        flujo.Property(f => f.Origen).HasColumnName("Origen").HasMaxLength(2000).IsRequired();
-        flujo.Property(f => f.MapeoJson).HasColumnName("MapeoJson").HasColumnType("nvarchar(max)");
-        flujo.Property(f => f.TipoDisparador).HasColumnName("TipoDisparador").IsRequired();
-        flujo.Property(f => f.IntervaloSegundos).HasColumnName("IntervaloSegundos");
-        flujo.Property(f => f.DesfaseSegundos).HasColumnName("DesfaseSegundos").HasDefaultValue((short)0);
-        flujo.Property(f => f.MaximoRegistrosPorCorrida).HasColumnName("MaximoRegistrosPorCorrida");
-        flujo.Property(f => f.MaximoFallosConsecutivos).HasColumnName("MaximoFallosConsecutivos")
-            .HasDefaultValue(IntegracionCatalogos.MaximoFallosConsecutivosPorDefecto);
-        flujo.Property(f => f.ProximaEjecucionUtc).HasColumnName("ProximaEjecucionUtc").HasColumnType("datetime2(3)");
-        flujo.Property(f => f.UltimoIntentoUtc).HasColumnName("UltimoIntentoUtc").HasColumnType("datetime2(3)");
-        // El alquiler de corrida. No lleva índice propio: se lee y se escribe siempre con el Id
-        // del flujo al lado, que ya es la clave primaria, así que un índice aquí solo agregaría
-        // estructura a algo que nadie consulta suelto.
-        flujo.Property(f => f.CorridaEnCursoUtc).HasColumnName("CorridaEnCursoUtc").HasColumnType("datetime2(3)");
-        flujo.Property(f => f.EsPausado).HasColumnName("EsPausado").HasDefaultValue(false);
-        flujo.Property(f => f.MotivoPausa).HasColumnName("MotivoPausa").HasMaxLength(500);
-        flujo.Property(f => f.ModoExtraccion).HasColumnName("ModoExtraccion").IsRequired();
-        flujo.Property(f => f.Estado).HasColumnName("Estado").IsRequired();
-        flujo.Property(f => f.UltimaEjecucionUtc).HasColumnName("UltimaEjecucionUtc").HasColumnType("datetime2(3)");
-        flujo.Property(f => f.UltimoEstado).HasColumnName("UltimoEstado");
-        flujo.Property(f => f.UltimoError).HasColumnName("UltimoError").HasMaxLength(2000);
-        flujo.Property(f => f.UltimosInsertados).HasColumnName("UltimosInsertados").HasDefaultValue(0);
-        flujo.Property(f => f.UltimosActualizados).HasColumnName("UltimosActualizados").HasDefaultValue(0);
-        flujo.Property(f => f.UltimosOmitidos).HasColumnName("UltimosOmitidos").HasDefaultValue(0);
-        flujo.Property(f => f.UltimosRechazados).HasColumnName("UltimosRechazados").HasDefaultValue(0);
-        flujo.Property(f => f.FallosConsecutivos).HasColumnName("FallosConsecutivos").HasDefaultValue((short)0);
-        flujo.HasIndex(f => new { f.ErpConexionId, f.Nombre }).IsUnique()
-            .HasDatabaseName("UX_ErpFlujo_ConexionNombre");
-        // Índice filtrado de los flujos que el motor tiene que mirar. La pregunta del planificador
-        // es siempre la misma —¿qué se venció desde la última vuelta?— y sin este índice sería un
-        // recorrido de tabla. Hoy no costaría nada porque la tabla tiene dos o tres filas; costaría
-        // el día que haya clientes de verdad. El filtro deja fuera los flujos manuales, los
-        // pausados y los que están en BORRADOR, que nunca se consultan, para que el índice no
-        // crezca con filas muertas. El estado va como `<> 1` y no como `= 3` por la misma razón
-        // que en EsEjecutable: CON_ERROR también se reclama, y si el filtro lo dejara afuera, un
-        // flujo con el ERP caído saldría del índice y el motor dejaría de reintentarlo.
-        flujo.HasIndex(f => f.ProximaEjecucionUtc)
-            .HasFilter("[EsPausado] = 0 AND [IntervaloSegundos] IS NOT NULL AND [Estado] <> 1")
-            .HasDatabaseName("IX_ErpFlujo_Programados");
-        flujo.HasOne(f => f.Conexion).WithMany().HasForeignKey(f => f.ErpConexionId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        // ── int.SincronizacionEjecucion ──────────────────────────────────────────
-        var ejecucion = modelBuilder.Entity<SincronizacionEjecucion>();
-        ejecucion.ToTable("SincronizacionEjecucion", Esquemas.Integracion);
-        ejecucion.HasKey(e => e.Id);
-        ejecucion.Property(e => e.Id).HasColumnName("Id").ValueGeneratedOnAdd();
-        ejecucion.Property(e => e.ErpConexionId).HasColumnName("ErpConexionId").IsRequired();
-        ejecucion.Property(e => e.ErpFlujoId).HasColumnName("ErpFlujoId").IsRequired();
-        ejecucion.Property(e => e.TipoDisparador).HasColumnName("TipoDisparador").IsRequired();
-        ejecucion.Property(e => e.Estado).HasColumnName("Estado").IsRequired();
-        ejecucion.Property(e => e.InicioUtc).HasColumnName("InicioUtc").HasColumnType("datetime2(3)").IsRequired();
-        ejecucion.Property(e => e.FinUtc).HasColumnName("FinUtc").HasColumnType("datetime2(3)");
-        ejecucion.Property(e => e.DuracionMs).HasColumnName("DuracionMs");
-        ejecucion.Property(e => e.RegistrosLeidos).HasColumnName("RegistrosLeidos").HasDefaultValue(0);
-        ejecucion.Property(e => e.RegistrosCreados).HasColumnName("RegistrosCreados").HasDefaultValue(0);
-        ejecucion.Property(e => e.RegistrosActualizados).HasColumnName("RegistrosActualizados").HasDefaultValue(0);
-        ejecucion.Property(e => e.RegistrosSinCambio).HasColumnName("RegistrosSinCambio").HasDefaultValue(0);
-        ejecucion.Property(e => e.RegistrosRechazados).HasColumnName("RegistrosRechazados").HasDefaultValue(0);
-        ejecucion.Property(e => e.RegistrosDesactivados).HasColumnName("RegistrosDesactivados").HasDefaultValue(0);
-        ejecucion.Property(e => e.MensajeError).HasColumnName("MensajeError").HasMaxLength(2000);
-        ejecucion.Property(e => e.SolicitadoPor).HasColumnName("SolicitadoPor");
-        ejecucion.HasIndex(e => new { e.ErpFlujoId, e.InicioUtc })
-            .HasDatabaseName("IX_SincronizacionEjecucion_FlujoInicio");
-        ejecucion.HasIndex(e => new { e.Estado, e.InicioUtc })
-            .HasDatabaseName("IX_SincronizacionEjecucion_EstadoInicio");
-        ejecucion.HasOne(e => e.Flujo).WithMany().HasForeignKey(e => e.ErpFlujoId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        // La FK directa a la conexión es `Restrict`, no `Cascade`, y no por descuido: borrar una
-        // conexión ya borra sus flujos en cascada, y cada flujo borra sus ejecuciones. Con
-        // `Cascade` también acá, SQL Server ve dos rutas de cascada hacia la misma fila
-        // (conexión → flujo → ejecución, y conexión → ejecución) y se niega a crear la
-        // restricción con el error 1785. La columna se conserva porque se consulta por
-        // conexión —"qué se corrió contra este ERP"— sin tener que unir con el flujo.
-        ejecucion.HasOne(e => e.Conexion).WithMany().HasForeignKey(e => e.ErpConexionId)
-            .OnDelete(DeleteBehavior.Restrict);
 
         // ── int.JobEjecucion ──────────────────────────────────────────────────────
         // Auditoría de jobs que no son flujos ETL. No copia dbo.logs ni la bitácora de correos:

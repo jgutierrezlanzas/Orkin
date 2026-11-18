@@ -1031,8 +1031,13 @@ Detalles:
 
 ---
 
-### Fase 12 — Integración con ERP del cliente 🔌
+### Fase 12 — Integración con ERP del cliente 🔌 (archivada por D-24)
 
+> 🗄️ **Estado histórico:** la tabla de tareas de esta fase quedó como registro de lo que se
+> implementó; los estados ✅ ya no describen el código actual. Los catálogos se leen en vivo desde
+> `vv*` y el ETL local fue retirado. Estado vigente en
+> [`docs/ROADMAP-MIGRACION-LEGACY.md`](docs/ROADMAP-MIGRACION-LEGACY.md) §8.9.
+>
 > **Alcance (D-19):** **una sola dirección.** El ERP alimenta los catálogos del cotizador con datos
 > reales —alta y baja de productos, cambios de precios y costos, activos, tipo de cambio— y **la web
 > nunca escribe en el ERP del cliente**. La generación de órdenes de compra queda **fuera de
@@ -1051,6 +1056,12 @@ Detalles:
 > catálogos (tarea 12.5 ya no requiere migración). **D-15 quedó resuelto en la práctica:** el ERP
 > es el de cada cliente de ORKIN —la plataforma se conecta a la base que cada uno administre— y
 > por eso la unidad de integración es la conexión configurable, no un conector fijo.
+>
+> ⚠️ **D-24 (2026-11-18):** este diseño quedó superado para catálogos. Los maestros del ERP se leen
+> en vivo desde `vv*` y ya no se materializan en `dbo`: se retiraron los loaders espejo, los 17
+> endpoints de `/api/origenes`, el menú "Orígenes de datos", el permiso `CATALOGOS.ORIGENES`, las
+> tablas duplicadas y sus pantallas CRUD. Queda únicamente el lector estrecho de `TipoCambio`.
+> Detalle en [`docs/ROADMAP-MIGRACION-LEGACY.md`](docs/ROADMAP-MIGRACION-LEGACY.md) §8.9.
 
 | # | Tarea | Detalle | Estado |
 |---|---|---|---|

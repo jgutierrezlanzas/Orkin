@@ -9,6 +9,12 @@
 > La §9 describe lo que existe en el código hoy, que es menos que el diseño de las §1–8. Las
 > secciones de diseño se conservan completas porque siguen siendo la referencia de lo que falta,
 > no porque todo esté pendiente de hacer.
+>
+> ⚠️ **D-24 (2026-11-18):** el contenido operativo de este documento quedó como registro histórico.
+> Los catálogos ya no se materializan desde el ERP: se leen en vivo desde `vv*`, y se retiraron los
+> loaders espejo, `/api/origenes`, el menú "Orígenes de datos" y el permiso `CATALOGOS.ORIGENES`.
+> Solo permanece el lector estrecho de `TipoCambio`. Estado actual en
+> [`ROADMAP-MIGRACION-LEGACY.md`](ROADMAP-MIGRACION-LEGACY.md) §8.9.
 
 ---
 

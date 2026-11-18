@@ -2,12 +2,10 @@ namespace Orkin.Cotizador.Core.Domain.Entidades;
 
 /// <summary>
 /// Auditoría de una corrida de un job (Fase 8), incluidos los reenvíos manuales.
-/// <para><b>Por qué no es <c>int.SincronizacionEjecucion</c>:</b> esa tabla exige
-/// <c>ErpConexionId</c> y <c>ErpFlujoId</c>, o sea una conexión y un flujo del ERP del cliente.
-/// Un job que lee los SPs de notificación de SINCOERPORKIN no es un flujo ETL: inventar esas dos
-/// filas para poder escribir la bitácora sería exactamente el tipo de dato falso que prohíben
-/// D-20/D-21/D-22. Esta tabla es solo auditoría de ejecución, no una copia de ninguna entidad
-/// legacy ni del staging <c>NotificarProgramacionVisitaTemporal</c>.</para>
+/// <para><b>Por qué no es una tabla de flujos ETL:</b> un job que lee los SPs de notificación de
+/// SINCOERPORKIN no es un flujo de carga del ERP; vincular su bitácora a una conexión o flujo
+/// exigiría inventar filas sin significado. Esta tabla es solo auditoría de ejecución, no una copia
+/// de ninguna entidad legacy ni del staging <c>NotificarProgramacionVisitaTemporal</c>.</para>
 /// <para>No hereda <c>BaseEntity</c>: es append-only, lo escribe el job y no se edita desde la UI.</para>
 /// </summary>
 public class JobEjecucion

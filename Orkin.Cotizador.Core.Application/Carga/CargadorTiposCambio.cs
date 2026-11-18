@@ -6,8 +6,8 @@ using Orkin.Cotizador.Core.Infrastructure.Persistence;
 namespace Orkin.Cotizador.Core.Application.Carga;
 
 /// <summary>
-/// Carga el catálogo de tipos de cambio desde un origen externo, con la misma mecánica de
-/// <see cref="CargadorProductos"/>: upsert idempotente por <c>CodigoExterno</c> (la fecha en ISO),
+/// Carga el catálogo de tipos de cambio desde un origen externo, con upsert idempotente por
+/// <c>CodigoExterno</c> (la fecha en ISO),
 /// actualización por hash, adopción de la fila capturada a mano con la misma (fecha, fuente).
 /// <para>El tipo de cambio es el catálogo con más filas de todos (1 309 días en el ERP demo) y el
 /// que más duele desactualizado: una cotización de mañana con el TC de la semana pasada es un

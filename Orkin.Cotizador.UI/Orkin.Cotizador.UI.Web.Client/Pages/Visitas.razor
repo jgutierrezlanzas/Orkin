@@ -120,7 +120,7 @@
                            Dense="true" Clearable="true">
                     @foreach (var cliente in _clientes)
                     {
-                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Nombre</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Descripcion (@cliente.Codigo)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -179,8 +179,8 @@
                                     <MudCheckBox T="bool" Dense="true" Color="Color.Primary"
                                                  Value="@_calendariosActivos.Contains(tecnico.Codigo)"
                                                  ValueChanged="@((bool v) => AlternarTecnico(tecnico.Codigo, v))" />
-                                    <span style="display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;background-color:@ColorCalendario.Para(tecnico.Codigo, tecnico.ColorCalendario);"></span>
-                                    <MudText Typo="Typo.caption">@tecnico.Nombre</MudText>
+                                    <span style="display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;background-color:@ColorCalendario.Para(tecnico.Codigo);"></span>
+                                    <MudText Typo="Typo.caption">@tecnico.Descripcion</MudText>
                                 </div>
                             }
                         </div>
@@ -243,11 +243,11 @@
                         </div>
                         @foreach (var tecnico in TecnicosVisibles)
                         {
-                            var color = ColorCalendario.Para(tecnico.Codigo, tecnico.ColorCalendario);
+                            var color = ColorCalendario.Para(tecnico.Codigo);
                             <div class="semana-fila">
                                 <div class="semana-tecnico" style="border-left-color:@color;">
                                     <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background-color:@color;"></span>
-                                    <MudText Typo="Typo.caption">@tecnico.Nombre</MudText>
+                                    <MudText Typo="Typo.caption">@tecnico.Descripcion</MudText>
                                 </div>
                                 @foreach (var dia in DiasDeLaSemana)
                                 {
@@ -412,9 +412,9 @@
     private static readonly string[] DiasSemana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
     private List<VisitaModel> _visitas = [];
-    private List<ClienteModel> _clientes = [];
+    private List<OpcionErpModel> _clientes = [];
     private List<PlantillaModel> _plantillas = [];
-    private List<TecnicoModel> _tecnicos = [];
+    private List<OpcionErpModel> _tecnicos = [];
     private readonly HashSet<string> _calendariosActivos = new(StringComparer.OrdinalIgnoreCase);
     private int _modoCalendario;
     private VisitaModel? _detalle;
@@ -429,14 +429,11 @@
     private bool _puedeGenerarOt;
     private bool _puedeImportar;
 
-    /// <summary>Cada técnico activo del catálogo compartido es un calendario seleccionable.</summary>
-    private IReadOnlyList<TecnicoModel> TecnicosActivos => _tecnicos.Where(t => t.EsActivo).ToList();
+    /// <summary>Cada técnico devuelto por el ERP es un calendario seleccionable.</summary>
+    private IReadOnlyList<OpcionErpModel> TecnicosActivos => _tecnicos;
 
-    private IReadOnlyList<TecnicoModel> TecnicosVisibles
+    private IReadOnlyList<OpcionErpModel> TecnicosVisibles
         => TecnicosActivos.Where(t => _calendariosActivos.Contains(t.Codigo)).ToList();
-
-    private Dictionary<string, TecnicoModel> TecnicosPorCodigo
-        => _tecnicos.ToDictionary(t => t.Codigo, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Visitas que pasan el filtro de calendarios. Las que no tienen técnicos asignados en el
@@ -493,9 +490,10 @@
 
     private async Task CargarCatalogos()
     {
-        _clientes = await Catalogos.ListarClientesAsync();
+        var opciones = await Catalogos.ListarOpcionesErpAsync();
+        _clientes = opciones.Clientes;
+        _tecnicos = opciones.Tecnicos;
         _plantillas = await ServicioPlantillas.ListarAsync();
-        _tecnicos = await Catalogos.ListarTecnicosAsync();
 
         // Todos los calendarios arrancan activos, como en Google Calendar.
         _calendariosActivos.Clear();
@@ -557,15 +555,7 @@
     {
         var codigo = visita.CodigosTecnico.FirstOrDefault(c => _calendariosActivos.Contains(c))
                      ?? visita.CodigosTecnico.FirstOrDefault();
-        if (codigo is null)
-        {
-            return ColorCalendario.Paleta[0];
-        }
-
-        var configurado = TecnicosPorCodigo.TryGetValue(codigo, out var tecnico)
-            ? tecnico.ColorCalendario
-            : null;
-        return ColorCalendario.Para(codigo, configurado);
+        return ColorCalendario.Para(codigo);
     }
 
     private void AlternarTecnico(string codigo, bool activo)

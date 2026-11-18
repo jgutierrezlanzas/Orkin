@@ -39,7 +39,7 @@
             </MudItem>
             <MudItem xs="6" md="3">
                 <MudPaper Elevation="2" Class="pa-4">
-                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Productos activos</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Artículos del ERP</MudText>
                     <MudText Typo="Typo.h3" Color="Color.Primary">@_datos.Productos</MudText>
                 </MudPaper>
             </MudItem>
@@ -89,16 +89,12 @@
             // pantalla muestra lo que pudo conseguir. El dashboard es para mirar de reojo,
             // no un reporte que tiene que estar completo o no ser.
             PaginatedCotizaciones? cotizaciones = null;
-            List<ClienteModel>? clientes = null;
-            List<ProductoModel>? productos = null;
+            OpcionesErpModel? opciones = null;
 
             try { cotizaciones = await CotizacionService.ListarAsync(1, 5); }
             catch { /* la sesión expirada ya redirigió; otros fallos se muestran vacíos */ }
 
-            try { clientes = await CatalogoService.ListarClientesAsync(); }
-            catch { }
-
-            try { productos = await CatalogoService.ListarProductosAsync(); }
+            try { opciones = await CatalogoService.ListarOpcionesErpAsync(); }
             catch { }
 
             _datos = new DatosDashboard
@@ -106,8 +102,8 @@
                 Cotizaciones = cotizaciones?.Total ?? 0,
                 ValorCotizado = cotizaciones?.Items?.Sum(c => c.PrecioCordobas) ?? 0m,
                 Ultimas = cotizaciones?.Items ?? [],
-                Clientes = clientes?.Count ?? 0,
-                Productos = productos?.Count ?? 0
+                Clientes = opciones?.Clientes.Count ?? 0,
+                Productos = opciones?.Articulos.Count ?? 0
             };
         }
         finally

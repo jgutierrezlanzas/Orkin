@@ -87,6 +87,8 @@ public sealed record VisitaTecnicoGuardar(string? CodigoTecnico, string? Inicial
 /// </summary>
 public sealed class VisitaService
 {
+    private const string ActivoCorto = "S";
+
     private readonly CotizadorDbContext _contexto;
     private readonly IContextoUsuario _usuario;
     private readonly IGeneradorOrdenTrabajo _generador;
@@ -210,7 +212,7 @@ public sealed class VisitaService
                 v,
                 detalle?.Total ?? 0,
                 detalle?.Codigos ?? [],
-                nombres.GetValueOrDefault(v.Cliente ?? string.Empty),
+                nombres.GetValueOrDefault(v.Cliente?.Trim() ?? string.Empty),
                 numeroPlantilla == 0 ? null : numeroPlantilla,
                 descripcion,
                 orden);
@@ -253,7 +255,7 @@ public sealed class VisitaService
             visita,
             tecnicos,
             calendarios,
-            nombres.GetValueOrDefault(visita.Cliente ?? string.Empty),
+            nombres.GetValueOrDefault(visita.Cliente?.Trim() ?? string.Empty),
             calendarios.FirstOrDefault()?.Plantilla,
             plantillas.GetValueOrDefault(calendarios.FirstOrDefault()?.Plantilla ?? 0),
             orden);
@@ -454,23 +456,34 @@ public sealed class VisitaService
         IEnumerable<string?> codigos,
         CancellationToken cancellationToken)
     {
-        var lista = codigos.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!).Distinct().ToList();
+        var lista = codigos
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         if (lista.Count == 0)
         {
-            return new Dictionary<string, string>();
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
         // Rango en SQL + conjuntos en memoria: evita el OPENJSON('$') que falla en el ERP.
         var min = lista.Min();
         var max = lista.Max();
-        var clientes = await _contexto.Cliente.AsNoTracking()
-            .Where(c => string.Compare(c.Codigo, min) >= 0 && string.Compare(c.Codigo, max) <= 0)
-            .Select(c => new { c.Codigo, c.Nombre })
+        var clientes = await _contexto.VistaClienteErp.AsNoTracking()
+            .Where(v => v.Activo == ActivoCorto &&
+                        string.Compare(v.Cliente, min) >= 0 &&
+                        string.Compare(v.Cliente, max) <= 0)
+            .Select(v => new { Codigo = v.Cliente.Trim(), Nombre = v.NombreCliente })
             .ToListAsync(cancellationToken);
+
         return clientes
-            .Where(c => lista.Contains(c.Codigo))
-            .GroupBy(c => c.Codigo)
-            .ToDictionary(g => g.Key, g => g.First().Nombre);
+            .Where(v => lista.Contains(v.Codigo, StringComparer.OrdinalIgnoreCase))
+            .GroupBy(v => v.Codigo, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(v => v.Nombre)
+                    .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))?.Trim() ?? g.Key,
+                StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task<IReadOnlyDictionary<long, string>> DescripcionesPlantillaAsync(

@@ -47,6 +47,8 @@ public sealed record RequisaGuardar(
 /// </summary>
 public sealed class RequisaService
 {
+    private const string ActivoCorto = "S";
+    private const string ActivoSi = "SI";
     private const string Generada = "GE";
     private const string Aprobada = "AP";
     private const string Anulada = "AN";
@@ -132,7 +134,7 @@ public sealed class RequisaService
             var resumenLineas = lineas.GetValueOrDefault(r.RequisaNumero);
             return new RequisaResumen(
                 r,
-                r.Cliente is null ? null : nombresCliente.GetValueOrDefault(r.Cliente),
+                r.Cliente is null ? null : nombresCliente.GetValueOrDefault(r.Cliente.Trim()),
                 nombresLocacion.GetValueOrDefault((r.Cliente, r.Locacion)),
                 resumenLineas?.Bodega,
                 resumenLineas?.Total ?? 0,
@@ -170,7 +172,7 @@ public sealed class RequisaService
             cabecera,
             lineas,
             tecnicos,
-            cabecera.Cliente is null ? null : nombresCliente.GetValueOrDefault(cabecera.Cliente),
+            cabecera.Cliente is null ? null : nombresCliente.GetValueOrDefault(cabecera.Cliente.Trim()),
             nombresLocacion.GetValueOrDefault((cabecera.Cliente, cabecera.Locacion)),
             lineas.FirstOrDefault()?.Bodega,
             nombresTecnico);
@@ -460,22 +462,34 @@ public sealed class RequisaService
         IEnumerable<string?> codigos,
         CancellationToken cancellationToken)
     {
-        var lista = codigos.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!).Distinct().ToList();
+        var lista = codigos
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         if (lista.Count == 0)
         {
-            return new Dictionary<string, string>();
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
+        // Rango en SQL + conjuntos en memoria: evita el OPENJSON('$') que falla en el ERP.
         var min = lista.Min();
         var max = lista.Max();
-        var clientes = await _contexto.Cliente.AsNoTracking()
-            .Where(c => string.Compare(c.Codigo, min) >= 0 && string.Compare(c.Codigo, max) <= 0)
-            .Select(c => new { c.Codigo, c.Nombre })
+        var clientes = await _contexto.VistaClienteErp.AsNoTracking()
+            .Where(v => v.Activo == ActivoCorto &&
+                        string.Compare(v.Cliente, min) >= 0 &&
+                        string.Compare(v.Cliente, max) <= 0)
+            .Select(v => new { Codigo = v.Cliente.Trim(), Nombre = v.NombreCliente })
             .ToListAsync(cancellationToken);
 
-        return clientes.Where(c => lista.Contains(c.Codigo))
-            .GroupBy(c => c.Codigo)
-            .ToDictionary(g => g.Key, g => g.First().Nombre);
+        return clientes
+            .Where(v => lista.Contains(v.Codigo, StringComparer.OrdinalIgnoreCase))
+            .GroupBy(v => v.Codigo, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(v => v.Nombre)
+                    .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))?.Trim() ?? g.Key,
+                StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task<IReadOnlyDictionary<(string? Cliente, string? Locacion), string>> NombresLocacionAsync(
@@ -510,22 +524,36 @@ public sealed class RequisaService
         IEnumerable<string> codigos,
         CancellationToken cancellationToken)
     {
-        var lista = codigos.Distinct().ToList();
+        var lista = codigos
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         if (lista.Count == 0)
         {
-            return new Dictionary<string, string>();
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
         var min = lista.Min();
         var max = lista.Max();
-        var tecnicos = await _contexto.Tecnico.AsNoTracking()
-            .Where(t => string.Compare(t.Codigo, min) >= 0 && string.Compare(t.Codigo, max) <= 0)
-            .Select(t => new { t.Codigo, t.Nombre })
+        var tecnicos = await _contexto.VistaTecnicoErp.AsNoTracking()
+            .Where(v => v.Activo == ActivoSi &&
+                        string.Compare(v.Codigo, min) >= 0 &&
+                        string.Compare(v.Codigo, max) <= 0)
+            .Select(v => new { Codigo = v.Codigo.Trim(), v.NombreCompleto, v.Iniciales })
             .ToListAsync(cancellationToken);
 
-        return tecnicos.Where(t => lista.Contains(t.Codigo))
-            .GroupBy(t => t.Codigo)
-            .ToDictionary(g => g.Key, g => g.First().Nombre);
+        return tecnicos
+            .Where(t => lista.Contains(t.Codigo, StringComparer.OrdinalIgnoreCase))
+            .GroupBy(t => t.Codigo, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(t => t.NombreCompleto)
+                        .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))?.Trim()
+                    ?? g.Select(t => t.Iniciales)
+                        .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))?.Trim()
+                    ?? g.Key,
+                StringComparer.OrdinalIgnoreCase);
     }
 
     private static decimal? RedondearEntero(decimal? valor)

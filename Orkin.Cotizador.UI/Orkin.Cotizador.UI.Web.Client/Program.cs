@@ -36,7 +36,7 @@ public class Program
         builder.Services.AddMudServices();
 
         // ── Autorización ────────────────────────────────────────────────────────────
-        // El nombre de una política es el código del permiso (CATALOGOS.ORIGENES, …), y en el
+        // El nombre de una política es el código del permiso (CATALOGOS.VER, …), y en el
         // cliente no hay catálogo de permisos: se resuelve cualquier nombre contra el claim
         // "orkin:permiso" del token. Ver PoliticaPermisoProvider para por qué y para qué caso
         // falla.
@@ -58,7 +58,6 @@ public class Program
         builder.Services.AddScoped<InventarioService>();
         builder.Services.AddScoped<ReportesService>();
         builder.Services.AddScoped<CotizacionService>();
-        builder.Services.AddScoped<IntegracionService>();
         builder.Services.AddScoped<NotificacionService>();
         builder.Services.AddScoped<AdminService>();
         builder.Services.AddScoped<CustomAuthStateProvider>();

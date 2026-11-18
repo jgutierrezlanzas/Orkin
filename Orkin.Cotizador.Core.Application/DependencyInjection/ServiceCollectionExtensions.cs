@@ -42,12 +42,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ConsecutivoService>();
         services.AddScoped<EjecutorSql>();
         services.AddScoped<ILectorSql>(proveedor => proveedor.GetRequiredService<EjecutorSql>());
-        services.AddScoped<UnidadMedidaService>();
-        services.AddScoped<CategoriaProductoService>();
-        services.AddScoped<TipoServicioService>();
-        services.AddScoped<ProductoService>();
-        services.AddScoped<ClienteService>();
-        services.AddScoped<TecnicoService>();
         services.AddScoped<TipoCambioService>();
         services.AddScoped<CatalogoErpService>();
         services.AddScoped<CotizacionService>();
@@ -71,41 +65,17 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INotificacionService, NotificacionService>();
         services.AddHostedService<NotificacionBackgroundService>();
 
-        // Proceso de carga desde origen externo (Fase 2.5): un cargador por catálogo. El de
-        // clientes va con el de productos porque el cliente de ORKIN también vive en su ERP, y
-        // cotizarle a alguien que ya es cliente exige su ficha, no solo el nombre. Los maestros
-        // (unidades, categorías, tipos de servicio) y el tipo de cambio completan la fila: todo
-        // catálogo que el cliente tenga en su ERP se carga desde ahí.
-        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorProductos>();
-        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorClientes>();
-        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorUnidadesMedida>();
-        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorCategoriasProducto>();
-        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorTiposServicio>();
+        // D-24: el único catálogo que se sigue cargando es el tipo de cambio. Los demás se leen
+        // directamente de las vistas vv* del ERP: no hay tablas espejo ni motor ETL local.
         services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorTiposCambio>();
-        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorActivosAmortizables>();
-        services.AddScoped<Domain.Carga.ICargadorCatalogo, Carga.CargadorTecnicos>();
 
         // D-20: no se registran cargadores para catálogos que ya viven en SOFTLAND/FUMIPLAGA
         // o en las vistas vv* de SINCOERPORKIN (frecuencias, locaciones, métodos, plagas,
         // ubicaciones, vehículos). Se consumen desde su origen cuando un módulo los necesite.
 
-        // Integración con el ERP del cliente (Fase 12): conexiones, flujos y sus corridas.
-        services.AddScoped<Integracion.IntegracionService>();
-
-        // El reloj, por inyección, para que una prueba pueda mover el tiempo en vez de esperar.
-        // Es la diferencia entre probar una regla de programación en un milisegundo y no poder
-        // probarla. TryAdd porque es un servicio del host y el host puede haber puesto el suyo.
+        // El reloj, por inyección, para que una prueba pueda fijar el tiempo cuando lo necesite.
+        // TryAdd porque es un servicio del host y el host puede haber puesto el suyo.
         services.TryAddSingleton(TimeProvider.System);
-
-        // El motor de sincronización programada. Se registra aunque no haya ningún flujo
-        // programado: gira cada 5 segundos, pregunta a la base qué venció, y la respuesta normal
-        // es «nada». Encender un flujo después no pide reiniciar nada, que es lo que un cliente
-        // espera de una opción que dice «automático».
-        //
-        // Vive en esta capa y no en infraestructura porque necesita a IntegracionService, que es
-        // de aplicación, y las capas solo se ven en un sentido. El ReclamadorFlujos sí es
-        // infraestructura —habla SQL crudo— y por eso lo registra AddInfrastructure.
-        services.AddHostedService<Integracion.SincronizacionBackgroundService>();
 
         return services;
     }

@@ -53,38 +53,13 @@
                 {
                     <MudNavLink Href="/cotizaciones" Icon="@Icons.Material.Filled.RequestQuote">Cotizaciones</MudNavLink>
                 }
-                @if (_permisosCatalogos.Count > 0)
+                @if (TienePermiso("CATALOGOS.VER"))
                 {
-                    @* Un solo conjunto de catálogos para toda la plataforma: una sola copia en
-                       dbo, una sola API por entidad y una sola fuente (Softland/SINCOERPORKIN).
-                       No se crea un catálogo por módulo. *@
+                    @* Los catálogos del ERP se consultan en vivo: no hay copias locales que
+                       administrar ni flujos de carga que configurar desde esta pantalla. *@
                     <MudNavGroup Title="Catálogos" Icon="@Icons.Material.Filled.List" Expanded="true">
-                        <MudText Typo="Typo.caption" Class="px-4 mud-text-secondary">Una sola copia · una sola API · Fuente: Softland / SINCOERPORKIN</MudText>
-
-                        @if (TienePermiso("CLIENTES.VER"))
-                        {
-                            <MudNavLink Href="/clientes" Icon="@Icons.Material.Filled.People">Clientes</MudNavLink>
-                        }
-                        @if (TienePermiso("CATALOGOS.VER"))
-                        {
-                            <MudNavLink Href="/catalogos/unidades-medida" Icon="@Icons.Material.Filled.Straighten">Unidades de medida</MudNavLink>
-                            <MudNavLink Href="/catalogos/categorias-producto" Icon="@Icons.Material.Filled.Category">Categorías de producto</MudNavLink>
-                            <MudNavLink Href="/catalogos/tipos-servicio" Icon="@Icons.Material.Filled.CleaningServices">Tipos de servicio</MudNavLink>
-                            <MudNavLink Href="/catalogos/tecnicos" Icon="@Icons.Material.Filled.Person">Técnicos</MudNavLink>
-                            <MudNavLink Href="/catalogos/productos" Icon="@Icons.Material.Filled.Inventory">Productos</MudNavLink>
-                            <MudNavLink Href="/catalogos/tipos-cambio" Icon="@Icons.Material.Filled.CurrencyExchange">Tipos de cambio</MudNavLink>
-                        }
-
-                        @* Orígenes va aparte de CATALOGOS.VER y no dentro de él: se llena un
-                           catálogo desde el ERP, pero abrir una conexión a la base de un cliente
-                           es un poder distinto a corregir un precio. Quien solo puede ver y
-                           corregir catálogos no tiene por qué ver la lista de servidores de los
-                           clientes, ni aunque no sirva para tocarlos. *@
-                        @if (TienePermiso("CATALOGOS.ORIGENES"))
-                        {
-                            <MudDivider Class="my-1" />
-                            <MudNavLink Href="/catalogos/origenes" Icon="@Icons.Material.Filled.Storage">Orígenes de datos</MudNavLink>
-                        }
+                        <MudText Typo="Typo.caption" Class="px-4 mud-text-secondary">Catálogos del ERP en vivo · sin copias locales · Fuente: Softland / SINCOERPORKIN</MudText>
+                        <MudNavLink Href="/catalogos/tipos-cambio" Icon="@Icons.Material.Filled.CurrencyExchange">Tipos de cambio</MudNavLink>
                     </MudNavGroup>
                 }
 
@@ -182,7 +157,6 @@
     private bool _drawerAbierto = true;
     private string _nombreUsuario = string.Empty;
     private HashSet<string> _permisos = new(StringComparer.OrdinalIgnoreCase);
-    private List<string> _permisosCatalogos = [];
 
     /// <summary>
     /// Claims de permisos que el usuario tiene. El JWT los trae como claim "orkin:permiso".
@@ -218,27 +192,6 @@
         foreach (var d in denegados)
         {
             _permisos.Add($"{d}__DENEGADO");
-        }
-
-        // Clientes también es un catálogo único: se agrupa con el resto aunque su permiso
-        // sea propio. Sin esto, un rol que solo puede ver clientes no vería el grupo en el sidebar.
-        if (TienePermiso("CLIENTES.VER"))
-        {
-            _permisosCatalogos.Add("CLIENTES.VER");
-        }
-
-        if (TienePermiso("CATALOGOS.VER"))
-        {
-            _permisosCatalogos.Add("CATALOGOS.VER");
-        }
-
-        // El grupo de catálogos se abre con cualquiera de los dos permisos, no solo con VER.
-        // Si el grupo dependiera únicamente de CATALOGOS.VER, un rol que puede sincronizar desde
-        // un ERP pero no corregir un precio —un perfil normal, que solo carga y no edita— vería
-        // la página de orígenes en su URL pero no tendría por dónde llegar.
-        if (TienePermiso("CATALOGOS.ORIGENES"))
-        {
-            _permisosCatalogos.Add("CATALOGOS.ORIGENES");
         }
 
         if (TienePermiso("NOTIFICACIONES.VER"))

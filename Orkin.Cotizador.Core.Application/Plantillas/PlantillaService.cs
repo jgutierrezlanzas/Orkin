@@ -49,6 +49,7 @@ public sealed record PlantillaGuardar(
 /// </summary>
 public sealed class PlantillaService
 {
+    private const string ActivoCorto = "S";
     private const string ActivoSi = "SI";
     private const string ActivoNo = "NO";
 
@@ -121,7 +122,7 @@ public sealed class PlantillaService
             detalles.GetValueOrDefault(p.Plantilla),
             servicios.GetValueOrDefault(p.Plantilla),
             equipos.GetValueOrDefault(p.Plantilla),
-            p.Cliente is null ? null : nombresCliente.GetValueOrDefault(p.Cliente))).ToList();
+            p.Cliente is null ? null : nombresCliente.GetValueOrDefault(p.Cliente.Trim()))).ToList();
     }
 
     public async Task<PlantillaCompleta?> ObtenerAsync(
@@ -302,7 +303,7 @@ public sealed class PlantillaService
         if (!string.IsNullOrWhiteSpace(cabecera.Cliente))
         {
             var nombres = await NombresClienteAsync([cabecera.Cliente], cancellationToken);
-            nombreCliente = nombres.GetValueOrDefault(cabecera.Cliente);
+            nombreCliente = nombres.GetValueOrDefault(cabecera.Cliente.Trim());
         }
 
         return new PlantillaCompleta(cabecera, detalles, servicios, equipos, nombreCliente);
@@ -467,17 +468,34 @@ public sealed class PlantillaService
         IEnumerable<string?> codigos,
         CancellationToken cancellationToken)
     {
-        var lista = codigos.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!).Distinct().ToList();
+        var lista = codigos
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         if (lista.Count == 0)
         {
-            return new Dictionary<string, string>();
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
-        return await _contexto.Cliente
-            .AsNoTracking()
-            .Where(c => lista.Contains(c.Codigo))
-            .Select(c => new { c.Codigo, c.Nombre })
-            .ToDictionaryAsync(c => c.Codigo, c => c.Nombre, cancellationToken);
+        // Rango en SQL + conjuntos en memoria: evita el OPENJSON('$') que falla en el ERP.
+        var min = lista.Min();
+        var max = lista.Max();
+        var clientes = await _contexto.VistaClienteErp.AsNoTracking()
+            .Where(v => v.Activo == ActivoCorto &&
+                        string.Compare(v.Cliente, min) >= 0 &&
+                        string.Compare(v.Cliente, max) <= 0)
+            .Select(v => new { Codigo = v.Cliente.Trim(), Nombre = v.NombreCliente })
+            .ToListAsync(cancellationToken);
+
+        return clientes
+            .Where(v => lista.Contains(v.Codigo, StringComparer.OrdinalIgnoreCase))
+            .GroupBy(v => v.Codigo, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(v => v.Nombre)
+                    .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))?.Trim() ?? g.Key,
+                StringComparer.OrdinalIgnoreCase);
     }
 
     private string UsuarioCreacion()
