@@ -45,6 +45,10 @@
         "OT.ANULAR",
         "OT.APROBAR",
         "OT.IMPRIMIR",
+        "REQUISAS.VER",
+        "REQUISAS.EDITAR",
+        "REQUISAS.ANULAR",
+        "REQUISAS.IMPRIMIR",
         "ADMIN.USUARIOS",
         "ADMIN.ROLES",
         "ADMIN.PARAMETROS",
@@ -91,6 +95,10 @@
         "OT.ANULAR",
         "OT.APROBAR",
         "OT.IMPRIMIR",
+        "REQUISAS.VER",
+        "REQUISAS.EDITAR",
+        "REQUISAS.ANULAR",
+        "REQUISAS.IMPRIMIR",
         "AUDITORIA.VER"
       ]
     },
@@ -115,7 +123,8 @@
         "CATALOGOS.VER",
         "PLANTILLAS.VER",
         "VISITAS.VER",
-        "OT.VER"
+        "OT.VER",
+        "REQUISAS.VER"
       ]
     }
   ]

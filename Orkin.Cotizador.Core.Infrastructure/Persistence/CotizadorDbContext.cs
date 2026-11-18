@@ -58,6 +58,11 @@ public class CotizadorDbContext : DbContext
     public DbSet<OrdenTrabajoEquipo> OrdenTrabajoEquipo => Set<OrdenTrabajoEquipo>();
     public DbSet<OrdenTrabajoServicio> OrdenTrabajoServicio => Set<OrdenTrabajoServicio>();
     public DbSet<OrdenTrabajoTecnico> OrdenTrabajoTecnico => Set<OrdenTrabajoTecnico>();
+    // Requisas (Fase 5): las tres tablas YA EXISTEN en el ERP (D-22). Se mapean con
+    // ExcludeFromMigrations en la configuración: EF las lee/escribe, nunca las crea ni altera.
+    public DbSet<Requisa> Requisa => Set<Requisa>();
+    public DbSet<RequisaDetalle> RequisaDetalle => Set<RequisaDetalle>();
+    public DbSet<RequisaTecnico> RequisaTecnico => Set<RequisaTecnico>();
     // Vistas vv* del ERP, solo lectura: validación de códigos sin copiar catálogos (D-20).
     public DbSet<VistaClienteErp> VistaClienteErp => Set<VistaClienteErp>();
     public DbSet<VistaLocacionErp> VistaLocacionErp => Set<VistaLocacionErp>();
@@ -70,6 +75,7 @@ public class CotizadorDbContext : DbContext
     public DbSet<VistaMetodoAplicacionErp> VistaMetodoAplicacionErp => Set<VistaMetodoAplicacionErp>();
     public DbSet<VistaFrecuenciaErp> VistaFrecuenciaErp => Set<VistaFrecuenciaErp>();
     public DbSet<VistaEquipoErp> VistaEquipoErp => Set<VistaEquipoErp>();
+    public DbSet<VistaBodegaErp> VistaBodegaErp => Set<VistaBodegaErp>();
     public DbSet<ParametroGeneral> ParametroGeneral => Set<ParametroGeneral>();
     public DbSet<Consecutivo> Consecutivo => Set<Consecutivo>();
     public DbSet<NotificacionEnviada> NotificacionEnviada => Set<NotificacionEnviada>();
@@ -924,6 +930,9 @@ public class CotizadorDbContext : DbContext
         ConfigurarPlantillasLegacy(modelBuilder);
         ConfigurarVisitasLegacy(modelBuilder);
         ConfigurarOrdenesLegacy(modelBuilder);
+
+        // Requisas (Fase 5): tablas legacy existentes, sin tablas paralelas (D-22).
+        ConfigurarRequisasLegacy(modelBuilder);
     }
 
     /// <summary>
@@ -1086,6 +1095,17 @@ public class CotizadorDbContext : DbContext
 
         ConfigurarVistaErp<VistaEquipoErp>(modelBuilder, "vvTipodeEquipos", "Codigo", "CODIGO", 4);
         ConfigurarOpcionErp<VistaEquipoErp>(modelBuilder, 50);
+
+        // vvBodegas es la única fuente de bodegas: la requisa guarda el código, nunca una copia
+        // del catálogo (D-20). Las columnas son las reales de la vista en SINCOERPORKIN.
+        ConfigurarVistaErp<VistaBodegaErp>(modelBuilder, "vvBodegas", "Codigo", "BODEGA", 4);
+        modelBuilder.Entity<VistaBodegaErp>().Property(v => v.Descripcion).HasColumnName("DESCRIP_BODEGA").HasMaxLength(40).IsUnicode(false);
+        modelBuilder.Entity<VistaBodegaErp>().Property(v => v.Tipo).HasColumnName("TIPO_BODEGA").HasMaxLength(1).IsUnicode(false);
+        modelBuilder.Entity<VistaBodegaErp>().Property(v => v.Telefono).HasColumnName("TELEFONO").HasMaxLength(15).IsUnicode(false);
+        modelBuilder.Entity<VistaBodegaErp>().Property(v => v.Direccion).HasColumnName("DIRECCION").HasMaxLength(120).IsUnicode(false);
+        modelBuilder.Entity<VistaBodegaErp>().Property(v => v.ConsecutivoTraslados).HasColumnName("CONSEC_TRASLADOS").HasMaxLength(10).IsUnicode(false);
+        modelBuilder.Entity<VistaBodegaErp>().Property(v => v.BodegaPrincipal).HasColumnName("BODEGA_PRINCIPAL").HasMaxLength(2).IsUnicode(false);
+        modelBuilder.Entity<VistaBodegaErp>().Property(v => v.Activo).HasColumnName("U_ACTIVO").HasMaxLength(2).IsUnicode(false);
     }
 
     /// <summary>
@@ -1158,6 +1178,55 @@ public class CotizadorDbContext : DbContext
         tecnico.HasKey(t => new { t.OrdenNumero, t.Plantilla, t.Consecutivo, t.CodigoTecnico, t.Iniciales });
         tecnico.Property(t => t.OrdenNumero).HasColumnName("ORDEN_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
         tecnico.Property(t => t.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        tecnico.Property(t => t.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
+        tecnico.Property(t => t.CodigoTecnico).HasColumnName("CODIGO_TECNICO").HasMaxLength(4).IsUnicode(false).IsRequired().ValueGeneratedNever();
+        tecnico.Property(t => t.Iniciales).HasColumnName("INICIALES").HasMaxLength(2).IsUnicode(false).IsRequired().ValueGeneratedNever();
+    }
+
+    /// <summary>
+    /// Requisas (Fase 5): D-22. Las tres tablas ya existen en <c>SINCOERPORKIN</c> con las claves
+    /// del WinForms. <c>ExcludeFromMigrations</c> evita que EF intente crearlas o alterarlas: solo
+    /// las lee y escribe. El número de requisa es el de la orden que la generó.
+    /// </summary>
+    private static void ConfigurarRequisasLegacy(ModelBuilder modelBuilder)
+    {
+        var cabecera = modelBuilder.Entity<Requisa>();
+        cabecera.ToTable("Requisa", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        cabecera.HasKey(r => r.RequisaNumero);
+        cabecera.Property(r => r.RequisaNumero).HasColumnName("REQUISA_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
+        cabecera.Property(r => r.OrdenNumero).HasColumnName("ORDEN_NUMERO").HasMaxLength(10).IsUnicode(false);
+        cabecera.Property(r => r.FechaRequisa).HasColumnName("FECHA_REQUISA").HasColumnType("date");
+        cabecera.Property(r => r.FechaOrden).HasColumnName("FECHA_ORDEN").HasColumnType("date");
+        cabecera.Property(r => r.Cliente).HasColumnName("CLIENTE").HasMaxLength(20).IsUnicode(false);
+        cabecera.Property(r => r.Locacion).HasColumnName("LOCACION").HasMaxLength(5).IsUnicode(false);
+        cabecera.Property(r => r.Instrucciones).HasColumnName("INSTRUCCIONES").HasColumnType("text");
+        cabecera.Property(r => r.RequisaPendiente).HasColumnName("REQUISA_PENDIENTE").HasMaxLength(2).IsUnicode(false);
+        cabecera.Property(r => r.Estado).HasColumnName("ESTADO").HasMaxLength(2).IsUnicode(false);
+        cabecera.Property(r => r.FechaCreacion).HasColumnName("FECHA_CREACION").HasColumnType("date");
+        cabecera.Property(r => r.UsuarioCreacion).HasColumnName("USUARIO_CREACION").HasMaxLength(25).IsUnicode(false);
+
+        var detalle = modelBuilder.Entity<RequisaDetalle>();
+        detalle.ToTable("Requisa_Detalle", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        detalle.HasKey(d => new { d.RequisaNumero, d.Consecutivo });
+        detalle.Property(d => d.RequisaNumero).HasColumnName("REQUISA_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
+        detalle.Property(d => d.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
+        detalle.Property(d => d.Bodega).HasColumnName("BODEGA").HasMaxLength(4).IsUnicode(false);
+        detalle.Property(d => d.CodigoArticulo).HasColumnName("CODIGO_ARTICULO").HasMaxLength(10).IsUnicode(false);
+        detalle.Property(d => d.DescripArticulo).HasColumnName("DESCRIP_ARTICULO").HasMaxLength(50).IsUnicode(false);
+        detalle.Property(d => d.Umedida).HasColumnName("UMEDIDA").HasMaxLength(6).IsUnicode(false);
+        detalle.Property(d => d.CantidadEntregada).HasColumnName("CANTIDAD_ENTREGADA").HasColumnType("numeric(15,0)");
+        detalle.Property(d => d.CantidadUtilizada).HasColumnName("CANTIDAD_UTILIZADA").HasColumnType("numeric(15,0)");
+        detalle.Property(d => d.CantidadDevuelta).HasColumnName("CANTIDAD_DEVUELTA").HasColumnType("numeric(15,0)");
+        detalle.Property(d => d.CantidadSobfal).HasColumnName("CANTIDAD_SOBFAL").HasColumnType("numeric(15,0)");
+        detalle.Property(d => d.CostoUnitario).HasColumnName("COSTO_UNITARIO").HasColumnType("numeric(18,6)");
+        detalle.Property(d => d.CostoTotal).HasColumnName("COSTO_TOTAL").HasColumnType("numeric(18,2)");
+        detalle.Property(d => d.CentroCosto).HasColumnName("CENTRO_COSTO").HasMaxLength(25).IsUnicode(false);
+        detalle.Property(d => d.CuentaContable).HasColumnName("CUENTA_CONTABLE").HasMaxLength(25).IsUnicode(false);
+
+        var tecnico = modelBuilder.Entity<RequisaTecnico>();
+        tecnico.ToTable("Requisa_Tecnicos", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        tecnico.HasKey(t => new { t.RequisaNumero, t.Consecutivo, t.CodigoTecnico, t.Iniciales });
+        tecnico.Property(t => t.RequisaNumero).HasColumnName("REQUISA_NUMERO").HasMaxLength(10).IsUnicode(false).ValueGeneratedNever();
         tecnico.Property(t => t.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
         tecnico.Property(t => t.CodigoTecnico).HasColumnName("CODIGO_TECNICO").HasMaxLength(4).IsUnicode(false).IsRequired().ValueGeneratedNever();
         tecnico.Property(t => t.Iniciales).HasColumnName("INICIALES").HasMaxLength(2).IsUnicode(false).IsRequired().ValueGeneratedNever();

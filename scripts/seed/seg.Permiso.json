@@ -44,6 +44,11 @@
     { "Codigo": "OT.APROBAR", "Nombre": "Generar requisa de orden", "Descripcion": "Invoca SINCO_GENERA_REQUISA, que lleva la orden de GE a AP.", "ModuloId": "OT", "Orden": 4 },
     { "Codigo": "OT.IMPRIMIR", "Nombre": "Imprimir órdenes de trabajo", "Descripcion": "Generar el PDF de la orden y su requisa desde la API.", "ModuloId": "OT", "Orden": 5 },
 
+    { "Codigo": "REQUISAS.VER", "Nombre": "Ver requisas", "Descripcion": "Ver el listado y el detalle de las requisas generadas desde una orden.", "ModuloId": "REQUISAS", "Orden": 1 },
+    { "Codigo": "REQUISAS.EDITAR", "Nombre": "Editar requisas", "Descripcion": "Nueva desde orden y edicion de cabecera, lineas y tecnicos solo mientras la requisa esta en GE.", "ModuloId": "REQUISAS", "Orden": 2 },
+    { "Codigo": "REQUISAS.ANULAR", "Nombre": "Anular requisas", "Descripcion": "Invoca SINCO_ANULAR_ORDENES_DE_TRABAJO desde la orden relacionada.", "ModuloId": "REQUISAS", "Orden": 3 },
+    { "Codigo": "REQUISAS.IMPRIMIR", "Nombre": "Imprimir requisas", "Descripcion": "Generar el PDF de la requisa desde la API. La impresion se implementa en la Fase 7.", "ModuloId": "REQUISAS", "Orden": 4 },
+
     { "Codigo": "ADMIN.USUARIOS", "Nombre": "Administrar usuarios", "ModuloId": "ADMIN", "Orden": 1 },
     { "Codigo": "ADMIN.ROLES", "Nombre": "Administrar roles y permisos", "ModuloId": "ADMIN", "Orden": 2 },
     { "Codigo": "ADMIN.PARAMETROS", "Nombre": "Administrar parametros", "Descripcion": "Mover umbrales de aprobacion, dias de vigencia, textos del PDF. Es el permiso mas sensible del sistema.", "ModuloId": "ADMIN", "Orden": 3 },

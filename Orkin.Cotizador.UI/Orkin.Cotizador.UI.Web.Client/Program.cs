@@ -54,6 +54,7 @@ public class Program
         builder.Services.AddScoped<PlantillaService>();
         builder.Services.AddScoped<VisitaService>();
         builder.Services.AddScoped<OrdenService>();
+        builder.Services.AddScoped<RequisaService>();
         builder.Services.AddScoped<CotizacionService>();
         builder.Services.AddScoped<IntegracionService>();
         builder.Services.AddScoped<AdminService>();

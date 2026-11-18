@@ -1,0 +1,353 @@
+@* Edición de una requisa sobre las tres tablas legacy existentes (D-22). Los códigos ERP se eligen
+   con descripción real desde la API única de catálogos (D-20/D-21): se guarda el código, se muestra
+   su nombre. El signo de SobFal y el costo total se recalculan igual que en el WinForms. *@
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="2">
+                <MudTextField Value="@Modelo.RequisaNumero" Label="Requisa" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudTextField Value="@(Modelo.OrdenNumero ?? string.Empty)" Label="Orden" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudTextField Value="@(Modelo.Estado ?? string.Empty)" Label="Estado" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudTextField Value="@(Modelo.ClienteNombre ?? string.Empty)" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <SelectorLegible TItem="ClienteModel" TValue="string"
+                                 Items="_clientes" ValorDe="c => c.Codigo" TextoDe="TextoCliente"
+                                 Value="@(Modelo.Cliente ?? string.Empty)"
+                                 ValueChanged="@(v => AlCambiarCliente(v))"
+                                 TextoValorActual="@TextoClienteActual(Modelo.Cliente, Modelo.ClienteNombre)"
+                                 Label="Código de cliente" Clearable="true" />
+            </MudItem>
+
+            <MudItem xs="12" md="4">
+                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                 Items="_opciones.Locaciones" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                 Value="@(Modelo.Locacion ?? string.Empty)"
+                                 ValueChanged="@(v => Modelo.Locacion = v)"
+                                 TextoValorActual="@TextoActual(Modelo.Locacion, _opciones.Locaciones)"
+                                 Label="Locación" Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                 Items="_opciones.Bodegas" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                 Value="@(Modelo.Bodega ?? string.Empty)"
+                                 ValueChanged="@(v => Modelo.Bodega = v)"
+                                 TextoValorActual="@TextoActual(Modelo.Bodega, _opciones.Bodegas)"
+                                 Label="Bodega (vvBodegas)" Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudDatePicker Date="@FechaRequisaDateTime" DateChanged="@((DateTime? v) => FechaRequisaDateTime = v)"
+                               Label="Fecha de requisa" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudDatePicker Date="@FechaOrdenDateTime" DateChanged="@((DateTime? v) => FechaOrdenDateTime = v)"
+                               Label="Fecha de orden" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="Modelo.Instrucciones" Label="Instrucciones" Variant="Variant.Outlined"
+                              Margin="Margin.Dense" Lines="3" />
+            </MudItem>
+        </MudGrid>
+
+        <MudTabs Elevation="0" Outlined="true" Class="mt-4" Rounded="true">
+            <MudTabPanel Text="Líneas" Icon="@Icons.Material.Filled.Inventory">
+                <div class="d-flex justify-end pa-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarLinea">Agregar línea</MudButton>
+                </div>
+                @foreach (var linea in Modelo.LineasDetalle.OrderBy(d => d.Consecutivo))
+                {
+                    <MudPaper Class="pa-3 mb-3" Elevation="1" Outlined="true">
+                        <div class="d-flex justify-space-between align-center mb-2">
+                            <MudText Typo="Typo.subtitle2">Línea @linea.Consecutivo · @TextoArticulo(linea)</MudText>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                           OnClick="@(() => Modelo.LineasDetalle.Remove(linea))" aria-label="Quitar línea" />
+                        </div>
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" md="4">
+                                <SelectorLegible TItem="ProductoModel" TValue="string"
+                                                 Items="_productos" ValorDe="p => p.Codigo" TextoDe="TextoProducto"
+                                                 Value="@(linea.CodigoArticulo ?? string.Empty)"
+                                                 ValueChanged="@(v => AlCambiarProducto(linea, v))"
+                                                 TextoValorActual="@TextoProductoActual(linea.CodigoArticulo, linea.DescripcionArticulo)"
+                                                 Label="Artículo (código ERP)" Clearable="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudNumericField Value="linea.CantidadEntregada"
+                                                 ValueChanged="@((decimal? v) => { linea.CantidadEntregada = v; Recalcular(linea); })"
+                                                 Label="Entregada" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudNumericField Value="linea.CantidadUtilizada"
+                                                 ValueChanged="@((decimal? v) => { linea.CantidadUtilizada = v; Recalcular(linea); })"
+                                                 Label="Utilizada" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudNumericField Value="linea.CantidadDevuelta"
+                                                 ValueChanged="@((decimal? v) => { linea.CantidadDevuelta = v; Recalcular(linea); })"
+                                                 Label="Devuelta" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudNumericField Value="linea.CantidadSobfal" Label="SobFal (legacy)"
+                                                 Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudNumericField Value="linea.CostoUnitario"
+                                                 ValueChanged="@((decimal? v) => { linea.CostoUnitario = v; Recalcular(linea); })"
+                                                 Label="Costo unit." Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudNumericField Value="linea.CostoTotal" Label="Costo total"
+                                                 Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="2">
+                                <MudTextField Value="@(linea.Umedida ?? string.Empty)" Label="Unidad"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="5">
+                                <MudTextField Value="@(linea.CentroCosto ?? string.Empty)" Label="Centro de costo"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+                            </MudItem>
+                            <MudItem xs="12" md="5">
+                                <MudTextField Value="@(linea.CuentaContable ?? string.Empty)" Label="Cuenta contable"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+                @if (Modelo.LineasDetalle.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin líneas.</MudText>
+                }
+            </MudTabPanel>
+
+            <MudTabPanel Text="Técnicos" Icon="@Icons.Material.Filled.People">
+                <div class="d-flex justify-end pa-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarTecnico">Agregar técnico</MudButton>
+                </div>
+                @foreach (var linea in Modelo.TecnicosDetalle.OrderBy(t => t.Consecutivo))
+                {
+                    <MudPaper Class="pa-3 mb-3" Elevation="1" Outlined="true">
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" md="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => Modelo.TecnicosDetalle.Remove(linea))" aria-label="Quitar técnico" />
+                            </MudItem>
+                            <MudItem xs="12" md="8">
+                                <MudSelect T="string" Value="linea.CodigoTecnico"
+                                           ValueChanged="@((string v) => AlCambiarTecnico(linea, v))"
+                                           Label="Técnico" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                                    @foreach (var tecnico in _tecnicos)
+                                    {
+                                        <MudSelectItem T="string" Value="@tecnico.Codigo">@tecnico.Nombre (@tecnico.Codigo)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" md="3">
+                                <MudTextField @bind-Value="linea.Iniciales" Label="Iniciales" Variant="Variant.Outlined"
+                                              Margin="Margin.Dense" MaxLength="2" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+                @if (Modelo.TecnicosDetalle.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin técnicos.</MudText>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Aceptar">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public RequisaModel Modelo { get; set; } = new();
+
+    [Inject]
+    private CatalogoService Catalogos { get; set; } = null!;
+
+    private List<ClienteModel> _clientes = [];
+    private List<TecnicoModel> _tecnicos = [];
+    private List<ProductoModel> _productos = [];
+    private OpcionesErpModel _opciones = new();
+
+    private DateTime? FechaRequisaDateTime
+    {
+        get => Modelo.FechaRequisa == default ? null : Modelo.FechaRequisa.ToDateTime(TimeOnly.MinValue);
+        set => Modelo.FechaRequisa = value is null ? default : DateOnly.FromDateTime(value.Value);
+    }
+
+    private DateTime? FechaOrdenDateTime
+    {
+        get => Modelo.FechaOrden?.ToDateTime(TimeOnly.MinValue);
+        set => Modelo.FechaOrden = value is null ? null : DateOnly.FromDateTime(value.Value);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tareas = new Task[]
+        {
+            Cargar(() => Catalogos.ListarClientesAsync(), lista => _clientes = lista),
+            Cargar(() => Catalogos.ListarTecnicosAsync(), lista => _tecnicos = lista),
+            Cargar(() => Catalogos.ListarProductosAsync(), lista => _productos = lista),
+            CargarOpciones()
+        };
+        await Task.WhenAll(tareas);
+    }
+
+    private async Task CargarOpciones()
+        => _opciones = await Catalogos.ListarOpcionesErpAsync(Modelo.Cliente);
+
+    private static async Task Cargar<T>(Func<Task<List<T>>> obtener, Action<List<T>> asignar)
+        => asignar(await obtener());
+
+    private async Task AlCambiarCliente(string? codigo)
+    {
+        Modelo.Cliente = codigo;
+        var cliente = _clientes.FirstOrDefault(c => c.Codigo == codigo);
+        Modelo.ClienteNombre = cliente?.Nombre;
+        var opciones = await Catalogos.ListarOpcionesErpAsync(codigo);
+        _opciones.Locaciones = opciones.Locaciones;
+    }
+
+    private static string TextoCliente(ClienteModel cliente) => $"{cliente.Nombre} ({cliente.Codigo})";
+
+    private static string TextoClienteActual(string? codigo, string? nombre)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(nombre)
+            ? $"Código heredado: {codigo.Trim()}"
+            : $"{nombre.Trim()} ({codigo.Trim()})";
+    }
+
+    private static string TextoOpcion(OpcionErpModel opcion)
+    {
+        var datos = new List<string> { opcion.Codigo };
+        if (!string.IsNullOrWhiteSpace(opcion.Detalle))
+        {
+            datos.Add(opcion.Detalle.Trim());
+        }
+
+        return $"{opcion.Descripcion} ({string.Join(" · ", datos)})";
+    }
+
+    private static string TextoActual(string? codigo, IReadOnlyList<OpcionErpModel> opciones)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return string.Empty;
+        }
+
+        var texto = codigo.Trim();
+        var opcion = opciones.FirstOrDefault(o =>
+            string.Equals(o.Codigo, texto, StringComparison.OrdinalIgnoreCase));
+        return opcion is null ? $"Código heredado: {texto}" : TextoOpcion(opcion);
+    }
+
+    private static string TextoProducto(ProductoModel producto)
+        => $"{producto.Nombre} ({producto.Codigo})";
+
+    private static string TextoProductoActual(string? codigo, string? descripcion)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return string.Empty;
+        }
+
+        return string.IsNullOrWhiteSpace(descripcion)
+            ? $"Código heredado: {codigo.Trim()}"
+            : $"{descripcion.Trim()} ({codigo.Trim()})";
+    }
+
+    private static string TextoArticulo(RequisaLineaModel linea)
+        => string.IsNullOrWhiteSpace(linea.DescripcionArticulo)
+            ? linea.CodigoArticulo ?? string.Empty
+            : $"{linea.DescripcionArticulo} ({linea.CodigoArticulo})";
+
+    private void AlCambiarProducto(RequisaLineaModel linea, string? codigoArticulo)
+    {
+        linea.CodigoArticulo = codigoArticulo;
+        var producto = _productos.FirstOrDefault(p => p.Codigo == codigoArticulo);
+        if (producto is null)
+        {
+            return;
+        }
+
+        linea.DescripcionArticulo = producto.Nombre;
+        linea.Umedida = producto.UnidadMedidaAbreviatura ?? producto.UnidadMedidaNombre;
+        if (linea.CostoUnitario is null or 0)
+        {
+            linea.CostoUnitario = producto.CostoActual;
+        }
+
+        Recalcular(linea);
+    }
+
+    private void AgregarLinea()
+    {
+        var siguiente = Modelo.LineasDetalle.Count == 0 ? 1 : Modelo.LineasDetalle.Max(l => l.Consecutivo) + 1;
+        Modelo.LineasDetalle.Add(new RequisaLineaModel
+        {
+            Consecutivo = siguiente,
+            Bodega = Modelo.Bodega,
+            CantidadEntregada = 1,
+            CantidadUtilizada = 1
+        });
+    }
+
+    private void AgregarTecnico()
+    {
+        var siguiente = Modelo.TecnicosDetalle.Count == 0 ? 1 : Modelo.TecnicosDetalle.Max(t => t.Consecutivo) + 1;
+        Modelo.TecnicosDetalle.Add(new RequisaTecnicoModel { Consecutivo = siguiente });
+    }
+
+    private void AlCambiarTecnico(RequisaTecnicoModel linea, string codigoTecnico)
+    {
+        linea.CodigoTecnico = codigoTecnico;
+        var tecnico = _tecnicos.FirstOrDefault(t => t.Codigo == codigoTecnico);
+        if (tecnico is null || !string.IsNullOrWhiteSpace(linea.Iniciales))
+        {
+            return;
+        }
+
+        var palabras = tecnico.Nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var iniciales = palabras.Length == 0
+            ? codigoTecnico
+            : string.Concat(palabras.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+        linea.Iniciales = iniciales.Length > 2 ? iniciales[..2] : iniciales;
+    }
+
+    /// <summary>
+    /// Cálculo del WinForms: <c>(entregada - utilizada - devuelta) * -1</c> y
+    /// <c>utilizada * costo unitario</c>. El signo invertido de SobFal es heredado, no un typo.
+    /// </summary>
+    private static void Recalcular(RequisaLineaModel linea)
+    {
+        linea.CantidadSobfal = Math.Round(
+            ((linea.CantidadEntregada ?? 0) - (linea.CantidadUtilizada ?? 0) -
+             (linea.CantidadDevuelta ?? 0)) * -1, 0);
+        linea.CostoTotal = Math.Round((linea.CantidadUtilizada ?? 0) * (linea.CostoUnitario ?? 0), 2);
+    }
+
+    private void Aceptar() => Dialogo.Close(DialogResult.Ok(Modelo));
+
+    private void Cancelar() => Dialogo.Cancel();
+}

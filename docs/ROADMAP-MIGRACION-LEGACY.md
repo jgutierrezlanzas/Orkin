@@ -222,17 +222,19 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ---
 
-### Fase 5 — Requisas
+### Fase 5 — Requisas ✅ Completada
 **Objetivo:** reemplazar `FrmCrudRequisas` y `FormDetalleRequisa`.
 
 **Entregables**
-- Listado en modo `RequisaGenerada` (Nueva, Editar, Anular, Imprimir).
-- Cabecera: número de requisa, número de orden, cliente, locación, bodega, fechas, estado e instrucciones.
-- Líneas con cantidad entregada / utilizada / devuelta y cálculo de SobFal.
-- Asignación de técnicos y generación desde orden de trabajo.
-- Permisos: `REQUISAS.VER`, `.EDITAR`, `.ANULAR`, `.IMPRIMIR`.
+- ✅ **Cero tablas paralelas (D-22).** Tres entidades sobre `dbo.Requisa`, `dbo.Requisa_Detalle` y `dbo.Requisa_Tecnicos` con `ExcludeFromMigrations()`. La clave expuesta es `REQUISA_NUMERO`, el mismo número que la orden legacy (D-21). Bodegas leídas de `dbo.vvBodegas`, sin copiar el catálogo (D-20).
+- ✅ **UI `/requisas`**: KPIs de GE/AP/AN sobre el filtro, grilla con número de requisa/orden, cliente y locación con descripción real, bodega, fechas, estado, conteo de líneas/técnicos e instrucciones; filtros por texto, cliente, estado y rango de fechas. Conteos y nombres resueltos por rango y agrupación en memoria, sin `OPENJSON('$')`.
+- ✅ **Alta "Nueva desde orden"** (`NuevaRequisaDialogo`): solo órdenes `GE`; delega en `OrdenTrabajoService.GenerarRequisaAsync`, que invoca `dbo.SINCO_GENERA_REQUISA`. No se vuelve a ejecutar el SP desde el listado ni se duplica su lógica (la requisa toma el número de la orden).
+- ✅ **Edición con pestañas** (`RequisaDialogo`): cabecera, líneas y técnicos. Selector de producto con descripción, unidad y `COSTO_PROM_LOC`; precio manual permitido. Entregada / utilizada / devuelta y `CANTIDAD_SOBFAL = CANTIDAD_UTILIZADA + CANTIDAD_DEVUELTA - CANTIDAD_ENTREGADA`; `COSTO_TOTAL = CANTIDAD_UTILIZADA * COSTO_UNITARIO`. Se conserva y documenta el signo heredado de SobFal y el bug del mensaje de "cantidad devuelta" que valida `nCantidadUtilizada`. Solo se edita en `GE`; en `AP`/`AN` se devuelve el mensaje exacto del WinForms.
+- ✅ **Anulación**: reutiliza `dbo.SINCO_ANULAR_ORDENES_DE_TRABAJO` desde la orden relacionada; no hay SP ni tabla nueva. Mensajes `RAISERROR` y validaciones del legacy se reenvían tal cual.
+- ✅ **Permisos sembrados** `REQUISAS.VER`, `.EDITAR`, `.ANULAR`, `.IMPRIMIR` en `seg.Permiso`, `dbo.ModuloPermisoCatalogo` y los tres roles; link `Requisas` en `Operación`. Imprimir queda deshabilitado con tooltip "Impresión pendiente de la Fase 7" (el permiso ya existe).
+- ✅ **Verificado**: build `0 Errores`, tests `115/115` (7 pruebas nuevas de Fase 5 sobre proveedor InMemory, sin mutar datos reales). API real: `GET /api/requisas?estado=GE` devuelve `0048057` (3 líneas, 1 técnico) y `GET /api/catalogos/opciones-erp` devuelve 12 bodegas reales. UI real: menú, KPIs, grilla, detalle de `0048057`, tooltip de impresión y consola sin errores.
 
-**Dependencias:** Fase 4. **Riesgo:** medio.
+**Dependencias:** Fase 4. **Riesgo:** medio — resuelto reutilizando los SPs originales y las vistas reales, y conservando mensajes y reglas heredadas.
 
 ---
 
@@ -332,11 +334,13 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ## 7. Próximo paso concreto
 
-Con D-20, D-21 y D-22 cerrados y las fases 0–4 completadas, el siguiente trabajo es la **Fase 5 — Requisas**:
+Con D-20, D-21 y D-22 cerrados y las fases 0–5 completadas, el siguiente trabajo es la **Fase 6 — Documentos de inventario y Exactus**, con la **Fase 7 — Reportes e impresión** como cierre de las acciones pendientes (`IMPRIMIR` ya sembrado y deshabilitado en OT y requisas).
 
-1. Mantener el principio D-22: operar sobre las tablas legacy de requisa existentes, sin tablas paralelas.
-2. Reutilizar `dbo.SINCO_GENERA_REQUISA` desde la OT: la Fase 4 ya delegó ahí el paso a `AP`, así que la Fase 5 debe leer ese resultado y no volver a generarlo.
-3. Reutilizar el catálogo único compartido (técnicos, clientes, artículos) y la API única; no duplicar catálogos por módulo (D-21).
+Principios que se mantienen para las fases restantes:
+
+1. Mantener el principio D-22: operar sobre las tablas legacy existentes, sin tablas paralelas.
+2. Reutilizar los SPs originales: `dbo.SINCO_GENERA_DOCINV_EXACTUS` y los de traslado/reportes, con parámetros y registro de resultado, sin reimplementarlos.
+3. Reutilizar el catálogo único compartido (técnicos, clientes, artículos, bodegas) y la API única; no duplicar catálogos por módulo (D-21).
 4. Mantener el sidebar con `Catálogos compartidos` y agregar páginas a `Operación` solo cuando existan; nunca duplicar un catálogo entre grupos.
 
 ---

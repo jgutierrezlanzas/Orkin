@@ -70,7 +70,8 @@
                    órdenes, requisas, inventario, reportes). Solo se agrega un link cuando la
                    página existe. Ningún catálogo se repite en este grupo: los catálogos viven
                    en "Catálogos compartidos" (D-21). *@
-                @if (TienePermiso("PLANTILLAS.VER") || TienePermiso("VISITAS.VER") || TienePermiso("OT.VER"))
+                @if (TienePermiso("PLANTILLAS.VER") || TienePermiso("VISITAS.VER") ||
+                     TienePermiso("OT.VER") || TienePermiso("REQUISAS.VER"))
                 {
                     <MudNavGroup Title="Operación" Icon="@Icons.Material.Filled.Build" Expanded="true">
                         @if (TienePermiso("PLANTILLAS.VER"))
@@ -84,6 +85,10 @@
                         @if (TienePermiso("OT.VER"))
                         {
                             <MudNavLink Href="/ordenes" Icon="@Icons.Material.Filled.Assignment">Órdenes de trabajo</MudNavLink>
+                        }
+                        @if (TienePermiso("REQUISAS.VER"))
+                        {
+                            <MudNavLink Href="/requisas" Icon="@Icons.Material.Filled.Inventory">Requisas</MudNavLink>
                         }
                     </MudNavGroup>
                 }

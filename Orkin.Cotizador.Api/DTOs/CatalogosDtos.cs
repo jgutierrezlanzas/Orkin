@@ -447,4 +447,5 @@ public sealed record OpcionesErpResponse(
     IReadOnlyList<OpcionErpResponse> Dosificaciones,
     IReadOnlyList<OpcionErpResponse> Metodos,
     IReadOnlyList<OpcionErpResponse> Frecuencias,
-    IReadOnlyList<OpcionErpResponse> Equipos);
+    IReadOnlyList<OpcionErpResponse> Equipos,
+    IReadOnlyList<OpcionErpResponse> Bodegas);

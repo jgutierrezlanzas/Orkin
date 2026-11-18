@@ -91,8 +91,20 @@ public sealed class OpcionesErpController : ControllerBase
 
         var equipos = await ListarOpcionSimpleAsync(_contexto.VistaEquipoErp, cancellationToken);
 
+        // Fase 5: las bodegas salen de vvBodegas, la misma vista que validaba el WinForms. No se
+        // copian a una tabla propia y tampoco se crea un endpoint nuevo (D-20/D-21).
+        var bodegas = await _contexto.VistaBodegaErp
+            .AsNoTracking()
+            .Where(b => b.Activo == Activo)
+            .OrderBy(b => b.Codigo)
+            .Select(b => new OpcionErpResponse(
+                b.Codigo,
+                string.IsNullOrWhiteSpace(b.Descripcion) ? b.Codigo : b.Descripcion!,
+                b.BodegaPrincipal == "SI" ? "Principal" : null))
+            .ToListAsync(cancellationToken);
+
         var respuesta = new OpcionesErpResponse(
-            locaciones, vehiculos, plagas, ubicaciones, dosificaciones, metodos, frecuencias, equipos);
+            locaciones, vehiculos, plagas, ubicaciones, dosificaciones, metodos, frecuencias, equipos, bodegas);
         return ApiResponse<OpcionesErpResponse>.Ok(respuesta).AHttp();
     }
 

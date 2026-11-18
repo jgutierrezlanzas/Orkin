@@ -45,6 +45,22 @@ public class VistaTecnicoErp
     public string? Activo { get; set; }
 }
 
+/// <summary>
+/// <c>vvBodegas</c>: bodegas activas del ERP. Es la única fuente de bodegas (D-20/D-21); la
+/// requisa no copia este catálogo, solo guarda el código en <c>Requisa_Detalle.BODEGA</c>.
+/// </summary>
+public class VistaBodegaErp
+{
+    public string Codigo { get; set; } = null!;
+    public string? Descripcion { get; set; }
+    public string? Tipo { get; set; }
+    public string? Telefono { get; set; }
+    public string? Direccion { get; set; }
+    public string? ConsecutivoTraslados { get; set; }
+    public string? BodegaPrincipal { get; set; }
+    public string? Activo { get; set; }
+}
+
 /// <summary>Contrato mínimo de las vistas que solo aportan código, descripción y activo.</summary>
 public interface IOpcionErpView
 {

@@ -50,6 +50,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CotizacionService>();
         services.AddScoped<Plantillas.PlantillaService>();
         services.AddScoped<Ordenes.OrdenTrabajoService>();
+        services.AddScoped<Requisas.RequisaService>();
         services.AddScoped<Visitas.IGeneradorOrdenTrabajo, Visitas.GeneradorOrdenTrabajoService>();
         services.AddScoped<Visitas.VisitaService>();
         services.AddScoped<Visitas.ImportadorGoogleService>();

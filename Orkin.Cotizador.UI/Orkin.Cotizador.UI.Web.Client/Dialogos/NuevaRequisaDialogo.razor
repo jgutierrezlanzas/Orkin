@@ -1,0 +1,88 @@
+@* Alta de requisa desde una orden Generada. No se crea nada acá: el SP SINCO_GENERA_REQUISA
+   (que ya usa la Fase 4 desde la orden) es el único que genera la requisa y copia su número. *@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+            Se listan órdenes en estado <b>GE</b>, es decir, las que todavía no tienen requisa.
+            Al elegir una se invoca <b>SINCO_GENERA_REQUISA</b>: la requisa toma el número de la orden
+            y la orden pasa a <b>AP</b>, igual que en el WinForms.
+        </MudText>
+        <MudTextField @bind-Value="_texto" Label="Orden, cliente o trabajo" Variant="Variant.Outlined"
+                      Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Class="mb-3" />
+        <MudTable Items="_ordenes" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Orden</MudTh>
+                <MudTh>Cliente</MudTh>
+                <MudTh>Fecha</MudTh>
+                <MudTh>Trabajo</MudTh>
+                <MudTh>Acción</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Orden">
+                    <MudText Typo="Typo.body2">@context.OrdenNumero</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Visita @context.IdVisita · Plantilla @context.Plantilla</MudText>
+                </MudTd>
+                <MudTd DataLabel="Cliente">@context.ClienteNombre</MudTd>
+                <MudTd DataLabel="Fecha">@context.FechaOrden?.ToString("dd/MM/yyyy")</MudTd>
+                <MudTd DataLabel="Trabajo">@context.DescripTrabajo</MudTd>
+                <MudTd>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Inventory"
+                               OnClick="@(() => Elegir(context))">Generar requisa</MudButton>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Class="pa-4 mud-text-secondary">
+                    No hay órdenes generadas sin requisa que coincidan con el filtro.
+                </MudText>
+            </NoRecordsContent>
+            <PagerContent>
+                <MudTablePager RowsPerPageString="Filas por página" />
+            </PagerContent>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="Cancelar">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialogo { get; set; } = null!;
+
+    [Inject]
+    private OrdenService ServicioOrdenes { get; set; } = null!;
+
+    private List<OrdenModel> _ordenes = [];
+    private string? _texto;
+    private bool _cargando;
+
+    protected override Task OnInitializedAsync() => Buscar();
+
+    private async Task Buscar()
+    {
+        _cargando = true;
+        try
+        {
+            var ordenes = await ServicioOrdenes.ListarAsync(estado: "GE");
+            var filtro = _texto?.Trim();
+            _ordenes = string.IsNullOrWhiteSpace(filtro)
+                ? ordenes
+                : ordenes.Where(o =>
+                    (o.OrdenNumero ?? string.Empty).Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                    (o.Cliente ?? string.Empty).Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                    (o.ClienteNombre ?? string.Empty).Contains(filtro, StringComparison.OrdinalIgnoreCase) ||
+                    (o.DescripTrabajo ?? string.Empty).Contains(filtro, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void Elegir(OrdenModel orden) => Dialogo.Close(DialogResult.Ok(orden));
+
+    private void Cancelar() => Dialogo.Cancel();
+}

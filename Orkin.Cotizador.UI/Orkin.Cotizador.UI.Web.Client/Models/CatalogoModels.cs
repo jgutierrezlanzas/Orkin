@@ -132,4 +132,7 @@ public sealed class OpcionesErpModel
     public List<OpcionErpModel> Metodos { get; set; } = [];
     public List<OpcionErpModel> Frecuencias { get; set; } = [];
     public List<OpcionErpModel> Equipos { get; set; } = [];
+
+    /// <summary>Bodegas activas de vvBodegas, compartidas por todas las pantallas (Fase 5).</summary>
+    public List<OpcionErpModel> Bodegas { get; set; } = [];
 }
