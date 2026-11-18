@@ -469,6 +469,24 @@ Trabajo recomendado, **fuera de Fase 10** salvo las comprobaciones documentales:
 
 Mientras no haya respuesta, queda documentado y **no se cambia código**. El menú ya se llama solo `Catálogos`; "Orígenes de datos" sigue siendo un enlace aparte con permiso `CATALOGOS.ORIGENES`.
 
+### 8.7 Reevaluación — ¿Vale la pena migrar al formato legacy?
+
+**Sí, y matiza la recomendación de §8.6:** no se trata de migrar el ETL al formato legacy, sino de **dejar de usarlo para catálogos y migrar el cotizador al formato legacy: códigos ERP + vistas `vv*`**. El ETL actual solo materializa en `dbo` lo que la vista ya entrega en la misma base; la duplicación es real para `Cliente`, `Producto`, `TipoServicio`, `Tecnico`, `UnidadMedida`, `CategoriaProducto` y `ActivoAmortizable`. No hay duplicación en los códigos operativos (frecuencia, locación, bodega, plaga, equipo, vehículo), que ya se leen en vivo.
+
+**Por qué ahora es el momento barato:** verificado el 2026-11-18, `dbo.Cotizacion` y `dbo.CotizacionAprobacion` están vacías. No hay histórico que reconvertir de `Guid` a código ERP. Las tablas legacy ya guardan códigos y validan contra `vv*`, así que el destino no es un diseño nuevo: es el que ya usa el WinForms.
+
+**Beneficio:** desaparecen 7 flujos espejo, 7 tablas duplicadas, los combos mixtos y el riesgo de nombres desactualizados. Queda una sola fuente por entidad y el cotizador deja de depender de un cargador para poder dar de alta una cotización.
+
+**Costo real:** SQL Server no permite FK hacia una vista, así que se pierde la integridad referencial declarativa de `Cotizacion` y hay que validar en aplicación, igual que ya hace `PlantillaService` con `vv*`. Además hay que decidir el destino de las filas `EXCEL`/`SISTEMA` que no existen en el ERP y mantener aparte el único flujo con origen externo real: `TipoCambio` desde `FUMIPLAGA`.
+
+**Recomendación revisada (pendiente de autorización):**
+
+1. No crear más flujos espejo desde `vv*`; congelar los existentes.
+2. Refactorizar `Cotizacion` para guardar códigos ERP y validarlos contra las vistas, sin columnas nuevas en tablas legacy.
+3. Sustituir los combos locales de plantillas/órdenes/visitas/requisas por `opciones-erp` cuando el campo guarde código texto.
+4. Retirar los loaders y tablas espejo, y dejar únicamente un lector estrecho para `TipoCambio` (o consulta directa parametrizada a `FUMIPLAGA`).
+5. Ejecutarlo **antes del corte**, nunca después; no se inicia en Fase 10 sin instrucción explícita.
+
 ---
 
 ## 9. Próximo paso concreto
