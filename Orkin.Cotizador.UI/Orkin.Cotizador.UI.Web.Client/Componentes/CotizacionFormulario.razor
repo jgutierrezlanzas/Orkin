@@ -52,9 +52,9 @@
             }
             else
             {
-                <SelectorLegible TItem="ClienteOpcion" TValue="Guid"
-                                 Items="_opciones.Clientes" ValorDe="c => c.Id" TextoDe='c => $"{c.Nombre} ({c.Codigo})"'
-                                 @bind-Value="_clienteId"
+                <SelectorLegible TItem="ClienteOpcion" TValue="string"
+                                 Items="_opciones.Clientes" ValorDe="c => c.Codigo" TextoDe='c => $"{c.Nombre} ({c.Codigo})"'
+                                 @bind-Value="_clienteCodigo"
                                  Label="Cliente"
                                  Clearable="true" />
             }
@@ -88,9 +88,9 @@
             }
         </MudItem>
         <MudItem xs="12" md="4">
-            <SelectorLegible TItem="TipoServicioOpcion" TValue="Guid"
-                             Items="_opciones.TiposServicio" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
-                             @bind-Value="_tipoServicioId"
+            <SelectorLegible TItem="TipoServicioOpcion" TValue="string"
+                             Items="_opciones.TiposServicio" ValorDe="t => t.Codigo" TextoDe="t => t.Nombre"
+                             @bind-Value="_tipoServicioCodigo"
                              Label="Tipo de servicio"
                              Clearable="true" />
         </MudItem>
@@ -134,9 +134,9 @@
                              HelperText="@(Editando ? "Se puede cambiar: antes el guardado la borraba siempre." : null)" />
         </MudItem>
         <MudItem xs="12" md="4">
-            <SelectorLegible TItem="TecnicoOpcionModel" TValue="Guid?"
-                             Items="_opciones.Tecnicos" ValorDe="t => t.Id" TextoDe="t => t.Nombre"
-                             @bind-Value="_tecnicoAsignadoId"
+            <SelectorLegible TItem="TecnicoOpcionModel" TValue="string?"
+                             Items="_opciones.Tecnicos" ValorDe="t => t.Codigo" TextoDe='t => string.IsNullOrWhiteSpace(t.Iniciales) ? t.Nombre : $"{t.Nombre} ({t.Iniciales})"'
+                             @bind-Value="_tecnicoCodigo"
                              Label="Técnico asignado" Clearable="true"
                              HelperText="Opcional: se puede cotizar y asignar después." />
         </MudItem>
@@ -184,20 +184,20 @@
                        producto fue desactivado, sale de la lista y el valor sigue cargado, así
                        que sin este texto la fila abriría vacía y quien guardara sin mirar no
                        sabría qué se estaba cobrando. *@
-                    <SelectorLegible TItem="ProductoModel" TValue="Guid"
-                                     Items="@ProductosDisponibles(context)"
-                                     ValorDe="p => p.Id"
-                                     TextoDe='p => $"{p.Nombre} — {p.CostoActual:N2} C$/{p.UnidadMedidaAbreviatura}"'
-                                     @bind-Value="context.ProductoId"
-                                     TextoValorActual="@NombreProductoDe(context.ProductoId)"
+                    <SelectorLegible TItem="ArticuloOpcionModel" TValue="string"
+                                     Items="@ArticulosDisponibles(context)"
+                                     ValorDe="a => a.Codigo"
+                                     TextoDe='a => $"{a.Nombre} — {a.Costo:N2} C$/{a.UnidadMedida}"'
+                                     @bind-Value="context.ProductoCodigo"
+                                     TextoValorActual="@NombreArticuloDe(context.ProductoCodigo)"
                                      Dense="true"
                                      Clearable="true" />
                 </MudTd>
                 <MudTd>
                     <MudNumericField T="decimal" @bind-Value="context.Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Min="0.01m" Step="1m" Style="width: 120px" />
                 </MudTd>
-                <MudTd>@ObtenerCosto(context.ProductoId).ToString("N2")</MudTd>
-                <MudTd>@((ObtenerCosto(context.ProductoId) * context.Cantidad).ToString("N2"))</MudTd>
+                <MudTd>@ObtenerCosto(context.ProductoCodigo).ToString("N2")</MudTd>
+                <MudTd>@((ObtenerCosto(context.ProductoCodigo) * context.Cantidad).ToString("N2"))</MudTd>
                 <MudTd>
                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => QuitarInsumo(context))" />
                 </MudTd>
@@ -236,25 +236,24 @@
             </HeaderContent>
             <RowTemplate>
                 <MudTd Style="min-width: 220px">
-                    <SelectorLegible TItem="ActivoAmortizableOpcionModel" TValue="Guid"
+                    <SelectorLegible TItem="ArticuloOpcionModel" TValue="string"
                                      Items="@ActivosDisponibles(context)"
-                                     ValorDe="a => a.Id"
-                                     TextoDe='a => $"{a.Nombre} — {a.CostoActual:N2} C$/{a.UnidadAbreviatura}"'
-                                     @bind-Value="context.ActivoId"
-                                     TextoValorActual="@NombreActivoDe(context.ActivoId)"
+                                     ValorDe="a => a.Codigo"
+                                     TextoDe='a => $"{a.Nombre} — {a.Costo:N2} C$/{a.UnidadMedida}"'
+                                     @bind-Value="context.ActivoCodigo"
+                                     TextoValorActual="@NombreActivoDe(context.ActivoCodigo)"
                                      Dense="true" Clearable="true" />
                 </MudTd>
-                <MudTd>@ObtenerCostoActivo(context.ActivoId).ToString("N2")</MudTd>
+                <MudTd>@ObtenerCostoActivo(context.ActivoCodigo).ToString("N2")</MudTd>
                 <MudTd>
-                    @* La vida útil se EDITA: el catálogo trae el típico (12 meses), pero una
-                       trampa a la intemperie dura 6 y bajo techo dura 24 — quien cotiza lo sabe.
-                       Si no se toca, se usa la del catálogo. La etiqueta dice cuál de las dos
-                       está en juego, porque un 12 que viene del catálogo y un 12 tecleado a mano
-                       se ven igual en la caja y no significan lo mismo. *@
+                    @* La vida útil se teclea en cada línea: vvArticulos no trae ese dato y no
+                       hay catálogo local al que caer (D-24). Sin ella el motor rechaza el
+                       cálculo, porque un valor mensual en cero sería un precio equivocado que
+                       nadie vio. *@
                     <MudNumericField T="int?" @bind-Value="context.MesesVidaUtil"
-                                     Min="1" Max="600" Placeholder="@ObtenerVidaUtil(context.ActivoId).ToString()"
+                                     Min="1" Max="600" Placeholder="meses"
                                      Dense="true" Margin="Margin.Dense" Style="width: 100px"
-                                     HelperText="@(context.MesesVidaUtil is null ? "catálogo" : "editado")" />
+                                     HelperText="@(context.MesesVidaUtil is > 0 ? "editado" : "obligatorio")" />
                 </MudTd>
                 <MudTd>
                     <MudNumericField T="decimal" @bind-Value="context.Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Min="0.01m" Step="1m" Style="width: 100px" />
@@ -377,12 +376,11 @@
     private bool Editando => Cotizacion is not null;
 
     private CotizacionOpciones _opciones = new();
-    private List<ProductoModel> _productos = [];
     private List<LineaInsumoRequest> _insumos = [];
     private List<LineaAmortizableRequest> _amortizables = [];
     private CotizacionCalculadaResponse? _resultado;
-    private Guid _clienteId;
-    private Guid _tipoServicioId;
+    private string _clienteCodigo = string.Empty;
+    private string _tipoServicioCodigo = string.Empty;
     private bool _calculando;
     private bool _guardando;
 
@@ -415,7 +413,7 @@
             ? _opciones.TiposCliente.FirstOrDefault(t => t.Id == Cotizacion!.TipoClienteId)?.Nombre ?? ""
             : _clienteEsNuevo
                 ? _opciones.TiposCliente.FirstOrDefault(t => t.Id == _tipoClienteNuevoId)?.Nombre ?? ""
-                : _opciones.Clientes.FirstOrDefault(c => c.Id == _clienteId)?.TipoClienteNombre ?? "";
+                : _opciones.Clientes.FirstOrDefault(c => c.Codigo == _clienteCodigo)?.TipoClienteNombre ?? "";
 
     // Cliente nuevo: alguien llamó, pidió precios y todavía no tiene ficha en el catálogo.
     // La cotización queda con el nombre tecleado y el tipo elegido, sin tocar dbo.Cliente.
@@ -425,7 +423,7 @@
     private byte _tipoClienteNuevoId;
 
     private string? _modalidadCodigo;
-    private Guid? _tecnicoAsignadoId;
+    private string? _tecnicoCodigo;
     private DateTime? _fechaEstimada;
     private string? _direccionServicio;
     private TipoCambioModel? _tipoCambioVigente;
@@ -465,8 +463,10 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Un solo viaje: los insumos y los activos salen de vvArticulos, no de la tabla local
+        // de productos (D-24). El catálogo de la plataforma sigue sirviendo solo para el tipo de
+        // cambio y los catálogos propios (tipos de cliente y modalidades).
         _opciones = await CotizacionService.ObtenerOpcionesAsync();
-        _productos = await CatalogoService.ListarProductosAsync();
 
         if (_opciones.TiposCliente.Count > 0)
         {
@@ -484,12 +484,12 @@
         // quien cotiza no llegó a tocar nada.
         if (_opciones.Clientes.Count > 0)
         {
-            _clienteId = _opciones.Clientes[0].Id;
+            _clienteCodigo = _opciones.Clientes[0].Codigo;
         }
 
         if (_opciones.TiposServicio.Count > 0)
         {
-            _tipoServicioId = _opciones.TiposServicio[0].Id;
+            _tipoServicioCodigo = _opciones.TiposServicio[0].Codigo;
         }
     }
 
@@ -502,24 +502,26 @@
     private void SembrarDesde(CotizacionDetalleModel cotizacion)
     {
         _clienteNombreNuevo = cotizacion.ClienteNombre;
-        _tipoServicioId = cotizacion.TipoServicioId;
+        _clienteCodigo = cotizacion.ClienteCodigo ?? string.Empty;
+        _clienteEsNuevo = string.IsNullOrWhiteSpace(_clienteCodigo);
+        _tipoServicioCodigo = cotizacion.TipoServicioCodigo;
         _fecha = cotizacion.Fecha.ToDateTime(TimeOnly.MinValue);
         _margenPorcentaje = cotizacion.Margen * 100m;
         _modalidadCodigo = string.IsNullOrWhiteSpace(cotizacion.ModalidadCodigo) ? null : cotizacion.ModalidadCodigo;
-        _tecnicoAsignadoId = cotizacion.TecnicoAsignadoId;
+        _tecnicoCodigo = string.IsNullOrWhiteSpace(cotizacion.TecnicoCodigo) ? null : cotizacion.TecnicoCodigo;
         _fechaEstimada = cotizacion.FechaEstimada?.ToDateTime(TimeOnly.MinValue);
         _direccionServicio = cotizacion.DireccionServicio;
 
         _insumos = [.. cotizacion.Insumos.Select(i => new LineaInsumoRequest
         {
-            ProductoId = i.ProductoId,
+            ProductoCodigo = i.ProductoCodigo,
             Cantidad = i.Cantidad,
             SemestreId = i.SemestreId
         })];
 
         _amortizables = [.. cotizacion.Amortizables.Select(a => new LineaAmortizableRequest
         {
-            ActivoId = a.ActivoAmortizableId,
+            ActivoCodigo = a.ActivoCodigo,
             Cantidad = a.Cantidad,
             // Se siembra con el valor con el que se cotizó, no con el del catálogo. Si se
             // sembrara con null, la pantalla mostraría "catálogo" y quien guardara sin tocar la
@@ -550,7 +552,7 @@
 
     private void AgregarInsumo()
     {
-        if (_productos.Count == 0) return;
+        if (_opciones.Articulos.Count == 0) return;
 
         // La fila arranca SIN producto, no con el primero de la lista. Con uno pre-elegido, la
         // fila nueva hereda un texto que hay que borrar antes de poder filtrar — y quien no lo
@@ -566,14 +568,14 @@
     /// Los productos que esta fila puede elegir: todos menos los que ya eligieron las demás. El
     /// de esta fila queda, para que se pueda ver cuál tiene y cambiarlo.
     /// </summary>
-    private IReadOnlyList<ProductoModel> ProductosDisponibles(LineaInsumoRequest fila)
+    private IReadOnlyList<ArticuloOpcionModel> ArticulosDisponibles(LineaInsumoRequest fila)
     {
         var usados = _insumos
-            .Where(i => !ReferenceEquals(i, fila) && i.ProductoId != Guid.Empty)
-            .Select(i => i.ProductoId)
-            .ToHashSet();
+            .Where(i => !ReferenceEquals(i, fila) && !string.IsNullOrWhiteSpace(i.ProductoCodigo))
+            .Select(i => i.ProductoCodigo)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return _productos.Where(p => !usados.Contains(p.Id)).ToList();
+        return _opciones.Articulos.Where(a => !usados.Contains(a.Codigo)).ToList();
     }
 
     private void QuitarInsumo(LineaInsumoRequest insumo) => _insumos.Remove(insumo);
@@ -589,64 +591,60 @@
     private void QuitarAmortizable(LineaAmortizableRequest amortizable) => _amortizables.Remove(amortizable);
 
     /// <summary>Los activos que esta fila puede elegir: todos menos los que ya eligieron las demás.</summary>
-    private IReadOnlyList<ActivoAmortizableOpcionModel> ActivosDisponibles(LineaAmortizableRequest fila)
+    private IReadOnlyList<ArticuloOpcionModel> ActivosDisponibles(LineaAmortizableRequest fila)
     {
         var usados = _amortizables
-            .Where(a => !ReferenceEquals(a, fila) && a.ActivoId != Guid.Empty)
-            .Select(a => a.ActivoId)
-            .ToHashSet();
+            .Where(a => !ReferenceEquals(a, fila) && !string.IsNullOrWhiteSpace(a.ActivoCodigo))
+            .Select(a => a.ActivoCodigo)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return _opciones.ActivosAmortizables.Where(a => !usados.Contains(a.Id)).ToList();
+        return _opciones.ActivosAmortizables.Where(a => !usados.Contains(a.Codigo)).ToList();
     }
 
-    private decimal ObtenerCostoActivo(Guid activoId)
+    private decimal ObtenerCostoActivo(string activoCodigo)
     {
-        var activo = _opciones.ActivosAmortizables.FirstOrDefault(a => a.Id == activoId);
-        return activo?.CostoActual ?? 0;
+        var activo = _opciones.ActivosAmortizables
+            .FirstOrDefault(a => string.Equals(a.Codigo, activoCodigo, StringComparison.OrdinalIgnoreCase));
+        return activo?.Costo ?? 0;
     }
 
-    private int ObtenerVidaUtil(Guid activoId)
-    {
-        var activo = _opciones.ActivosAmortizables.FirstOrDefault(a => a.Id == activoId);
-        return activo?.MesesVidaUtil ?? 0;
-    }
-
-    /// <summary>El valor mensual de una fila de activo: costo / vida útil × cantidad.</summary>
+    /// <summary>El valor mensual de una fila: costo / vida útil × cantidad. Sin vida útil, 0.</summary>
     private decimal ValorMensual(LineaAmortizableRequest fila)
     {
-        var costo = ObtenerCostoActivo(fila.ActivoId);
-        var vida = fila.MesesVidaUtil ?? ObtenerVidaUtil(fila.ActivoId);
-        if (vida <= 0) return 0;
-        return costo / vida * fila.Cantidad;
+        var costo = ObtenerCostoActivo(fila.ActivoCodigo);
+        if (fila.MesesVidaUtil is not > 0) return 0;
+        return costo / fila.MesesVidaUtil.Value * fila.Cantidad;
     }
 
-    private decimal ObtenerCosto(Guid productoId)
+    private decimal ObtenerCosto(string productoCodigo)
     {
-        var producto = _productos.FirstOrDefault(p => p.Id == productoId);
-        return producto?.CostoActual ?? 0;
+        var articulo = _opciones.Articulos
+            .FirstOrDefault(a => string.Equals(a.Codigo, productoCodigo, StringComparison.OrdinalIgnoreCase));
+        return articulo?.Costo ?? 0;
     }
 
     /// <summary>
-    /// El nombre del producto aunque ya no esté en la lista. Sirve solo para el texto cerrado
-    /// del combo de una fila cargada desde la cotización; si no hay producto con ese id, se
-    /// devuelve vacío y el combo muestra el guión de siempre: es preferible ver que falta a
-    /// inventar un nombre.
+    /// El nombre del artículo aunque ya no esté en la lista (porque se desactivó en el ERP). Sirve
+    /// solo para el texto cerrado del combo de una fila cargada desde la cotización; si no hay
+    /// artículo con ese código, se devuelve vacío: es preferible ver que falta a inventar un nombre.
     /// </summary>
-    private string NombreProductoDe(Guid productoId)
+    private string NombreArticuloDe(string productoCodigo)
     {
-        var producto = _productos.FirstOrDefault(p => p.Id == productoId);
-        return producto is null
+        var articulo = _opciones.Articulos
+            .FirstOrDefault(a => string.Equals(a.Codigo, productoCodigo, StringComparison.OrdinalIgnoreCase));
+        return articulo is null
             ? string.Empty
-            : $"{producto.Nombre} — {producto.CostoActual:N2} C$/{producto.UnidadMedidaAbreviatura}";
+            : $"{articulo.Nombre} — {articulo.Costo:N2} C$/{articulo.UnidadMedida}";
     }
 
-    /// <summary>El nombre del activo aunque ya no esté en la lista. Mismo criterio que arriba.</summary>
-    private string NombreActivoDe(Guid activoId)
+    /// <summary>El nombre del activo aunque ya no esté en la lista. Mismo criterio.</summary>
+    private string NombreActivoDe(string activoCodigo)
     {
-        var activo = _opciones.ActivosAmortizables.FirstOrDefault(a => a.Id == activoId);
+        var activo = _opciones.ActivosAmortizables
+            .FirstOrDefault(a => string.Equals(a.Codigo, activoCodigo, StringComparison.OrdinalIgnoreCase));
         return activo is null
             ? string.Empty
-            : $"{activo.Nombre} — {activo.CostoActual:N2} C$/{activo.UnidadAbreviatura}";
+            : $"{activo.Nombre} — {activo.Costo:N2} C$/{activo.UnidadMedida}";
     }
 
     /// <summary>
@@ -674,7 +672,7 @@
                 return "Elija el tipo del cliente nuevo: es lo que decide el método de costeo.";
             }
         }
-        else if (_clienteId == Guid.Empty)
+        else if (string.IsNullOrWhiteSpace(_clienteCodigo))
         {
             return "Seleccione un cliente.";
         }
@@ -688,7 +686,7 @@
     /// revisó el resultado.
     /// </summary>
     private string? ValidarTipoServicio()
-        => _tipoServicioId == Guid.Empty ? "Seleccione el tipo de servicio." : null;
+        => string.IsNullOrWhiteSpace(_tipoServicioCodigo) ? "Seleccione el tipo de servicio." : null;
 
     /// <summary>La fecha es el tipo nativo del picker (DateTime?) y puede quedar en null.</summary>
     private string? ValidarFecha()
@@ -707,7 +705,7 @@
             return "Agregue al menos un insumo.";
         }
 
-        if (_insumos.Any(i => i.ProductoId == Guid.Empty))
+        if (_insumos.Any(i => string.IsNullOrWhiteSpace(i.ProductoCodigo)))
         {
             return "Hay una fila de insumo sin producto: elija uno o quítela.";
         }
@@ -722,9 +720,21 @@
     /// activo inexistente y no de la fila a medias.
     /// </summary>
     private string? ValidarAmortizables()
-        => _amortizables.Any(a => a.ActivoId == Guid.Empty)
-            ? "Hay una fila de activo sin elegir: elija uno o quítela."
-            : null;
+    {
+        if (_amortizables.Any(a => string.IsNullOrWhiteSpace(a.ActivoCodigo)))
+        {
+            return "Hay una fila de activo sin elegir: elija uno o quítela.";
+        }
+
+        // vvArticulos no trae vida útil: un 0 aquí produciría un valor mensual en cero, el mismo
+        // error silencioso que había en el Excel (H-04).
+        if (_amortizables.Any(a => a.MesesVidaUtil is not > 0))
+        {
+            return "Cada activo necesita meses de vida útil mayores a cero: el ERP no trae ese dato.";
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Todo lo que hay que revisar antes de calcular o de guardar, en el orden en que se le
@@ -738,7 +748,9 @@
     /// El cliente como lo entiende la API: del catálogo con su id, o nuevo con el nombre tecleado
     /// y el tipo que decide el costeo.
     /// </summary>
-    private Guid? ClienteParaApi => Editando ? Cotizacion!.ClienteId : (_clienteEsNuevo ? null : _clienteId);
+    private string? ClienteParaApi => Editando
+        ? Cotizacion!.ClienteCodigo
+        : (_clienteEsNuevo ? null : _clienteCodigo);
 
     private byte? TipoClienteParaApi
     {
@@ -809,13 +821,13 @@
         {
             await OnGuardar.InvokeAsync(new CotizacionFormularioDatos
             {
-                ClienteId = ClienteParaApi,
+                ClienteCodigo = ClienteParaApi,
                 ClienteNombre = Editando || !_clienteEsNuevo ? null : _clienteNombreNuevo.Trim(),
                 TipoClienteId = TipoClienteParaApi,
-                TipoServicioId = _tipoServicioId,
+                TipoServicioCodigo = _tipoServicioCodigo,
                 Fecha = Fecha,
                 ModalidadCodigo = _modalidadCodigo,
-                TecnicoAsignadoId = _tecnicoAsignadoId,
+                TecnicoCodigo = _tecnicoCodigo,
                 FechaEstimada = _fechaEstimada is { } f ? DateOnly.FromDateTime(f) : null,
                 DireccionServicio = _direccionServicio,
                 Margen = MargenFraccion,

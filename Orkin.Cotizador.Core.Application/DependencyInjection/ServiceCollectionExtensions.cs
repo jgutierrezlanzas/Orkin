@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ClienteService>();
         services.AddScoped<TecnicoService>();
         services.AddScoped<TipoCambioService>();
+        services.AddScoped<CatalogoErpService>();
         services.AddScoped<CotizacionService>();
         services.AddScoped<Plantillas.PlantillaService>();
         services.AddScoped<Ordenes.OrdenTrabajoService>();

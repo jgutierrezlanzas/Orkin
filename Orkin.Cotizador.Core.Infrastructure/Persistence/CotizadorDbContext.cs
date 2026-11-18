@@ -805,7 +805,11 @@ public class CotizadorDbContext : DbContext
         cotizacion.Property(c => c.FechaVigencia).HasColumnName("FechaVigencia").HasColumnType("date");
         cotizacion.Property(c => c.VigenciaDias).HasColumnName("VigenciaDias");
         cotizacion.Property(c => c.EstadoId).HasColumnName("Estado").IsRequired();
+        cotizacion.Property(c => c.EstadoCodigo).HasColumnName("EstadoCodigo").HasMaxLength(20).IsUnicode(false).IsRequired();
+        cotizacion.Property(c => c.EstadoNombre).HasColumnName("EstadoNombre").HasMaxLength(50).IsUnicode(false).IsRequired();
         cotizacion.Property(c => c.ModalidadId).HasColumnName("Modalidad");
+        cotizacion.Property(c => c.ModalidadCodigo).HasColumnName("ModalidadCodigo").HasMaxLength(20).IsUnicode(false);
+        cotizacion.Property(c => c.ModalidadNombre).HasColumnName("ModalidadNombre").HasMaxLength(50).IsUnicode(false);
         cotizacion.Property(c => c.FechaEstimada).HasColumnName("FechaEstimada").HasColumnType("date");
         // H-02: el margen es una fracción. Este CHECK es la razón por la que el 5.5 con formato
         // 0% del Excel no puede volver a colarse.
@@ -838,11 +842,16 @@ public class CotizadorDbContext : DbContext
         cotizacion.Property(c => c.MotivoAnulacion).HasColumnName("MotivoAnulacion").HasMaxLength(1000);
         cotizacion.Property(c => c.ConvertidaUtc).HasColumnName("ConvertidaUtc").HasColumnType("datetime2(3)");
         ConfigurarFkOrigen(cotizacion, "OrigenDatoId", "OrigenDatoId", typeof(OrigenDatoCatalogo));
+        // Cliente/tipo de servicio/técnico son códigos ERP (D-24): no hay FK a tablas locales que
+        // se puedan desactivar y dejen la cotización huérfana. El ancho es el de la vista.
+        cotizacion.Property(c => c.ClienteCodigo).HasColumnName("ClienteCodigo").HasMaxLength(20).IsUnicode(false);
+        cotizacion.Property(c => c.TipoServicioCodigo).HasColumnName("TipoServicioCodigo").HasMaxLength(4).IsUnicode(false).IsRequired();
+        cotizacion.Property(c => c.TipoServicioNombre).HasColumnName("TipoServicioNombre").HasMaxLength(50).IsUnicode(false).IsRequired();
+        cotizacion.Property(c => c.TecnicoCodigo).HasColumnName("TecnicoCodigo").HasMaxLength(5).IsUnicode(false);
+        cotizacion.Property(c => c.TecnicoNombre).HasColumnName("TecnicoNombre").HasMaxLength(50).IsUnicode(false);
         cotizacion.HasIndex(c => new { c.Numero, c.Version }).IsUnique().HasDatabaseName("UX_Cotizacion_Numero_Version");
-        cotizacion.HasIndex(c => new { c.ClienteId, c.Fecha }).HasDatabaseName("IX_Cotizacion_Cliente_Fecha");
+        cotizacion.HasIndex(c => new { c.ClienteCodigo, c.Fecha }).HasDatabaseName("IX_Cotizacion_ClienteCodigo_Fecha");
         cotizacion.HasIndex(c => new { c.EstadoId, c.Fecha }).HasDatabaseName("IX_Cotizacion_Estado_Fecha");
-        cotizacion.HasOne(c => c.Cliente).WithMany().HasForeignKey(c => c.ClienteId).OnDelete(DeleteBehavior.Restrict);
-        cotizacion.HasOne(c => c.TipoServicio).WithMany().HasForeignKey(c => c.TipoServicioId).OnDelete(DeleteBehavior.Restrict);
         cotizacion.HasOne(c => c.TipoCambio).WithMany().HasForeignKey(c => c.TipoCambioId).OnDelete(DeleteBehavior.Restrict);
 
         // ── dbo.DetalleInsumo ─────────────────────────────────────────────────────
@@ -855,6 +864,7 @@ public class CotizadorDbContext : DbContext
             t.HasCheckConstraint("CK_DetalleInsumo_PrecioUnitario", "[PrecioUnitario] >= 0");
             t.HasCheckConstraint("CK_DetalleInsumo_Total", "[Total] >= 0");
         });
+        detalleInsumo.Property(d => d.ProductoCodigo).HasColumnName("ProductoCodigo").HasMaxLength(20).IsUnicode(false).IsRequired();
         detalleInsumo.Property(d => d.SemestreId).HasColumnName("Semestre");
         detalleInsumo.Property(d => d.Cantidad).HasColumnName("Cantidad").HasPrecision(18, 4).IsRequired();
         detalleInsumo.Property(d => d.PrecioUnitario).HasColumnName("PrecioUnitario").HasPrecision(18, 6).IsRequired();
@@ -867,9 +877,8 @@ public class CotizadorDbContext : DbContext
         detalleInsumo.HasIndex(d => new { d.CotizacionId, d.SemestreId })
             .IncludeProperties(d => new { d.Total, d.Cantidad, d.PrecioUnitario })
             .HasDatabaseName("IX_DetalleInsumo_Cotizacion");
-        detalleInsumo.HasIndex(d => d.ProductoId).HasDatabaseName("IX_DetalleInsumo_Producto");
+        detalleInsumo.HasIndex(d => d.ProductoCodigo).HasDatabaseName("IX_DetalleInsumo_ProductoCodigo");
         detalleInsumo.HasOne(d => d.Cotizacion).WithMany(c => c.DetalleInsumos).HasForeignKey(d => d.CotizacionId).OnDelete(DeleteBehavior.Cascade);
-        detalleInsumo.HasOne(d => d.Producto).WithMany().HasForeignKey(d => d.ProductoId).OnDelete(DeleteBehavior.Restrict);
         detalleInsumo.HasOne(d => d.Semestre).WithMany().HasForeignKey(d => d.SemestreId).OnDelete(DeleteBehavior.Restrict);
 
         // ── dbo.DetalleAmortizable ───────────────────────────────────────────────
@@ -884,6 +893,7 @@ public class CotizadorDbContext : DbContext
             t.HasCheckConstraint("CK_DetalleAmortizable_MesesVidaUtil", "[MesesVidaUtil] > 0");
             t.HasCheckConstraint("CK_DetalleAmortizable_ValorMensual", "[ValorMensual] >= 0");
         });
+        detalleAmortizable.Property(d => d.ActivoCodigo).HasColumnName("ActivoCodigo").HasMaxLength(20).IsUnicode(false).IsRequired();
         detalleAmortizable.Property(d => d.Cantidad).HasColumnName("Cantidad").HasPrecision(18, 4).IsRequired();
         detalleAmortizable.Property(d => d.PrecioUnitario).HasColumnName("PrecioUnitario").HasPrecision(18, 6).IsRequired();
         detalleAmortizable.Property(d => d.MesesVidaUtil).HasColumnName("MesesVidaUtil").IsRequired();
@@ -896,9 +906,8 @@ public class CotizadorDbContext : DbContext
         detalleAmortizable.HasIndex(d => new { d.CotizacionId, d.Orden })
             .IncludeProperties(d => new { d.ValorMensual, d.Total, d.MesesVidaUtil })
             .HasDatabaseName("IX_DetalleAmortizable_Cotizacion");
-        detalleAmortizable.HasIndex(d => d.ActivoAmortizableId).HasDatabaseName("IX_DetalleAmortizable_Activo");
+        detalleAmortizable.HasIndex(d => d.ActivoCodigo).HasDatabaseName("IX_DetalleAmortizable_ActivoCodigo");
         detalleAmortizable.HasOne(d => d.Cotizacion).WithMany(c => c.DetalleAmortizables).HasForeignKey(d => d.CotizacionId).OnDelete(DeleteBehavior.Cascade);
-        detalleAmortizable.HasOne(d => d.ActivoAmortizable).WithMany().HasForeignKey(d => d.ActivoAmortizableId).OnDelete(DeleteBehavior.Restrict);
 
         // ── dbo.CotizacionAprobacion ─────────────────────────────────────────────
         var aprobacion = modelBuilder.Entity<CotizacionAprobacion>();
@@ -1060,6 +1069,7 @@ public class CotizadorDbContext : DbContext
         // en cada vista y todas las consultas son de solo lectura.
         ConfigurarVistaErp<VistaClienteErp>(modelBuilder, "vvClientes", "Cliente", "CLIENTE", 20);
         modelBuilder.Entity<VistaClienteErp>().Property(v => v.NombreCliente).HasColumnName("NOMBRE_CLIENTE").HasMaxLength(150).IsUnicode(false);
+        modelBuilder.Entity<VistaClienteErp>().Property(v => v.CategoriaCliente).HasColumnName("CAT_CLIENTE").HasMaxLength(8).IsUnicode(false);
         modelBuilder.Entity<VistaClienteErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(1).IsUnicode(false);
 
         ConfigurarVistaErp<VistaLocacionErp>(modelBuilder, "vvLocacionesClientes", "Codigo", "CODIGO", 5);
@@ -1068,6 +1078,8 @@ public class CotizadorDbContext : DbContext
         modelBuilder.Entity<VistaLocacionErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
 
         ConfigurarVistaErp<VistaTipoServicioErp>(modelBuilder, "vvTipoServicios", "Codigo", "CODIGO", 4);
+        modelBuilder.Entity<VistaTipoServicioErp>().Property(v => v.Descripcion).HasColumnName("DESCRIPCION").HasMaxLength(50).IsUnicode(false);
+        modelBuilder.Entity<VistaTipoServicioErp>().Property(v => v.TipoActividad).HasColumnName("TIPOACTIVIDAD").HasMaxLength(30).IsUnicode(false);
         modelBuilder.Entity<VistaTipoServicioErp>().Property(v => v.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false);
 
         ConfigurarVistaErp<VistaVehiculoErp>(modelBuilder, "vvVehiculos", "Codigo", "CODIGO", 4);

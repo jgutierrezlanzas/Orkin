@@ -11,6 +11,8 @@ public class VistaClienteErp
 {
     public string Cliente { get; set; } = null!;
     public string? NombreCliente { get; set; }
+    /// <summary>CAT_CLIENTE del ERP (C01/C02/C03); alimenta el tipo de cliente del cotizador.</summary>
+    public string? CategoriaCliente { get; set; }
     public string? Activo { get; set; }
 }
 
@@ -25,6 +27,8 @@ public class VistaLocacionErp
 public class VistaTipoServicioErp
 {
     public string Codigo { get; set; } = null!;
+    public string? Descripcion { get; set; }
+    public string? TipoActividad { get; set; }
     public string? Activo { get; set; }
 }
 

@@ -33,9 +33,6 @@ public sealed class GeneradorPdfCotizacion
     {
         var cotizacion = await _contexto.Cotizacion
             .AsNoTracking()
-            .Include(c => c.Estado)
-            .Include(c => c.TipoServicio)
-            .Include(c => c.Modalidad)
             .FirstOrDefaultAsync(c => c.Id == cotizacionId, cancellationToken)
             ?? throw new KeyNotFoundException("La cotización no existe.");
 
@@ -65,7 +62,7 @@ public sealed class GeneradorPdfCotizacion
                         {
                             col.Item().Text($"COTIZACIÓN {cotizacion.Numero}").FontSize(14).Bold();
                             col.Item().Text($"Fecha: {cotizacion.Fecha:dd/MM/yyyy}").FontSize(10);
-                            col.Item().Text($"Estado: {cotizacion.Estado?.Nombre ?? ""}").FontSize(10);
+                            col.Item().Text($"Estado: {cotizacion.EstadoNombre}").FontSize(10);
                         });
                     });
 
@@ -85,12 +82,12 @@ public sealed class GeneradorPdfCotizacion
                         row.RelativeItem().Column(col =>
                         {
                             col.Item().Text("Servicio").FontSize(9).FontColor("#888888");
-                            col.Item().Text(cotizacion.TipoServicio?.Nombre ?? "").FontSize(12);
+                            col.Item().Text(cotizacion.TipoServicioNombre).FontSize(12);
                         });
                         row.RelativeItem().Column(col =>
                         {
                             col.Item().Text("Modalidad").FontSize(9).FontColor("#888888");
-                            col.Item().Text(cotizacion.Modalidad?.Nombre ?? "—").FontSize(12);
+                            col.Item().Text(string.IsNullOrWhiteSpace(cotizacion.ModalidadNombre) ? "—" : cotizacion.ModalidadNombre).FontSize(12);
                         });
                     });
 

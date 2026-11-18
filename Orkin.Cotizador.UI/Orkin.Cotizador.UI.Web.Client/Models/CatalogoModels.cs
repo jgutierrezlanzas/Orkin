@@ -120,6 +120,8 @@ public sealed class OpcionErpModel
     public string Descripcion { get; set; } = string.Empty;
     public string? Detalle { get; set; }
     public string? UnidadMedida { get; set; }
+    public string? Clasificacion { get; set; }
+    public decimal? Costo { get; set; }
 }
 
 public sealed class OpcionesErpModel
@@ -135,4 +137,13 @@ public sealed class OpcionesErpModel
 
     /// <summary>Bodegas activas de vvBodegas, compartidas por todas las pantallas (Fase 5).</summary>
     public List<OpcionErpModel> Bodegas { get; set; } = [];
+
+    /// <summary>Catálogos ERP del cotizador (D-24): se guarda el código, nunca una copia local.</summary>
+    public List<OpcionErpModel> Clientes { get; set; } = [];
+    public List<OpcionErpModel> TiposServicio { get; set; } = [];
+    public List<OpcionErpModel> Tecnicos { get; set; } = [];
+    public List<OpcionErpModel> Articulos { get; set; } = [];
+    public List<OpcionErpModel> ActivosAmortizables { get; set; } = [];
+    public List<OpcionErpModel> Unidades { get; set; } = [];
+    public List<OpcionErpModel> Clasificaciones { get; set; } = [];
 }

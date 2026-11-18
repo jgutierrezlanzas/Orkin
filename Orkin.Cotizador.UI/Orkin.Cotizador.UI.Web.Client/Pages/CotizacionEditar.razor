@@ -70,13 +70,13 @@
 
         var respuesta = await CotizacionService.ActualizarAsync(
             Id,
-            datos.TipoServicioId,
+            datos.TipoServicioCodigo,
             datos.Fecha,
             datos.Margen,
             datos.Insumos,
             datos.Amortizables,
             datos.ModalidadCodigo,
-            datos.TecnicoAsignadoId,
+            datos.TecnicoCodigo,
             datos.FechaEstimada,
             datos.DireccionServicio);
 

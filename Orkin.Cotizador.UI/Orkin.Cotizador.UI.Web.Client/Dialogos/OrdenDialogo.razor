@@ -24,9 +24,9 @@
             <MudItem xs="12" md="4">
                 <MudSelect T="string?" @bind-Value="Modelo.Cliente" Label="Código de cliente" Variant="Variant.Outlined"
                            Margin="Margin.Dense" Dense="true" Clearable="true">
-                    @foreach (var cliente in _clientes)
+                    @foreach (var cliente in _opciones.Clientes)
                     {
-                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Nombre</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@TextoOpcion(cliente)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -90,11 +90,11 @@
                         </div>
                         <MudGrid Spacing="2">
                             <MudItem xs="12" md="4">
-                                <SelectorLegible TItem="ProductoModel" TValue="string"
-                                                 Items="_productos" ValorDe="p => p.Codigo" TextoDe="TextoProducto"
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Articulos" ValorDe="a => a.Codigo" TextoDe="TextoOpcion"
                                                  Value="@(linea.CodigoArticulo ?? string.Empty)"
                                                  ValueChanged="@(v => AlCambiarProducto(linea, v))"
-                                                 TextoValorActual="@TextoProductoActual(linea.CodigoArticulo, linea.DescripcionArticulo)"
+                                                 TextoValorActual="@TextoActual(linea.CodigoArticulo, _opciones.Articulos)"
                                                  Label="Artículo (código ERP)" Clearable="true" />
                             </MudItem>
                             <MudItem xs="12" md="4">
@@ -181,9 +181,9 @@
                                 <MudSelect T="string" Value="linea.CodigoServicio"
                                            ValueChanged="@((string v) => linea.CodigoServicio = v)"
                                            Label="Tipo de servicio" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
-                                    @foreach (var servicio in _tiposServicio)
+                                    @foreach (var servicio in _opciones.TiposServicio)
                                     {
-                                        <MudSelectItem T="string" Value="@servicio.Codigo">@servicio.Nombre (@servicio.Codigo)</MudSelectItem>
+                                        <MudSelectItem T="string" Value="@servicio.Codigo">@TextoOpcion(servicio)</MudSelectItem>
                                     }
                                 </MudSelect>
                             </MudItem>
@@ -258,9 +258,9 @@
                                 <MudSelect T="string" Value="linea.CodigoTecnico"
                                            ValueChanged="@((string v) => AlCambiarTecnico(linea, v))"
                                            Label="Técnico" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
-                                    @foreach (var tecnico in _tecnicos)
+                                    @foreach (var tecnico in _opciones.Tecnicos)
                                     {
-                                        <MudSelectItem T="string" Value="@tecnico.Codigo">@tecnico.Nombre (@tecnico.Codigo)</MudSelectItem>
+                                        <MudSelectItem T="string" Value="@tecnico.Codigo">@TextoOpcion(tecnico)</MudSelectItem>
                                     }
                                 </MudSelect>
                             </MudItem>
@@ -294,10 +294,9 @@
     [Inject]
     private CatalogoService Catalogos { get; set; } = null!;
 
-    private List<ClienteModel> _clientes = [];
-    private List<TecnicoModel> _tecnicos = [];
-    private List<ProductoModel> _productos = [];
-    private List<TipoServicioModel> _tiposServicio = [];
+    // Cliente, técnico, artículo y tipo de servicio: códigos de las vv* (D-24). Locaciones,
+    // plagas, ubicaciones, dosificaciones, métodos, frecuencias, equipos y vehículos ya venían de
+    // opciones-erp. Una sola lista para todo el diálogo.
     private OpcionesErpModel _opciones = new();
 
     private DateTime? FechaDateTime
@@ -307,23 +306,7 @@
     }
 
     protected override async Task OnInitializedAsync()
-    {
-        var tareas = new Task[]
-        {
-            Cargar(() => Catalogos.ListarClientesAsync(), lista => _clientes = lista),
-            Cargar(() => Catalogos.ListarTecnicosAsync(), lista => _tecnicos = lista),
-            Cargar(() => Catalogos.ListarProductosAsync(), lista => _productos = lista),
-            Cargar(() => Catalogos.ListarTiposServicioAsync(), lista => _tiposServicio = lista),
-            CargarDato(() => Catalogos.ListarOpcionesErpAsync(), opciones => _opciones = opciones)
-        };
-        await Task.WhenAll(tareas);
-    }
-
-    private static async Task Cargar<T>(Func<Task<List<T>>> obtener, Action<List<T>> asignar)
-        => asignar(await obtener());
-
-    private static async Task CargarDato<T>(Func<Task<T>> obtener, Action<T> asignar)
-        => asignar(await obtener());
+        => _opciones = await Catalogos.ListarOpcionesErpAsync();
 
     private static string TextoOpcion(OpcionErpModel opcion)
     {
@@ -339,21 +322,6 @@
         }
 
         return $"{opcion.Descripcion} ({string.Join(" · ", datos)})";
-    }
-
-    private static string TextoProducto(ProductoModel producto)
-        => $"{producto.Nombre} ({producto.Codigo})";
-
-    private static string TextoProductoActual(string? codigo, string? descripcion)
-    {
-        if (string.IsNullOrWhiteSpace(codigo))
-        {
-            return string.Empty;
-        }
-
-        return string.IsNullOrWhiteSpace(descripcion)
-            ? $"Código heredado: {codigo.Trim()}"
-            : $"{descripcion.Trim()} ({codigo.Trim()})";
     }
 
     private static string TextoActual(string? codigo, IReadOnlyList<OpcionErpModel> opciones)
@@ -394,28 +362,38 @@
     private void AlCambiarProducto(OrdenProductoModel linea, string? codigoArticulo)
     {
         linea.CodigoArticulo = codigoArticulo;
-        var producto = _productos.FirstOrDefault(p => p.Codigo == codigoArticulo);
-        if (producto is null)
+        var articulo = _opciones.Articulos.FirstOrDefault(a =>
+            string.Equals(a.Codigo, codigoArticulo, StringComparison.OrdinalIgnoreCase));
+        if (articulo is null)
         {
             return;
         }
 
-        linea.DescripcionArticulo = producto.Nombre;
-        linea.Umedida = producto.UnidadMedidaAbreviatura ?? producto.UnidadMedidaNombre;
-        linea.CostoUnitario = producto.CostoActual;
+        linea.DescripcionArticulo = articulo.Descripcion;
+        linea.Umedida = articulo.UnidadMedida;
+        linea.CostoUnitario = articulo.Costo ?? 0;
         Recalcular(linea);
     }
 
     private void AlCambiarTecnico(OrdenTecnicoModel linea, string codigoTecnico)
     {
         linea.CodigoTecnico = codigoTecnico;
-        var tecnico = _tecnicos.FirstOrDefault(t => t.Codigo == codigoTecnico);
+        var tecnico = _opciones.Tecnicos.FirstOrDefault(t =>
+            string.Equals(t.Codigo, codigoTecnico, StringComparison.OrdinalIgnoreCase));
         if (tecnico is null || !string.IsNullOrWhiteSpace(linea.Iniciales))
         {
             return;
         }
 
-        var palabras = tecnico.Nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // vvTecnicos.INICIALES viaja en Detalle. Si el ERP lo dejó en blanco se deriva del nombre,
+        // igual que hacía el WinForms; nunca se inventa un catálogo local para completarlo.
+        if (!string.IsNullOrWhiteSpace(tecnico.Detalle))
+        {
+            linea.Iniciales = tecnico.Detalle.Trim();
+            return;
+        }
+
+        var palabras = tecnico.Descripcion.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var iniciales = palabras.Length == 0
             ? codigoTecnico
             : string.Concat(palabras.Take(2).Select(p => char.ToUpperInvariant(p[0])));

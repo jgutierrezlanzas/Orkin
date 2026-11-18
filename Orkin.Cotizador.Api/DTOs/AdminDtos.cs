@@ -59,20 +59,6 @@ public sealed record PermisoResponse(
     string Modulo,
     string? Descripcion);
 
-/// <summary>Opción para dropdown de activos amortizables.</summary>
-public sealed record ActivoAmortizableOption(
-    Guid Id,
-    string Codigo,
-    string Nombre,
-    decimal CostoActual,
-    int? MesesVidaUtil,
-    string UnidadAbreviatura);
-
-/// <summary>Opción para dropdown de técnicos. Salen del catálogo compartido cargado desde el ERP.</summary>
-public sealed record TecnicoOption(
-    Guid Id,
-    string Nombre);
-
 /// <summary>Solicitud para fijar los permisos de un rol. La lista reemplaza la anterior completa.</summary>
 public sealed record AsignarPermisosRolRequest(IReadOnlyList<string> Permisos);
 

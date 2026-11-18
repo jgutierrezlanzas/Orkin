@@ -10,7 +10,11 @@ namespace Orkin.Cotizador.Core.Domain.Entidades;
 /// precio o el tipo de cambio.</para>
 /// <para>⚠️ <b>No lleva <c>IsActive</c></b>: una cotización se anula, no se borra.</para>
 /// <para>⚠️ <b>ADR-018</b>: las columnas segmentadas (<c>TipoClienteId</c>, <c>EstadoId</c>,
-/// <c>ModalidadId</c>, <c>MargenOrigenId</c>) son FK a catálogos. Ninguna es un <c>enum</c>.</para>
+/// <c>ModalidadId</c>, <c>MargenOrigenId</c>) son FK a catálogos propios de la plataforma.
+/// Ninguna es un <c>enum</c>.</para>
+/// <para>⚠️ <b>D-24</b>: cliente, tipo de servicio, técnico, insumos y activos se guardan como
+/// <b>códigos del ERP</b>, no como FK a copias locales. El nombre y la unidad viajan como snapshot
+/// para que el documento siga cuadrando aunque el ERP cambie después.</para>
 /// </summary>
 public class Cotizacion : BaseEntity
 {
@@ -46,20 +50,20 @@ public class Cotizacion : BaseEntity
     public bool EsVersionActual { get; set; } = true;
 
     /// <summary>
-    /// FK → <c>dbo.Cliente</c>. <b>Null cuando la cotización es para un cliente nuevo</b>, que
-    /// todavía no existe en el catálogo: alguien llamó, pidió precios y todavía no es cliente.
-    /// En ese caso la persona solo aparece en <see cref="ClienteNombre"/> y la cotización no
-    /// arrastra al catálogo una ficha que nadie confirmó. Si después el cliente se carga del
+    /// Código de <c>vvClientes.CLIENTE</c>. <b>Null cuando la cotización es para un cliente
+    /// nuevo</b>, que todavía no existe en el ERP: alguien llamó, pidió precios y todavía no es
+    /// cliente. En ese caso la persona solo aparece en <see cref="ClienteNombre"/> y la cotización
+    /// no arrastra al catálogo una ficha que nadie confirmó. Si después el cliente se carga del
     /// ERP, las cotizaciones viejas no se le re-asignan: son un snapshot, y re-atarlas sería
     /// inventar que se cotizó "para la ficha" cuando se cotizó "para el nombre".
     /// </summary>
-    public Guid? ClienteId { get; set; }
+    public string? ClienteCodigo { get; set; }
 
-    public Cliente? Cliente { get; set; }
+    /// <summary>Código de <c>vvTipoServicios.CODIGO</c>. El nombre se congela aparte.</summary>
+    public string TipoServicioCodigo { get; set; } = null!;
 
-    public Guid TipoServicioId { get; set; }
-
-    public TipoServicio TipoServicio { get; set; } = null!;
+    /// <summary>Snapshot de <c>vvTipoServicios.DESCRIPCION</c> al momento de cotizar.</summary>
+    public string TipoServicioNombre { get; set; } = null!;
 
     /// <summary>FK → <c>dbo.TipoClienteCatalogo</c>. Copia del cliente al momento de cotizar; para
     /// un cliente nuevo, lo elige quien cotiza.</summary>
@@ -77,12 +81,26 @@ public class Cotizacion : BaseEntity
 
     public EstadoCotizacionCatalogo? Estado { get; set; }
 
+    /// <summary>Snapshot del estado, para no depender de la fila viva al imprimir o listar.</summary>
+    public string EstadoCodigo { get; set; } = null!;
+
+    public string EstadoNombre { get; set; } = null!;
+
     /// <summary>FK → <c>dbo.ModalidadCatalogo</c>. Sin <c>DEFAULT</c> de SQL.</summary>
     public byte? ModalidadId { get; set; }
 
     public ModalidadCatalogo? Modalidad { get; set; }
 
-    public Guid? TecnicoAsignadoId { get; set; }
+    /// <summary>Snapshot de la modalidad, por la misma razón que el estado.</summary>
+    public string? ModalidadCodigo { get; set; }
+
+    public string? ModalidadNombre { get; set; }
+
+    /// <summary>Código de <c>vvTecnicos.CODIGO</c>. Opcional: se puede cotizar y asignar después.</summary>
+    public string? TecnicoCodigo { get; set; }
+
+    /// <summary>Snapshot de <c>vvTecnicos.NOMBRE_COMPLETO</c>.</summary>
+    public string? TecnicoNombre { get; set; }
 
     public DateOnly? FechaEstimada { get; set; }
 
@@ -191,9 +209,8 @@ public class DetalleInsumo : BaseEntity
 
     public Cotizacion Cotizacion { get; set; } = null!;
 
-    public Guid ProductoId { get; set; }
-
-    public Producto Producto { get; set; } = null!;
+    /// <summary>Código de <c>vvArticulos.CODIGO_ARTICULO</c>.</summary>
+    public string ProductoCodigo { get; set; } = null!;
 
     /// <summary>FK → <c>dbo.SemestreCatalogo</c>. <c>null</c> = indistinto (residencial).</summary>
     public byte? SemestreId { get; set; }
@@ -208,8 +225,6 @@ public class DetalleInsumo : BaseEntity
 
     /// <summary>RN-01. Lo calcula el motor, no SQL.</summary>
     public decimal Total { get; set; }
-
-    public Guid? UnidadMedidaId { get; set; }
 
     /// <summary>Abreviatura congelada para el PDF, por si el producto cambia de unidad.</summary>
     public string? UnidadMedidaTexto { get; set; }
@@ -236,9 +251,8 @@ public class DetalleAmortizable : BaseEntity
 
     public Cotizacion Cotizacion { get; set; } = null!;
 
-    public Guid ActivoAmortizableId { get; set; }
-
-    public ActivoAmortizable ActivoAmortizable { get; set; } = null!;
+    /// <summary>Código de <c>vvArticulos.CODIGO_ARTICULO</c> con <c>AMORTIZABLE = SI</c>.</summary>
+    public string ActivoCodigo { get; set; } = null!;
 
     public decimal Cantidad { get; set; }
 

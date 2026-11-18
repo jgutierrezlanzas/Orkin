@@ -12,21 +12,26 @@
             <MudItem xs="12" md="5">
                 <MudSelect T="string?" @bind-Value="Modelo.Cliente" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense"
                            Dense="true" Clearable="true" Required="true" RequiredError="Seleccione un cliente">
-                    @foreach (var cliente in _clientes)
+                    @foreach (var cliente in _opciones.Clientes)
                     {
-                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Codigo — @cliente.Nombre</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@TextoOpcion(cliente)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" md="3">
-                <MudTextField @bind-Value="Modelo.Locacion" Label="Locación (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                 Items="_opciones.Locaciones" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                 Value="@(Modelo.Locacion ?? string.Empty)"
+                                 ValueChanged="@(v => Modelo.Locacion = v)"
+                                 TextoValorActual="@TextoActual(Modelo.Locacion, _opciones.Locaciones)"
+                                 Label="Locación (código ERP)" Clearable="true" Required="true" />
             </MudItem>
             <MudItem xs="12" md="4">
                 <MudSelect T="string?" @bind-Value="Modelo.TipoServicio" Label="Tipo de servicio" Variant="Variant.Outlined" Margin="Margin.Dense"
                            Dense="true" Clearable="true">
-                    @foreach (var servicio in _servicios)
+                    @foreach (var servicio in _opciones.TiposServicio)
                     {
-                        <MudSelectItem T="string?" Value="@servicio.Codigo">@servicio.Codigo — @servicio.Nombre</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@servicio.Codigo">@TextoOpcion(servicio)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -49,7 +54,12 @@
             </MudItem>
 
             <MudItem xs="12" md="4">
-                <MudTextField @bind-Value="Modelo.CodigoVehiculo" Label="Vehículo (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                 Items="_opciones.Vehiculos" ValorDe="o => o.Codigo" TextoDe="TextoOpcion"
+                                 Value="@(Modelo.CodigoVehiculo ?? string.Empty)"
+                                 ValueChanged="@(v => Modelo.CodigoVehiculo = v)"
+                                 TextoValorActual="@TextoActual(Modelo.CodigoVehiculo, _opciones.Vehiculos)"
+                                 Label="Vehículo (código ERP)" Clearable="true" />
             </MudItem>
             <MudItem xs="12" md="4">
                 <MudSelect T="long?" @bind-Value="Modelo.Plantilla" Label="Plantilla de orden de trabajo" Variant="Variant.Outlined"
@@ -68,9 +78,9 @@
             <MudItem xs="12">
                 <MudSelect T="string" @bind-SelectedValues="_tecnicosSeleccionados" Label="Técnicos" Variant="Variant.Outlined" Margin="Margin.Dense"
                            Dense="true" SelectionMode="SelectionMode.Multiple" Required="true" RequiredError="Seleccione al menos un técnico">
-                    @foreach (var tecnico in _tecnicos.Where(t => t.EsActivo))
+                    @foreach (var tecnico in _opciones.Tecnicos)
                     {
-                        <MudSelectItem T="string" Value="@tecnico.Codigo">@tecnico.Codigo — @tecnico.Nombre</MudSelectItem>
+                        <MudSelectItem T="string" Value="@tecnico.Codigo">@TextoOpcion(tecnico)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -108,9 +118,9 @@
     [Inject]
     private ISnackbar Snackbar { get; set; } = null!;
 
-    private List<ClienteModel> _clientes = [];
-    private List<TecnicoModel> _tecnicos = [];
-    private List<TipoServicioModel> _servicios = [];
+    // Cliente, locación, tipo de servicio, vehículo y técnicos salen de las vv* (D-24); las
+    // plantillas son entidades de la plataforma, no un catálogo espejo del ERP.
+    private OpcionesErpModel _opciones = new();
     private List<PlantillaModel> _plantillas = [];
     private IReadOnlyCollection<string> _tecnicosSeleccionados = new List<string>();
     private string? _error;
@@ -125,9 +135,7 @@
     {
         var tareas = new Task[]
         {
-            Cargar(() => Catalogos.ListarClientesAsync(), lista => _clientes = lista),
-            Cargar(() => Catalogos.ListarTecnicosAsync(), lista => _tecnicos = lista),
-            Cargar(() => Catalogos.ListarTiposServicioAsync(), lista => _servicios = lista),
+            CargarOpciones(),
             Cargar(() => ServicioPlantillas.ListarAsync(), lista => _plantillas = lista)
         };
         await Task.WhenAll(tareas);
@@ -138,8 +146,40 @@
             .ToList();
     }
 
+    private async Task CargarOpciones()
+        => _opciones = await Catalogos.ListarOpcionesErpAsync();
+
     private static async Task Cargar<T>(Func<Task<List<T>>> obtener, Action<List<T>> asignar)
         => asignar(await obtener());
+
+    /// <summary>Descripción primero, código entre paréntesis: nunca solo el código.</summary>
+    private static string TextoOpcion(OpcionErpModel opcion)
+    {
+        var datos = new List<string> { opcion.Codigo };
+        if (!string.IsNullOrWhiteSpace(opcion.Detalle))
+        {
+            datos.Add(opcion.Detalle.Trim());
+        }
+
+        return $"{opcion.Descripcion} ({string.Join(" · ", datos)})";
+    }
+
+    /// <summary>
+    /// Un código que ya no esté activo en la vista se conserva, pero se etiqueta como heredado:
+    /// es preferible ver que el dato viene del WinForms a inventarle un nombre.
+    /// </summary>
+    private static string TextoActual(string? codigo, IReadOnlyList<OpcionErpModel> opciones)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return string.Empty;
+        }
+
+        var texto = codigo.Trim();
+        var opcion = opciones.FirstOrDefault(o =>
+            string.Equals(o.Codigo, texto, StringComparison.OrdinalIgnoreCase));
+        return opcion is null ? $"Código heredado: {texto}" : TextoOpcion(opcion);
+    }
 
     private void Aceptar()
     {
@@ -179,19 +219,25 @@
             return;
         }
 
-        // El catálogo compartido de técnicos no expone INICIALES (varchar 2 del legacy), así que
-        // al editar se conservan las que ya tenía la visita y al dar de alta se dejan vacías: la
-        // columna legacy es opcional y el SP de OT trabaja con CODIGO_TECNICO.
+        // INICIALES viaja en vvTecnicos (Detalle). Al editar mandan las que ya tenía la visita;
+        // al dar de alta se toman del ERP y solo se dejan vacías si el ERP también las dejó vacías.
+        // Es una columna opcional del legacy y el SP de OT trabaja con CODIGO_TECNICO.
         var inicialesPrevias = Modelo.Tecnicos
             .Where(t => !string.IsNullOrWhiteSpace(t.Iniciales))
             .ToDictionary(
                 t => t.CodigoTecnico ?? string.Empty,
                 t => t.Iniciales!,
                 StringComparer.OrdinalIgnoreCase);
+        var inicialesErp = _opciones.Tecnicos
+            .Where(t => !string.IsNullOrWhiteSpace(t.Detalle))
+            .ToDictionary(
+                t => t.Codigo,
+                t => t.Detalle!.Trim(),
+                StringComparer.OrdinalIgnoreCase);
         Modelo.Tecnicos = codigos.Select(c => new VisitaTecnicoModel
         {
             CodigoTecnico = c,
-            Iniciales = inicialesPrevias.GetValueOrDefault(c)
+            Iniciales = inicialesPrevias.GetValueOrDefault(c) ?? inicialesErp.GetValueOrDefault(c)
         }).ToList();
 
         if (Modelo.FechaFinal is null)

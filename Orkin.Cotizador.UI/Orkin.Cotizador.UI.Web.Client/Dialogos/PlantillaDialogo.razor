@@ -14,17 +14,17 @@
             <MudItem xs="12" md="@(EsEdicion ? 5 : 6)">
                 <MudSelect T="string?" @bind-Value="Modelo.Cliente" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true"
                            Required="true" RequiredError="Seleccione un cliente">
-                    @foreach (var cliente in _clientes)
+                    @foreach (var cliente in _opciones.Clientes)
                     {
-                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Nombre</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@TextoOpcion(cliente)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" md="@(EsEdicion ? 5 : 6)">
                 <MudSelect T="string?" @bind-Value="Modelo.Tecnico" Label="Técnico (opcional)" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
-                    @foreach (var tecnico in _tecnicos)
+                    @foreach (var tecnico in _opciones.Tecnicos)
                     {
-                        <MudSelectItem T="string?" Value="@tecnico.Codigo">@tecnico.Nombre</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@tecnico.Codigo">@TextoOpcion(tecnico)</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -86,9 +86,9 @@
                             <MudItem xs="12" md="4">
                                 <MudSelect T="string?" Value="linea.CodigoArticulo" ValueChanged="@((string? v) => AlCambiarProducto(linea, v))"
                                            Label="Artículo (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
-                                    @foreach (var producto in _productos)
+                                    @foreach (var articulo in _opciones.Articulos)
                                     {
-                                        <MudSelectItem T="string?" Value="@producto.Codigo">@producto.Codigo — @producto.Nombre</MudSelectItem>
+                                        <MudSelectItem T="string?" Value="@articulo.Codigo">@TextoOpcion(articulo)</MudSelectItem>
                                     }
                                 </MudSelect>
                             </MudItem>
@@ -101,8 +101,8 @@
                             </MudItem>
                             <MudItem xs="12" md="2">
                                 @* UMEDIDA se conserva tal como viene del ERP (UNIDAD_VENTA), sin normalizar. *@
-                                <SelectorLegible TItem="UnidadMedidaModel" TValue="string"
-                                                 Items="_unidadesMedida" ValorDe="u => u.Abreviatura" TextoDe="TextoUnidad"
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Unidades" ValorDe="u => u.Codigo" TextoDe="u => u.Descripcion"
                                                  Value="@(linea.Umedida ?? string.Empty)"
                                                  ValueChanged="@(v => linea.Umedida = v)"
                                                  TextoValorActual="@(string.IsNullOrWhiteSpace(linea.Umedida) ? string.Empty : $"Unidad ERP: {linea.Umedida}")"
@@ -180,9 +180,9 @@
                             </MudItem>
                             <MudItem xs="12" md="5">
                                 <MudSelect T="string" @bind-Value="linea.CodigoServicio" Label="Tipo de servicio" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
-                                    @foreach (var servicio in _tiposServicio)
+                                    @foreach (var servicio in _opciones.TiposServicio)
                                     {
-                                        <MudSelectItem T="string" Value="@servicio.Codigo">@servicio.Nombre</MudSelectItem>
+                                        <MudSelectItem T="string" Value="@servicio.Codigo">@TextoOpcion(servicio)</MudSelectItem>
                                     }
                                 </MudSelect>
                             </MudItem>
@@ -257,11 +257,9 @@
     [Inject]
     private CatalogoService Catalogos { get; set; } = null!;
 
-    private List<ClienteModel> _clientes = [];
-    private List<TecnicoModel> _tecnicos = [];
-    private List<ProductoModel> _productos = [];
-    private List<TipoServicioModel> _tiposServicio = [];
-    private List<UnidadMedidaModel> _unidadesMedida = [];
+    // Una sola fuente: vvClientes, vvTecnicos, vvArticulos, vvTipoServicios y las unidades
+    // derivadas de vvArticulos.UNIDAD_VENTA (D-24). No se cargan copias locales: guardar un
+    // GUID de un catálogo que el ERP puede desactivar dejaría la plantilla colgando.
     private OpcionesErpModel _opciones = new();
 
     private bool EsEdicion => Modelo.Plantilla != 0;
@@ -275,24 +273,7 @@
                 .ToList();
 
     protected override async Task OnInitializedAsync()
-    {
-        var tareas = new Task[]
-        {
-            Cargar(() => Catalogos.ListarClientesAsync(), lista => _clientes = lista),
-            Cargar(() => Catalogos.ListarTecnicosAsync(), lista => _tecnicos = lista),
-            Cargar(() => Catalogos.ListarProductosAsync(), lista => _productos = lista),
-            Cargar(() => Catalogos.ListarTiposServicioAsync(), lista => _tiposServicio = lista),
-            Cargar(() => Catalogos.ListarUnidadesMedidaAsync(), lista => _unidadesMedida = lista),
-            CargarDato(() => Catalogos.ListarOpcionesErpAsync(), opciones => _opciones = opciones)
-        };
-        await Task.WhenAll(tareas);
-    }
-
-    private static async Task Cargar<T>(Func<Task<List<T>>> obtener, Action<List<T>> asignar)
-        => asignar(await obtener());
-
-    private static async Task CargarDato<T>(Func<Task<T>> obtener, Action<T> asignar)
-        => asignar(await obtener());
+        => _opciones = await Catalogos.ListarOpcionesErpAsync();
 
     /// <summary>La descripción primero y el código entre paréntesis: nunca solo el código.</summary>
     private static string TextoOpcion(OpcionErpModel opcion)
@@ -310,9 +291,6 @@
 
         return $"{opcion.Descripcion} ({string.Join(" · ", datos)})";
     }
-
-    private static string TextoUnidad(UnidadMedidaModel unidad)
-        => $"{unidad.Nombre} ({unidad.Abreviatura})";
 
     /// <summary>
     /// Cuando el código legacy ya no está en la vista activa se muestra tal cual, pero etiquetado,
@@ -352,15 +330,18 @@
     private void AlCambiarProducto(PlantillaDetalleModel linea, string? codigoArticulo)
     {
         linea.CodigoArticulo = codigoArticulo;
-        var producto = _productos.FirstOrDefault(p => p.Codigo == codigoArticulo);
-        if (producto is null)
+        // vvArticulos es la única fuente: descripción, UNIDAD_VENTA y COSTO_UNITARIO. El código
+        // heredado que ya no esté activo no se encuentra acá y se deja como venía (H-04/D-24).
+        var articulo = _opciones.Articulos.FirstOrDefault(a =>
+            string.Equals(a.Codigo, codigoArticulo, StringComparison.OrdinalIgnoreCase));
+        if (articulo is null)
         {
             return;
         }
 
-        linea.DescripArticulo = producto.Nombre;
-        linea.Umedida = producto.UnidadMedidaAbreviatura ?? producto.UnidadMedidaNombre;
-        linea.CostoUnitario = producto.CostoActual;
+        linea.DescripArticulo = articulo.Descripcion;
+        linea.Umedida = articulo.UnidadMedida;
+        linea.CostoUnitario = articulo.Costo;
         Recalcular(linea);
     }
 

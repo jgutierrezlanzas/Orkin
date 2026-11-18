@@ -29,16 +29,16 @@
     private async Task Guardar(CotizacionFormularioDatos datos)
     {
         var respuesta = await CotizacionService.CrearAsync(
-            datos.ClienteId,
+            datos.ClienteCodigo,
             datos.ClienteNombre,
             datos.TipoClienteId,
-            datos.TipoServicioId,
+            datos.TipoServicioCodigo,
             datos.Fecha,
             datos.ModalidadCodigo,
             datos.Margen,
             datos.Insumos,
             datos.Amortizables,
-            datos.TecnicoAsignadoId,
+            datos.TecnicoCodigo,
             datos.FechaEstimada,
             datos.DireccionServicio);
 

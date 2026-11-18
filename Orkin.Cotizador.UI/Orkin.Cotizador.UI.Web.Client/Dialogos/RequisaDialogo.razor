@@ -17,11 +17,11 @@
                 <MudTextField Value="@(Modelo.ClienteNombre ?? string.Empty)" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
             </MudItem>
             <MudItem xs="12" md="3">
-                <SelectorLegible TItem="ClienteModel" TValue="string"
-                                 Items="_clientes" ValorDe="c => c.Codigo" TextoDe="TextoCliente"
+                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                 Items="_opciones.Clientes" ValorDe="c => c.Codigo" TextoDe="TextoOpcion"
                                  Value="@(Modelo.Cliente ?? string.Empty)"
                                  ValueChanged="@(v => AlCambiarCliente(v))"
-                                 TextoValorActual="@TextoClienteActual(Modelo.Cliente, Modelo.ClienteNombre)"
+                                 TextoValorActual="@TextoActual(Modelo.Cliente, _opciones.Clientes)"
                                  Label="Código de cliente" Clearable="true" />
             </MudItem>
 
@@ -71,11 +71,11 @@
                         </div>
                         <MudGrid Spacing="2">
                             <MudItem xs="12" md="4">
-                                <SelectorLegible TItem="ProductoModel" TValue="string"
-                                                 Items="_productos" ValorDe="p => p.Codigo" TextoDe="TextoProducto"
+                                <SelectorLegible TItem="OpcionErpModel" TValue="string"
+                                                 Items="_opciones.Articulos" ValorDe="a => a.Codigo" TextoDe="TextoOpcion"
                                                  Value="@(linea.CodigoArticulo ?? string.Empty)"
                                                  ValueChanged="@(v => AlCambiarProducto(linea, v))"
-                                                 TextoValorActual="@TextoProductoActual(linea.CodigoArticulo, linea.DescripcionArticulo)"
+                                                 TextoValorActual="@TextoActual(linea.CodigoArticulo, _opciones.Articulos)"
                                                  Label="Artículo (código ERP)" Clearable="true" />
                             </MudItem>
                             <MudItem xs="12" md="2">
@@ -144,9 +144,9 @@
                                 <MudSelect T="string" Value="linea.CodigoTecnico"
                                            ValueChanged="@((string v) => AlCambiarTecnico(linea, v))"
                                            Label="Técnico" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
-                                    @foreach (var tecnico in _tecnicos)
+                                    @foreach (var tecnico in _opciones.Tecnicos)
                                     {
-                                        <MudSelectItem T="string" Value="@tecnico.Codigo">@tecnico.Nombre (@tecnico.Codigo)</MudSelectItem>
+                                        <MudSelectItem T="string" Value="@tecnico.Codigo">@TextoOpcion(tecnico)</MudSelectItem>
                                     }
                                 </MudSelect>
                             </MudItem>
@@ -180,9 +180,8 @@
     [Inject]
     private CatalogoService Catalogos { get; set; } = null!;
 
-    private List<ClienteModel> _clientes = [];
-    private List<TecnicoModel> _tecnicos = [];
-    private List<ProductoModel> _productos = [];
+    // Cliente, técnico y artículo salen de las vv* (D-24); locaciones y bodegas ya venían de
+    // opciones-erp. El nombre del cliente se congela en la requisa, pero se resuelve desde vvClientes.
     private OpcionesErpModel _opciones = new();
 
     private DateTime? FechaRequisaDateTime
@@ -199,43 +198,20 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var tareas = new Task[]
-        {
-            Cargar(() => Catalogos.ListarClientesAsync(), lista => _clientes = lista),
-            Cargar(() => Catalogos.ListarTecnicosAsync(), lista => _tecnicos = lista),
-            Cargar(() => Catalogos.ListarProductosAsync(), lista => _productos = lista),
-            CargarOpciones()
-        };
-        await Task.WhenAll(tareas);
+        await CargarOpciones();
     }
 
     private async Task CargarOpciones()
         => _opciones = await Catalogos.ListarOpcionesErpAsync(Modelo.Cliente);
 
-    private static async Task Cargar<T>(Func<Task<List<T>>> obtener, Action<List<T>> asignar)
-        => asignar(await obtener());
-
     private async Task AlCambiarCliente(string? codigo)
     {
         Modelo.Cliente = codigo;
-        var cliente = _clientes.FirstOrDefault(c => c.Codigo == codigo);
-        Modelo.ClienteNombre = cliente?.Nombre;
-        var opciones = await Catalogos.ListarOpcionesErpAsync(codigo);
-        _opciones.Locaciones = opciones.Locaciones;
-    }
-
-    private static string TextoCliente(ClienteModel cliente) => $"{cliente.Nombre} ({cliente.Codigo})";
-
-    private static string TextoClienteActual(string? codigo, string? nombre)
-    {
-        if (string.IsNullOrWhiteSpace(codigo))
-        {
-            return string.Empty;
-        }
-
-        return string.IsNullOrWhiteSpace(nombre)
-            ? $"Código heredado: {codigo.Trim()}"
-            : $"{nombre.Trim()} ({codigo.Trim()})";
+        // El nombre y las locaciones se resuelven en la misma llamada: no se consulta dbo.Cliente
+        // y las locaciones del cliente nuevo reemplazan a las del anterior.
+        _opciones = await Catalogos.ListarOpcionesErpAsync(codigo);
+        Modelo.ClienteNombre = _opciones.Clientes.FirstOrDefault(c =>
+            string.Equals(c.Codigo, codigo, StringComparison.OrdinalIgnoreCase))?.Descripcion;
     }
 
     private static string TextoOpcion(OpcionErpModel opcion)
@@ -262,21 +238,6 @@
         return opcion is null ? $"Código heredado: {texto}" : TextoOpcion(opcion);
     }
 
-    private static string TextoProducto(ProductoModel producto)
-        => $"{producto.Nombre} ({producto.Codigo})";
-
-    private static string TextoProductoActual(string? codigo, string? descripcion)
-    {
-        if (string.IsNullOrWhiteSpace(codigo))
-        {
-            return string.Empty;
-        }
-
-        return string.IsNullOrWhiteSpace(descripcion)
-            ? $"Código heredado: {codigo.Trim()}"
-            : $"{descripcion.Trim()} ({codigo.Trim()})";
-    }
-
     private static string TextoArticulo(RequisaLineaModel linea)
         => string.IsNullOrWhiteSpace(linea.DescripcionArticulo)
             ? linea.CodigoArticulo ?? string.Empty
@@ -285,17 +246,18 @@
     private void AlCambiarProducto(RequisaLineaModel linea, string? codigoArticulo)
     {
         linea.CodigoArticulo = codigoArticulo;
-        var producto = _productos.FirstOrDefault(p => p.Codigo == codigoArticulo);
-        if (producto is null)
+        var articulo = _opciones.Articulos.FirstOrDefault(a =>
+            string.Equals(a.Codigo, codigoArticulo, StringComparison.OrdinalIgnoreCase));
+        if (articulo is null)
         {
             return;
         }
 
-        linea.DescripcionArticulo = producto.Nombre;
-        linea.Umedida = producto.UnidadMedidaAbreviatura ?? producto.UnidadMedidaNombre;
+        linea.DescripcionArticulo = articulo.Descripcion;
+        linea.Umedida = articulo.UnidadMedida;
         if (linea.CostoUnitario is null or 0)
         {
-            linea.CostoUnitario = producto.CostoActual;
+            linea.CostoUnitario = articulo.Costo;
         }
 
         Recalcular(linea);
@@ -322,13 +284,21 @@
     private void AlCambiarTecnico(RequisaTecnicoModel linea, string codigoTecnico)
     {
         linea.CodigoTecnico = codigoTecnico;
-        var tecnico = _tecnicos.FirstOrDefault(t => t.Codigo == codigoTecnico);
+        var tecnico = _opciones.Tecnicos.FirstOrDefault(t =>
+            string.Equals(t.Codigo, codigoTecnico, StringComparison.OrdinalIgnoreCase));
         if (tecnico is null || !string.IsNullOrWhiteSpace(linea.Iniciales))
         {
             return;
         }
 
-        var palabras = tecnico.Nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // vvTecnicos.INICIALES viaja en Detalle; si el ERP lo dejó en blanco se deriva del nombre.
+        if (!string.IsNullOrWhiteSpace(tecnico.Detalle))
+        {
+            linea.Iniciales = tecnico.Detalle.Trim();
+            return;
+        }
+
+        var palabras = tecnico.Descripcion.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var iniciales = palabras.Length == 0
             ? codigoTecnico
             : string.Concat(palabras.Take(2).Select(p => char.ToUpperInvariant(p[0])));

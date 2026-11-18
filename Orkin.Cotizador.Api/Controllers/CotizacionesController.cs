@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +7,7 @@ using Orkin.Cotizador.Core.Application.Catalogos;
 using Orkin.Cotizador.Core.Application.Cotizaciones;
 using Orkin.Cotizador.Core.Application.Sistema;
 using Orkin.Cotizador.Core.Domain.Comun;
+using Orkin.Cotizador.Core.Domain.Entidades;
 using Orkin.Cotizador.Core.Infrastructure.Persistence;
 
 namespace Orkin.Cotizador.Api.Controllers;
@@ -21,6 +21,7 @@ public sealed class CotizacionesController : ControllerBase
     private readonly CotizacionService _servicio;
     private readonly ConsecutivoService _consecutivo;
     private readonly TipoCambioService _tipoCambio;
+    private readonly CatalogoErpService _catalogoErp;
     private readonly CotizadorDbContext _contexto;
     private readonly Pdf.GeneradorPdfCotizacion _generadorPdf;
 
@@ -28,12 +29,14 @@ public sealed class CotizacionesController : ControllerBase
         CotizacionService servicio,
         ConsecutivoService consecutivo,
         TipoCambioService tipoCambio,
+        CatalogoErpService catalogoErp,
         CotizadorDbContext contexto,
         Pdf.GeneradorPdfCotizacion generadorPdf)
     {
         _servicio = servicio;
         _consecutivo = consecutivo;
         _tipoCambio = tipoCambio;
+        _catalogoErp = catalogoErp;
         _contexto = contexto;
         _generadorPdf = generadorPdf;
     }
@@ -42,28 +45,27 @@ public sealed class CotizacionesController : ControllerBase
     public async Task<IResult> Listar(
         [FromQuery] int pagina = 1,
         [FromQuery] int tamanio = 20,
-        [FromQuery] Guid? clienteId = null,
+        [FromQuery] string? clienteCodigo = null,
         [FromQuery] string? estado = null,
         CancellationToken cancellationToken = default)
     {
-        // Nota: Cotizacion no tiene IsActive. Se filtra por estado: no mostrar anuladas.
-        // El nombre sale del snapshot ClienteNombre y no de la ficha: una cotización vieja
-        // tiene que seguir mostrando el nombre con el que se cotizó, aunque el cliente haya
-        // cambiado de nombre, se haya desactivado o nunca llegó a existir en el catálogo.
+        // Nota: Cotizacion no tiene IsActive. Se filtra por el snapshot del estado: no mostrar
+        // anuladas. El nombre y el tipo de servicio también salen del snapshot, no de una ficha
+        // viva: una cotización vieja tiene que seguir mostrando lo que se cotizó aunque el ERP
+        // haya cambiado el cliente o el servicio.
         var query = _contexto.Cotizacion
             .AsNoTracking()
-            .Include(c => c.TipoServicio)
-            .Include(c => c.Estado)
-            .Where(c => c.Estado != null && c.Estado.Codigo != "ANULADA");
+            .Where(c => c.EstadoCodigo != "ANULADA");
 
-        if (clienteId.HasValue)
+        if (!string.IsNullOrWhiteSpace(clienteCodigo))
         {
-            query = query.Where(c => c.ClienteId == clienteId.Value);
+            var codigo = clienteCodigo.Trim();
+            query = query.Where(c => c.ClienteCodigo == codigo);
         }
 
         if (!string.IsNullOrWhiteSpace(estado))
         {
-            query = query.Where(c => c.Estado.Codigo == estado);
+            query = query.Where(c => c.EstadoCodigo == estado.Trim());
         }
 
         var total = await query.CountAsync(cancellationToken);
@@ -77,15 +79,15 @@ public sealed class CotizacionesController : ControllerBase
                 c.Id,
                 c.Numero,
                 c.Anio,
-                c.ClienteId,
+                c.ClienteCodigo,
                 c.ClienteNombre,
-                c.TipoServicioId,
-                c.TipoServicio.Nombre,
+                c.TipoServicioCodigo,
+                c.TipoServicioNombre,
                 c.Fecha,
-                c.Modalidad != null ? c.Modalidad.Codigo : string.Empty,
+                c.ModalidadCodigo ?? string.Empty,
                 c.MargenAplicado,
-                c.Estado != null ? c.Estado.Codigo : string.Empty,
-                c.Estado != null ? c.Estado.Nombre : string.Empty,
+                c.EstadoCodigo,
+                c.EstadoNombre,
                 c.TotalInsumosSemestre1,
                 c.TotalInsumosSemestre2,
                 c.TotalInsumos,
@@ -105,31 +107,27 @@ public sealed class CotizacionesController : ControllerBase
             new PaginatedResponse<CotizacionResponse>(items, total, pagina, tamanio)).AHttp();
     }
 
+    /// <summary>
+    /// Opciones de los combos del cotizador. Mantiene la ruta y el permiso
+    /// <c>COTIZACIONES.VER</c> de siempre, pero la fuente es la misma que <c>opciones-erp</c>:
+    /// <see cref="CatalogoErpService"/>. Así el cotizador no necesita <c>CATALOGOS.VER</c> y no
+    /// hay dos contratos distintos para los mismos códigos.
+    /// </summary>
     [HttpGet("opciones")]
     public async Task<IResult> Opciones(CancellationToken cancellationToken)
     {
-        var clientes = await _contexto.Cliente
-            .AsNoTracking()
-            .Where(c => c.IsActive)
-            .OrderBy(c => c.Nombre)
-            .Select(c => new ClienteOption(c.Id, c.Codigo, c.Nombre, c.TipoCliente.Nombre))
-            .ToListAsync(cancellationToken);
+        var opciones = await _catalogoErp.ObtenerOpcionesAsync(cancellationToken);
 
-        var tiposServicio = await _contexto.TipoServicio
-            .AsNoTracking()
-            .Where(t => t.IsActive)
-            .OrderBy(t => t.Orden)
-            .Select(t => new TipoServicioOption(t.Id, t.Codigo, t.Nombre, t.EsResidencialPorDefecto, t.EsEmpresarialPorDefecto))
-            .ToListAsync(cancellationToken);
-
-        // Los tipos de cliente van para el caso "cliente nuevo": quien cotiza elige el tipo y
-        // ese tipo es el que decide el método de costeo del precio.
+        // Tipos de cliente y modalidades son catálogos propios de la plataforma: no son copias
+        // del ERP y por eso siguen viniendo de dbo.
         var tiposCliente = await _contexto.TipoClienteCatalogo
             .AsNoTracking()
             .Where(t => t.EsActivo)
             .OrderBy(t => t.Id)
             .Select(t => new TipoClienteOpcion(t.Id, t.Codigo, t.Nombre))
             .ToListAsync(cancellationToken);
+
+        var nombresTiposCliente = tiposCliente.ToDictionary(t => t.Id, t => t.Nombre);
 
         var modalidades = await _contexto.ModalidadCatalogo
             .AsNoTracking()
@@ -138,37 +136,29 @@ public sealed class CotizacionesController : ControllerBase
             .Select(m => new ModalidadOption(m.Codigo, m.Nombre))
             .ToListAsync(cancellationToken);
 
-        // Los activos amortizables van para la tabla de "Activos" de la cotización: cada uno
-        // trae su costo y su vida útil, porque el valor mensual se calcula con esos dos datos.
-        var activos = await _contexto.ActivoAmortizable
-            .AsNoTracking()
-            .Where(a => a.IsActive)
-            .OrderBy(a => a.Nombre)
-            .Select(a => new ActivoAmortizableOption(a.Id, a.Codigo, a.Nombre, a.CostoActual, a.MesesVidaUtil, a.UnidadMedida.Abreviatura))
-            .ToListAsync(cancellationToken);
+        var articulos = opciones.Articulos.Select(a => new ArticuloCotizacionOption(
+            a.Codigo,
+            a.Nombre,
+            a.CostoUnitario,
+            a.UnidadMedida,
+            a.Clasificacion,
+            a.Amortizable)).ToList();
 
-        // D-21: el técnico es un catálogo compartido. Viene del ERP (FMP.U_TECNICOS) y lo usa
-        // tanto el cotizador como las órdenes de trabajo. No se lista seg.Usuario: un usuario
-        // del sistema no necesariamente hace trabajo de campo, y un técnico de campo no
-        // necesariamente tiene login.
-        var tecnicos = await _contexto.Tecnico
-            .AsNoTracking()
-            .Where(t => t.IsActive)
-            .OrderBy(t => t.Nombre)
-            .Select(t => new TecnicoOption(t.Id, t.Nombre))
-            .ToListAsync(cancellationToken);
+        var respuesta = new CotizacionOpcionesResponse(
+            opciones.Clientes.Select(c => new ClienteOption(
+                c.Codigo,
+                c.Nombre,
+                nombresTiposCliente.GetValueOrDefault(c.TipoClienteId))).ToList(),
+            opciones.TiposServicio.Select(t => new TipoServicioOption(t.Codigo, t.Nombre, t.Actividad)).ToList(),
+            tiposCliente,
+            modalidades,
+            articulos,
+            articulos.Where(a => a.Amortizable).ToList(),
+            opciones.Tecnicos.Select(t => new TecnicoCotizacionOption(t.Codigo, t.Nombre, t.Iniciales)).ToList(),
+            opciones.Unidades,
+            opciones.Clasificaciones);
 
-        var respuesta = new
-        {
-            Clientes = clientes,
-            TiposServicio = tiposServicio,
-            TiposCliente = tiposCliente,
-            Modalidades = modalidades,
-            ActivosAmortizables = activos,
-            Tecnicos = tecnicos
-        };
-
-        return ApiResponse<object>.Ok(respuesta).AHttp();
+        return ApiResponse<CotizacionOpcionesResponse>.Ok(respuesta).AHttp();
     }
 
     [HttpPost("calcular")]
@@ -177,15 +167,15 @@ public sealed class CotizacionesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var amortizables = request.Amortizables is { Count: > 0 }
-            ? request.Amortizables.Select(a => (a.ActivoId, a.Cantidad, a.MesesVidaUtil)).ToList()
+            ? request.Amortizables.Select(a => (a.ActivoCodigo, a.Cantidad, a.MesesVidaUtil)).ToList()
             : null;
 
         var resultado = await _servicio.CalcularAsync(
-            request.ClienteId,
+            request.ClienteCodigo,
             request.TipoClienteId,
             request.Fecha,
             request.Margen,
-            request.Insumos.Select(i => (i.ProductoId, i.Cantidad, i.SemestreId)).ToList(),
+            request.Insumos.Select(i => (i.ProductoCodigo, i.Cantidad, i.SemestreId)).ToList(),
             amortizables,
             cancellationToken);
 
@@ -214,9 +204,6 @@ public sealed class CotizacionesController : ControllerBase
     {
         var entidad = await _contexto.Cotizacion
             .AsNoTracking()
-            .Include(c => c.TipoServicio)
-            .Include(c => c.Estado)
-            .Include(c => c.Modalidad)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
         if (entidad is null)
@@ -226,25 +213,21 @@ public sealed class CotizacionesController : ControllerBase
                 .AHttp();
         }
 
-        // Las líneas de insumo van con la cotización: el detalle las muestra y el formulario de
-        // edición las necesita para recargar la pantalla. Sin ellas, editar significaría
-        // rearmar los insumos de memoria, y nadie debería tener que adivinar lo que ya guardó.
+        // Las líneas van con la cotización: el detalle las muestra y el formulario de edición
+        // las necesita para recargar la pantalla. Los códigos y snapshots ya viajan en la fila.
         var insumos = await _contexto.DetalleInsumo
             .AsNoTracking()
             .Where(d => d.CotizacionId == id)
-            .Select(d => new DetalleInsumoResponse(d.ProductoId, d.Cantidad, d.SemestreId))
+            .OrderBy(d => d.Orden)
+            .Select(d => new DetalleInsumoResponse(d.ProductoCodigo, d.Cantidad, d.SemestreId))
             .ToListAsync(cancellationToken);
 
-        // Los activos amortizables vuelven tambien. El formulario de edicion los muestra y los
-        // vuelve a mandar al guardar; sin ellos aqui, abrir una cotizacion para corregirle el
-        // margen aparecia con la tabla de amortizables vacia, y al guardar se guardaba vacia de
-        // verdad: los activos no solo se veian mal, se perdian.
         var amortizables = await _contexto.DetalleAmortizable
             .AsNoTracking()
             .Where(d => d.CotizacionId == id)
             .OrderBy(d => d.Orden)
             .Select(d => new DetalleAmortizableResponse(
-                d.ActivoAmortizableId,
+                d.ActivoCodigo,
                 d.Cantidad,
                 d.MesesVidaUtil,
                 d.PrecioUnitario,
@@ -257,16 +240,16 @@ public sealed class CotizacionesController : ControllerBase
             entidad.Id,
             entidad.Numero,
             entidad.Anio,
-            entidad.ClienteId,
+            entidad.ClienteCodigo,
             entidad.ClienteNombre,
             entidad.TipoClienteId,
-            entidad.TipoServicioId,
-            entidad.TipoServicio.Nombre,
+            entidad.TipoServicioCodigo,
+            entidad.TipoServicioNombre,
             entidad.Fecha,
-            entidad.Modalidad?.Codigo ?? string.Empty,
+            entidad.ModalidadCodigo ?? string.Empty,
             entidad.MargenAplicado,
-            entidad.Estado.Codigo,
-            entidad.Estado.Nombre,
+            entidad.EstadoCodigo,
+            entidad.EstadoNombre,
             entidad.TotalInsumosSemestre1,
             entidad.TotalInsumosSemestre2,
             entidad.TotalInsumos,
@@ -282,7 +265,7 @@ public sealed class CotizacionesController : ControllerBase
             entidad.CreatedAt,
             insumos,
             amortizables,
-            entidad.TecnicoAsignadoId,
+            entidad.TecnicoCodigo,
             entidad.FechaEstimada,
             entidad.DireccionServicio);
 
@@ -331,198 +314,115 @@ public sealed class CotizacionesController : ControllerBase
         // Nota: no se abre una transacción explícita aquí porque la estrategia de reintento de
         // EF Core (SqlServerRetryingExecutionStrategy) no las admite iniciadas por el usuario.
         // El ConsecutivoService ya gestiona su propia transacción internamente.
-        var numero = await _consecutivo.SiguienteAsync("COTIZACION", request.Fecha.Year, cancellationToken: cancellationToken);
+        var numero = await _consecutivo.SiguienteAsync(
+            "COTIZACION", request.Fecha.Year, cancellationToken: cancellationToken);
 
-            // O cotiza para un cliente del catálogo, o para alguien nuevo que todavía no tiene
-            // ficha. No hay tercera opción: una cotización sin cliente no lleva a nadie y una
-            // con las dos cosas a la vez es una contradicción que no se sabe cómo leer.
-            Orkin.Cotizador.Core.Domain.Entidades.Cliente? cliente = null;
-            byte tipoClienteId;
+        // O cotiza para un cliente del ERP, o para alguien nuevo que todavía no existe: no hay
+        // tercera opción. La ficha del ERP decide el segmento; el nombre se congela en la fila.
+        string? clienteCodigo = Texto(request.ClienteCodigo);
+        byte tipoClienteId;
+        string clienteNombre;
 
-            if (request.ClienteId is { } delCatalogo)
-            {
-                cliente = await _contexto.Cliente
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.Id == delCatalogo && c.IsActive, cancellationToken)
-                    ?? throw new InvalidOperationException("El cliente no existe o está inactivo.");
-
-                tipoClienteId = cliente.TipoClienteId;
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(request.ClienteNombre))
-                {
-                    throw new InvalidOperationException(
-                        "Para un cliente nuevo hace falta el nombre con el que se cotiza.");
-                }
-
-                tipoClienteId = request.TipoClienteId
-                    ?? throw new InvalidOperationException(
-                        "Para un cliente nuevo hace falta el tipo de cliente: es lo que decide el método de costeo.");
-            }
-
-            if (!await _contexto.TipoServicio.AnyAsync(t => t.Id == request.TipoServicioId && t.IsActive, cancellationToken))
-            {
-                throw new InvalidOperationException("El tipo de servicio no existe o está inactivo.");
-            }
-
-            byte? modalidadId = null;
-            if (!string.IsNullOrWhiteSpace(request.ModalidadCodigo))
-            {
-                var modalidad = await _contexto.ModalidadCatalogo
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(m => m.Codigo == request.ModalidadCodigo && m.EsActivo, cancellationToken);
-                if (modalidad is null)
-                {
-                    throw new InvalidOperationException("La modalidad no existe o está inactiva.");
-                }
-                modalidadId = modalidad.Id;
-            }
-
-        // El técnico se valida contra el mismo catálogo que se le ofrece en el combo, no se
-        // guarda a ciegas: un id que nadie más puede volver a sacar de la pantalla es un dato que
-        // ya no se podría corregir. Notas sobre este campo:
-        //
-        // * Es opcional a propósito. Una cotización se puede hacer sin técnico asignado —se
-        //   cotiza primero y se asigna después— y eso no es un dato incompleto.
-        // * Se puede cambiar y también dejar en blanco. Quien lo quita está diciendo que la
-        //   cotización no tiene técnico, y eso se guarda como null, que es distinto de
-        //   «no se tocó el campo».
-        Guid? tecnicoAsignadoId = null;
-        if (request.TecnicoAsignadoId is { } idTecnico)
+        if (clienteCodigo is not null)
         {
-            var existeTecnico = await _contexto.Tecnico
-                .AsNoTracking()
-                .AnyAsync(t => t.Id == idTecnico && t.IsActive, cancellationToken);
-
-            if (!existeTecnico)
+            var cliente = await _catalogoErp.ClienteAsync(clienteCodigo, cancellationToken);
+            tipoClienteId = cliente.TipoClienteId;
+            clienteNombre = cliente.Nombre;
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(request.ClienteNombre))
             {
-                throw new InvalidOperationException("El técnico no existe o está inactivo.");
+                throw new InvalidOperationException(
+                    "Para un cliente nuevo hace falta el nombre con el que se cotiza.");
             }
 
-            tecnicoAsignadoId = idTecnico;
+            tipoClienteId = request.TipoClienteId
+                ?? throw new InvalidOperationException(
+                    "Para un cliente nuevo hace falta el tipo de cliente: es lo que decide el método de costeo.");
+            clienteNombre = request.ClienteNombre.Trim();
         }
 
-            var estadoBorrador = await _contexto.EstadoCotizacionCatalogo
-                .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Codigo == "BORRADOR", cancellationToken)
-                ?? throw new InvalidOperationException("El estado BORRADOR no está configurado.");
+        var tipoServicio = await _catalogoErp.TipoServicioAsync(
+            request.TipoServicioCodigo, cancellationToken);
 
-            var tipoConsecutivo = await _contexto.TipoConsecutivoCatalogo
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Codigo == "COTIZACION", cancellationToken);
+        var tecnico = await _catalogoErp.TecnicoAsync(request.TecnicoCodigo, cancellationToken);
 
-            // Calcular usando el servicio
-            var amortizables = request.Amortizables is { Count: > 0 }
-                ? request.Amortizables.Select(a => (a.ActivoId, a.Cantidad, a.MesesVidaUtil)).ToList()
-                : null;
+        var (modalidadId, modalidadCodigo, modalidadNombre) = await ResolverModalidadAsync(
+            request.ModalidadCodigo, cancellationToken);
 
-            var resultado = await _servicio.CalcularAsync(
-                request.ClienteId,
-                request.TipoClienteId,
-                request.Fecha,
-                request.Margen,
-                request.Insumos.Select(i => (i.ProductoId, i.Cantidad, i.SemestreId)).ToList(),
-                amortizables,
-                cancellationToken);
+        var estadoBorrador = await _contexto.EstadoCotizacionCatalogo
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Codigo == "BORRADOR", cancellationToken)
+            ?? throw new InvalidOperationException("El estado BORRADOR no está configurado.");
 
-            var tc = await _tipoCambio.ObtenerVigenteAsync(request.Fecha, cancellationToken);
+        var tipoConsecutivo = await _contexto.TipoConsecutivoCatalogo
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Codigo == "COTIZACION", cancellationToken);
 
-            var cotizacion = new Orkin.Cotizador.Core.Domain.Entidades.Cotizacion
-            {
-                Id = Guid.NewGuid(),
-                Numero = numero,
-                Anio = (short)request.Fecha.Year,
-                ClienteId = request.ClienteId,
-                TipoClienteId = tipoClienteId,
-                ClienteNombre = cliente?.Nombre ?? request.ClienteNombre!.Trim(),
-                TipoServicioId = request.TipoServicioId,
-                Fecha = request.Fecha,
-                ModalidadId = modalidadId,
-                TecnicoAsignadoId = tecnicoAsignadoId,
-                FechaEstimada = request.FechaEstimada,
-                DireccionServicio = request.DireccionServicio,
-                MargenAplicado = request.Margen,
-                EstadoId = estadoBorrador.Id,
-                TipoConsecutivoId = tipoConsecutivo?.Id,
-                TotalInsumosSemestre1 = resultado.TotalInsumosSemestre1,
-                TotalInsumosSemestre2 = resultado.TotalInsumosSemestre2,
-                TotalInsumos = resultado.TotalInsumos,
-                TotalAmortizablesMensual = resultado.TotalAmortizablesMensual,
-                CostoTotal = resultado.CostoTotal,
-                PrecioCordobas = resultado.PrecioCordobas,
-                PrecioUsd = resultado.PrecioUsd,
-                TipoCambioValor = resultado.TipoCambioValor,
-                TipoCambioFecha = tc?.Fecha ?? request.Fecha,
-                TipoCambioId = tc?.Id,
-                MetodoCosteoId = resultado.MetodoCosteoId,
-                PorcentajePlantilla = resultado.PorcentajePlantilla,
-                HashCalculo = resultado.HashCalculo,
-                ParametrosCalculo = resultado.ParametrosCalculo,
-                OrigenDatoId = (byte)OrigenDatoCatalogoSeed.Manual,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+        var amortizables = request.Amortizables is { Count: > 0 }
+            ? request.Amortizables.Select(a => (a.ActivoCodigo, a.Cantidad, a.MesesVidaUtil)).ToList()
+            : null;
 
-            _contexto.Cotizacion.Add(cotizacion);
+        var resultado = await _servicio.CalcularAsync(
+            clienteCodigo,
+            request.TipoClienteId,
+            request.Fecha,
+            request.Margen,
+            request.Insumos.Select(i => (i.ProductoCodigo, i.Cantidad, i.SemestreId)).ToList(),
+            amortizables,
+            cancellationToken);
 
-            // Detalles de insumos
-            foreach (var insumo in request.Insumos)
-            {
-                var producto = await _contexto.Producto
-                    .AsNoTracking()
-                    .Include(p => p.UnidadMedida)
-                    .FirstOrDefaultAsync(p => p.Id == insumo.ProductoId, cancellationToken);
+        var tc = await _tipoCambio.ObtenerVigenteAsync(request.Fecha, cancellationToken);
 
-                if (producto is not null)
-                {
-                    _contexto.DetalleInsumo.Add(new Orkin.Cotizador.Core.Domain.Entidades.DetalleInsumo
-                    {
-                        Id = Guid.NewGuid(),
-                        CotizacionId = cotizacion.Id,
-                        ProductoId = insumo.ProductoId,
-                        ProductoNombre = producto.Nombre,
-                        UnidadMedidaTexto = producto.UnidadMedida?.Abreviatura ?? string.Empty,
-                        Cantidad = insumo.Cantidad,
-                        PrecioUnitario = producto.CostoActual,
-                        SemestreId = insumo.SemestreId
-                    });
-                }
-            }
+        var cotizacion = new Cotizacion
+        {
+            Id = Guid.NewGuid(),
+            Numero = numero,
+            Anio = (short)request.Fecha.Year,
+            ClienteCodigo = clienteCodigo,
+            ClienteNombre = clienteNombre,
+            TipoClienteId = tipoClienteId,
+            TipoServicioCodigo = tipoServicio.Codigo,
+            TipoServicioNombre = tipoServicio.Nombre,
+            Fecha = request.Fecha,
+            ModalidadId = modalidadId,
+            ModalidadCodigo = modalidadCodigo,
+            ModalidadNombre = modalidadNombre,
+            TecnicoCodigo = tecnico?.Codigo,
+            TecnicoNombre = tecnico?.Nombre,
+            FechaEstimada = request.FechaEstimada,
+            DireccionServicio = request.DireccionServicio,
+            MargenAplicado = request.Margen,
+            EstadoId = estadoBorrador.Id,
+            EstadoCodigo = estadoBorrador.Codigo,
+            EstadoNombre = estadoBorrador.Nombre,
+            TipoConsecutivoId = tipoConsecutivo?.Id,
+            TotalInsumosSemestre1 = resultado.TotalInsumosSemestre1,
+            TotalInsumosSemestre2 = resultado.TotalInsumosSemestre2,
+            TotalInsumos = resultado.TotalInsumos,
+            TotalAmortizablesMensual = resultado.TotalAmortizablesMensual,
+            CostoTotal = resultado.CostoTotal,
+            PrecioCordobas = resultado.PrecioCordobas,
+            PrecioUsd = resultado.PrecioUsd,
+            TipoCambioValor = resultado.TipoCambioValor,
+            TipoCambioFecha = tc?.Fecha ?? request.Fecha,
+            TipoCambioId = tc?.Id,
+            MetodoCosteoId = resultado.MetodoCosteoId,
+            PorcentajePlantilla = resultado.PorcentajePlantilla,
+            HashCalculo = resultado.HashCalculo,
+            ParametrosCalculo = resultado.ParametrosCalculo,
+            OrigenDatoId = (byte)OrigenDatoCatalogoSeed.Manual,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
 
-            await GuardarAmortizablesAsync(cotizacion.Id, request.Amortizables, cancellationToken);
+        _contexto.Cotizacion.Add(cotizacion);
+        await GuardarDetallesAsync(cotizacion.Id, request.Insumos, request.Amortizables, cancellationToken);
+        await _contexto.SaveChangesAsync(cancellationToken);
 
-            await _contexto.SaveChangesAsync(cancellationToken);
-
-            var response = new CotizacionResponse(
-                cotizacion.Id,
-                cotizacion.Numero,
-                cotizacion.Anio,
-                cotizacion.ClienteId,
-                cotizacion.ClienteNombre,
-                cotizacion.TipoServicioId,
-                (await _contexto.TipoServicio.FindAsync([cotizacion.TipoServicioId], cancellationToken))?.Nombre ?? string.Empty,
-                cotizacion.Fecha,
-                cotizacion.Modalidad?.Codigo ?? string.Empty,
-                cotizacion.MargenAplicado,
-                estadoBorrador.Codigo,
-                estadoBorrador.Nombre,
-                cotizacion.TotalInsumosSemestre1,
-                cotizacion.TotalInsumosSemestre2,
-                cotizacion.TotalInsumos,
-                cotizacion.TotalAmortizablesMensual,
-                cotizacion.CostoTotal,
-                cotizacion.PrecioCordobas,
-                cotizacion.PrecioUsd,
-                cotizacion.TipoCambioValor,
-                cotizacion.TipoCambioFecha,
-                cotizacion.TipoCambioId,
-                cotizacion.MetodoCosteoId,
-                cotizacion.PorcentajePlantilla,
-                cotizacion.CreatedAt);
-
-            return ApiResponse<CotizacionResponse>.Ok(response).AHttp();
+        return ApiResponse<CotizacionResponse>.Ok(Responder(cotizacion)).AHttp();
     }
 
     [HttpPut("{id:guid}")]
@@ -533,79 +433,49 @@ public sealed class CotizacionesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var cotizacion = await _contexto.Cotizacion
-            .Include(c => c.Estado)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("La cotización no existe.");
 
-        if (cotizacion.Estado.Codigo != "BORRADOR" && cotizacion.Estado.Codigo != "RECHAZADA")
+        if (cotizacion.EstadoCodigo is not ("BORRADOR" or "RECHAZADA"))
         {
             return ApiResponse<CotizacionResponse>
                 .Error("COTIZACION_NO_EDITABLE", "Solo se pueden editar cotizaciones en BORRADOR o RECHAZADA.")
                 .AHttp();
         }
 
-        if (!await _contexto.TipoServicio.AnyAsync(t => t.Id == request.TipoServicioId && t.IsActive, cancellationToken))
-        {
-            throw new InvalidOperationException("El tipo de servicio no existe o está inactivo.");
-        }
+        var tipoServicio = await _catalogoErp.TipoServicioAsync(
+            request.TipoServicioCodigo, cancellationToken);
 
-        byte? modalidadId = null;
-        if (!string.IsNullOrWhiteSpace(request.ModalidadCodigo))
-        {
-            var modalidad = await _contexto.ModalidadCatalogo
-                .FirstOrDefaultAsync(m => m.Codigo == request.ModalidadCodigo && m.EsActivo, cancellationToken);
-            if (modalidad is null)
-            {
-                throw new InvalidOperationException("La modalidad no existe o está inactiva.");
-            }
-            modalidadId = modalidad.Id;
-        }
+        var tecnico = await _catalogoErp.TecnicoAsync(request.TecnicoCodigo, cancellationToken);
 
-        // El técnico se valida contra el mismo catálogo que se le ofrece en el combo, no se
-        // guarda a ciegas: un id que nadie más puede volver a sacar de la pantalla es un dato que
-        // ya no se podría corregir. Notas sobre este campo:
-        //
-        // * Es opcional a propósito. Una cotización se puede hacer sin técnico asignado —se
-        //   cotiza primero y se asigna después— y eso no es un dato incompleto.
-        // * Se puede cambiar y también dejar en blanco. Quien lo quita está diciendo que la
-        //   cotización no tiene técnico, y eso se guarda como null, que es distinto de
-        //   «no se tocó el campo».
-        Guid? tecnicoAsignadoId = null;
-        if (request.TecnicoAsignadoId is { } idTecnico)
-        {
-            var existeTecnico = await _contexto.Tecnico
-                .AsNoTracking()
-                .AnyAsync(t => t.Id == idTecnico && t.IsActive, cancellationToken);
+        var (modalidadId, modalidadCodigo, modalidadNombre) = await ResolverModalidadAsync(
+            request.ModalidadCodigo, cancellationToken);
 
-            if (!existeTecnico)
-            {
-                throw new InvalidOperationException("El técnico no existe o está inactivo.");
-            }
-
-            tecnicoAsignadoId = idTecnico;
-        }
-
-        // Recalcular. Para un cliente del catálogo el tipo sale de su ficha; para un cliente
-        // nuevo sale del snapshot con el que se cotizó, porque no hay ficha de donde sacarlo.
-        var amortizablesAct = request.Amortizables is { Count: > 0 }
-            ? request.Amortizables.Select(a => (a.ActivoId, a.Cantidad, a.MesesVidaUtil)).ToList()
+        // Recalcular. Para un cliente del ERP el tipo sale de su ficha; para un cliente nuevo
+        // sale del snapshot con el que se cotizó, porque no hay ficha de donde sacarlo.
+        var amortizables = request.Amortizables is { Count: > 0 }
+            ? request.Amortizables.Select(a => (a.ActivoCodigo, a.Cantidad, a.MesesVidaUtil)).ToList()
             : null;
 
         var resultado = await _servicio.CalcularAsync(
-            cotizacion.ClienteId,
-            cotizacion.ClienteId is null ? cotizacion.TipoClienteId : null,
+            cotizacion.ClienteCodigo,
+            cotizacion.ClienteCodigo is null ? cotizacion.TipoClienteId : null,
             request.Fecha,
             request.Margen,
-            request.Insumos.Select(i => (i.ProductoId, i.Cantidad, i.SemestreId)).ToList(),
-            amortizablesAct,
+            request.Insumos.Select(i => (i.ProductoCodigo, i.Cantidad, i.SemestreId)).ToList(),
+            amortizables,
             cancellationToken);
 
         var tc = await _tipoCambio.ObtenerVigenteAsync(request.Fecha, cancellationToken);
 
-        cotizacion.TipoServicioId = request.TipoServicioId;
+        cotizacion.TipoServicioCodigo = tipoServicio.Codigo;
+        cotizacion.TipoServicioNombre = tipoServicio.Nombre;
         cotizacion.Fecha = request.Fecha;
         cotizacion.ModalidadId = modalidadId;
-        cotizacion.TecnicoAsignadoId = tecnicoAsignadoId;
+        cotizacion.ModalidadCodigo = modalidadCodigo;
+        cotizacion.ModalidadNombre = modalidadNombre;
+        cotizacion.TecnicoCodigo = tecnico?.Codigo;
+        cotizacion.TecnicoNombre = tecnico?.Nombre;
         cotizacion.FechaEstimada = request.FechaEstimada;
         cotizacion.DireccionServicio = request.DireccionServicio;
         cotizacion.MargenAplicado = request.Margen;
@@ -621,144 +491,128 @@ public sealed class CotizacionesController : ControllerBase
         cotizacion.TipoCambioId = tc?.Id;
         cotizacion.MetodoCosteoId = resultado.MetodoCosteoId;
         cotizacion.PorcentajePlantilla = resultado.PorcentajePlantilla;
+        cotizacion.HashCalculo = resultado.HashCalculo;
+        cotizacion.ParametrosCalculo = resultado.ParametrosCalculo;
         cotizacion.UpdatedAt = DateTime.UtcNow;
 
-        // Actualizar detalles
+        // La actualización es de reemplazo: lo que no se manda se borra. Las líneas se rearmen
+        // con los códigos ERP y sus snapshots, con el mismo costo que usó el motor.
         _contexto.DetalleInsumo.RemoveRange(_contexto.DetalleInsumo.Where(d => d.CotizacionId == id));
-        foreach (var insumo in request.Insumos)
-        {
-            var producto = await _contexto.Producto
-                .AsNoTracking()
-                .Include(p => p.UnidadMedida)
-                .FirstOrDefaultAsync(p => p.Id == insumo.ProductoId, cancellationToken);
-            
-            if (producto is not null)
-            {
-                _contexto.DetalleInsumo.Add(new Orkin.Cotizador.Core.Domain.Entidades.DetalleInsumo
-                {
-                    Id = Guid.NewGuid(),
-                    CotizacionId = cotizacion.Id,
-                    ProductoId = insumo.ProductoId,
-                    ProductoNombre = producto.Nombre,
-                    UnidadMedidaTexto = producto.UnidadMedida?.Abreviatura ?? string.Empty,
-                    Cantidad = insumo.Cantidad,
-                    PrecioUnitario = producto.CostoActual,
-                    SemestreId = insumo.SemestreId
-                });
-            }
-        }
-
-        // Las de amortizables se reemplazan igual que las de insumos: la cotización guardada es
-        // la que se está viendo, no la suma de la anterior y la nueva.
         _contexto.DetalleAmortizable.RemoveRange(_contexto.DetalleAmortizable.Where(d => d.CotizacionId == id));
-        await GuardarAmortizablesAsync(id, request.Amortizables, cancellationToken);
+        await GuardarDetallesAsync(id, request.Insumos, request.Amortizables, cancellationToken);
 
         await _contexto.SaveChangesAsync(cancellationToken);
 
-        var response = new CotizacionResponse(
-            cotizacion.Id,
-            cotizacion.Numero,
-            cotizacion.Anio,
-            cotizacion.ClienteId,
-            cotizacion.ClienteNombre,
-            cotizacion.TipoServicioId,
-            (await _contexto.TipoServicio.FindAsync([cotizacion.TipoServicioId], cancellationToken))?.Nombre ?? string.Empty,
-            cotizacion.Fecha,
-            cotizacion.Modalidad?.Codigo ?? string.Empty,
-            cotizacion.MargenAplicado,
-            cotizacion.Estado.Codigo,
-            cotizacion.Estado.Nombre,
-            cotizacion.TotalInsumosSemestre1,
-            cotizacion.TotalInsumosSemestre2,
-            cotizacion.TotalInsumos,
-            cotizacion.TotalAmortizablesMensual,
-            cotizacion.CostoTotal,
-            cotizacion.PrecioCordobas,
-            cotizacion.PrecioUsd,
-            cotizacion.TipoCambioValor,
-            cotizacion.TipoCambioFecha,
-            cotizacion.TipoCambioId,
-            cotizacion.MetodoCosteoId,
-            cotizacion.PorcentajePlantilla,
-            cotizacion.CreatedAt);
-
-        return ApiResponse<CotizacionResponse>.Ok(response).AHttp();
+        return ApiResponse<CotizacionResponse>.Ok(Responder(cotizacion)).AHttp();
     }
 
     /// <summary>
-    /// Escribe las líneas de activos amortizables de la cotización. La usan tanto el alta como
-    /// la edición, y lo hacen con <b>la misma regla que usa el motor</b>: la vida útil de la
-    /// línea si viene, la del catálogo si no, y el valor mensual con esa misma vida útil.
-    /// <para>Que sea el mismo cálculo y no uno parecido es lo importante. Si este lado se
-    /// resolviera por su cuenta, la fila guardada podría decir 6 meses donde el motor usó 12, y
-    /// el PDF —que lee las filas, no el total— saldría con un valor mensual que no cuadra con lo
-    /// que el cliente pagó.</para>
-    /// <para>Lo que se guarda es un <b>snapshot</b>: el nombre y el precio del momento de cotizar,
-    /// no una referencia viva. Si mañana sube el precio de la trampa, esta cotización conserva el
-    /// que se le cotizó.</para>
+    /// Escribe las líneas de insumo y de activo con el <b>mismo costo que usó el motor</b>:
+    /// ambas consultas pasan por <see cref="CatalogoErpService.ArticulosAsync"/>. Si este lado
+    /// resolviera por su cuenta, la fila guardada podría decir un precio distinto al del total y
+    /// el PDF —que lee las filas— no cuadraría con lo que el cliente pagó.
+    /// <para>La vida útil NO viene del ERP: la trae cada línea y es &gt; 0 (H-04).</para>
     /// </summary>
-    private async Task GuardarAmortizablesAsync(
+    private async Task GuardarDetallesAsync(
         Guid cotizacionId,
+        IReadOnlyList<CotizacionInsumoRequest> insumos,
         IReadOnlyList<CotizacionAmortizableRequest>? amortizables,
         CancellationToken cancellationToken)
     {
+        var articulosInsumo = await _catalogoErp.ArticulosAsync(
+            insumos.Select(i => i.ProductoCodigo), soloAmortizables: false, cancellationToken);
+
+        short orden = 1;
+        foreach (var linea in insumos)
+        {
+            var codigo = Texto(linea.ProductoCodigo)
+                ?? throw new InvalidOperationException("Insumo: el código es obligatorio.");
+
+            if (!articulosInsumo.TryGetValue(codigo, out var articulo))
+            {
+                throw new InvalidOperationException(
+                    $"Producto: el código '{codigo}' no existe o está inactivo en el catálogo ERP.");
+            }
+
+            _contexto.DetalleInsumo.Add(new DetalleInsumo
+            {
+                Id = Guid.NewGuid(),
+                CotizacionId = cotizacionId,
+                ProductoCodigo = articulo.Codigo,
+                ProductoNombre = articulo.Nombre,
+                UnidadMedidaTexto = articulo.UnidadMedida,
+                Cantidad = linea.Cantidad,
+                PrecioUnitario = articulo.CostoUnitario,
+                Total = articulo.CostoUnitario * linea.Cantidad,
+                SemestreId = linea.SemestreId,
+                Orden = orden++
+            });
+        }
+
         if (amortizables is not { Count: > 0 })
         {
             return;
         }
 
-        short orden = 1;
+        var articulosActivo = await _catalogoErp.ArticulosAsync(
+            amortizables.Select(a => a.ActivoCodigo), soloAmortizables: true, cancellationToken);
 
+        orden = 1;
         foreach (var linea in amortizables)
         {
-            var activo = await _contexto.ActivoAmortizable
-                .AsNoTracking()
-                .Include(a => a.UnidadMedida)
-                .FirstOrDefaultAsync(a => a.Id == linea.ActivoId, cancellationToken);
+            var codigo = Texto(linea.ActivoCodigo)
+                ?? throw new InvalidOperationException("Activo amortizable: el código es obligatorio.");
 
-            if (activo is null)
+            if (!articulosActivo.TryGetValue(codigo, out var articulo))
             {
-                continue;
+                throw new InvalidOperationException(
+                    $"Activo amortizable: el código '{codigo}' no existe, está inactivo o no es amortizable en el ERP.");
             }
 
-            // Idéntica regla al motor: la vida útil de la cotización pisa la del catálogo, y si no
-            // viene (o viene en cero, que es lo que traía el Excel) se usa la del catálogo.
-            // Si el catálogo no la trae, la línea no se puede guardar hasta que quien cotiza la
-            // complete; es preferible omitirla que dejar un valor mensual en cero en silencio.
-            var vidaUtil = linea.MesesVidaUtil is > 0 ? linea.MesesVidaUtil.Value : activo.MesesVidaUtil;
-
-            if (vidaUtil is null or <= 0)
+            if (linea.MesesVidaUtil is not > 0)
             {
-                // Sin vida útil no hay valor mensual, y la tabla lo prohíbe (CK > 0). Es un error
-                // de datos en el catálogo, no de quien cotiza: se salta la línea en vez de tumbar
-                // la cotización completa por una trampa mal dada de alta.
-                continue;
+                throw new InvalidOperationException(
+                    $"El activo \"{articulo.Nombre}\" necesita meses de vida útil mayores a cero. " +
+                    "El ERP no trae ese dato: ingréselos en la línea del activo.");
             }
 
-            var total = activo.CostoActual * linea.Cantidad;
-
-            _contexto.DetalleAmortizable.Add(new Orkin.Cotizador.Core.Domain.Entidades.DetalleAmortizable
+            var total = articulo.CostoUnitario * linea.Cantidad;
+            _contexto.DetalleAmortizable.Add(new DetalleAmortizable
             {
                 Id = Guid.NewGuid(),
                 CotizacionId = cotizacionId,
-                ActivoAmortizableId = activo.Id,
+                ActivoCodigo = articulo.Codigo,
+                ActivoNombre = articulo.Nombre,
+                UnidadMedidaTexto = articulo.UnidadMedida,
                 Cantidad = linea.Cantidad,
-                PrecioUnitario = activo.CostoActual,
-                MesesVidaUtil = vidaUtil.Value,
+                PrecioUnitario = articulo.CostoUnitario,
+                MesesVidaUtil = linea.MesesVidaUtil.Value,
                 Total = total,
-                ValorMensual = total / vidaUtil.Value,
-                UnidadMedidaTexto = activo.UnidadMedida?.Abreviatura ?? string.Empty,
-                ActivoNombre = activo.Nombre,
+                ValorMensual = total / linea.MesesVidaUtil.Value,
                 Orden = orden++
             });
         }
     }
 
-    /// <summary>
-    /// Anula una cotización. Estado terminal: la fila y su historial se conservan — anular no es
-    /// borrar. Se exige un motivo, porque anular algo sin decir por qué es la puerta abierta a
-    /// «se anuló por accidente» sin rastro de qué pasó.
-    /// </summary>
+    private async Task<(byte? Id, string? Codigo, string? Nombre)> ResolverModalidadAsync(
+        string? codigo,
+        CancellationToken cancellationToken)
+    {
+        var texto = Texto(codigo);
+        if (texto is null)
+        {
+            return (null, null, null);
+        }
+
+        var modalidad = await _contexto.ModalidadCatalogo
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Codigo == texto && m.EsActivo, cancellationToken)
+            ?? throw new InvalidOperationException("La modalidad no existe o está inactiva.");
+
+        return (modalidad.Id, modalidad.Codigo, modalidad.Nombre);
+    }
+
+    /// <summary>Anula una cotización. Estado terminal: la fila y su historial se conservan.</summary>
     [HttpPut("{id:guid}/anular")]
     [Authorize("COTIZACIONES.ANULAR")]
     public async Task<IResult> Anular(
@@ -767,11 +621,10 @@ public sealed class CotizacionesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var cotizacion = await _contexto.Cotizacion
-            .Include(c => c.Estado)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("La cotización no existe.");
 
-        if (cotizacion.Estado.Codigo == "ANULADA")
+        if (cotizacion.EstadoCodigo == "ANULADA")
         {
             return ApiResponse<CotizacionResponse>
                 .Error("YA_ANULADA", "La cotización ya está anulada.")
@@ -791,37 +644,44 @@ public sealed class CotizacionesController : ControllerBase
             ?? throw new InvalidOperationException("El estado ANULADA no está configurado.");
 
         cotizacion.EstadoId = estadoAnulada.Id;
+        cotizacion.EstadoCodigo = estadoAnulada.Codigo;
+        cotizacion.EstadoNombre = estadoAnulada.Nombre;
         cotizacion.UpdatedAt = DateTime.UtcNow;
 
         await _contexto.SaveChangesAsync(cancellationToken);
 
-        return ApiResponse<CotizacionResponse>.Ok(new CotizacionResponse(
-            cotizacion.Id,
-            cotizacion.Numero,
-            cotizacion.Anio,
-            cotizacion.ClienteId,
-            cotizacion.ClienteNombre,
-            cotizacion.TipoServicioId,
-            (await _contexto.TipoServicio.FindAsync([cotizacion.TipoServicioId], cancellationToken))?.Nombre ?? string.Empty,
-            cotizacion.Fecha,
-            cotizacion.Modalidad?.Codigo ?? string.Empty,
-            cotizacion.MargenAplicado,
-            estadoAnulada.Codigo,
-            estadoAnulada.Nombre,
-            cotizacion.TotalInsumosSemestre1,
-            cotizacion.TotalInsumosSemestre2,
-            cotizacion.TotalInsumos,
-            cotizacion.TotalAmortizablesMensual,
-            cotizacion.CostoTotal,
-            cotizacion.PrecioCordobas,
-            cotizacion.PrecioUsd,
-            cotizacion.TipoCambioValor,
-            cotizacion.TipoCambioFecha,
-            cotizacion.TipoCambioId,
-            cotizacion.MetodoCosteoId,
-            cotizacion.PorcentajePlantilla,
-            cotizacion.CreatedAt)).AHttp();
+        return ApiResponse<CotizacionResponse>.Ok(Responder(cotizacion)).AHttp();
     }
+
+    private static CotizacionResponse Responder(Cotizacion c) => new(
+        c.Id,
+        c.Numero,
+        c.Anio,
+        c.ClienteCodigo,
+        c.ClienteNombre,
+        c.TipoServicioCodigo,
+        c.TipoServicioNombre,
+        c.Fecha,
+        c.ModalidadCodigo ?? string.Empty,
+        c.MargenAplicado,
+        c.EstadoCodigo,
+        c.EstadoNombre,
+        c.TotalInsumosSemestre1,
+        c.TotalInsumosSemestre2,
+        c.TotalInsumos,
+        c.TotalAmortizablesMensual,
+        c.CostoTotal,
+        c.PrecioCordobas,
+        c.PrecioUsd,
+        c.TipoCambioValor,
+        c.TipoCambioFecha,
+        c.TipoCambioId,
+        c.MetodoCosteoId,
+        c.PorcentajePlantilla,
+        c.CreatedAt);
+
+    private static string? Texto(string? valor)
+        => string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
 }
 
 /// <summary>Solicitud para anular una cotización. El motivo es obligatorio.</summary>
@@ -829,40 +689,36 @@ public sealed record AnularCotizacionRequest(string Motivo);
 
 /// <summary>Línea de insumo de una cotización existente, para el detalle y la edición.</summary>
 public sealed record DetalleInsumoResponse(
-    Guid ProductoId,
+    string ProductoCodigo,
     decimal Cantidad,
     byte? SemestreId);
 
-/// <summary>Linea de activo amortizable de una cotizacion existente.</summary>
-/// <para><c>MesesVidaUtil</c> es la vida util <b>efectivamente usada</b> en esta cotizacion: si
-/// quien cotizo la escribio a mano sale esa, y si la dejo vacia sale la del catalogo. La columna
-/// es obligatoria y jamas puede ser cero, asi que no se conserva la distincion entre «venia del
-/// catalogo» y «la escribi aqui»; lo que se guarda y se devuelve es el numero con el que se
-/// cotizo, que es lo que hace falta para que el formulario de edicion recargue la fila con el
-/// mismo valor y el PDF no difiera del total.</para>
+/// <summary>
+/// Línea de activo amortizable ya guardada. <c>MesesVidaUtil</c> es la vida útil efectivamente
+/// usada: en el ERP no existe ese dato, siempre la escribió quien cotizó. Se devuelve para que el
+/// formulario recargue el mismo número y el PDF no difiera del total.
 /// </summary>
 public sealed record DetalleAmortizableResponse(
-    Guid ActivoAmortizableId,
+    string ActivoCodigo,
     decimal Cantidad,
-    int? MesesVidaUtil,
+    int MesesVidaUtil,
     decimal PrecioUnitario,
     decimal ValorMensual,
     string ActivoNombre,
     string UnidadMedidaTexto);
 
 /// <summary>
-/// Una cotización con sus líneas de insumo. El listado usa <c>CotizacionResponse</c> (sin
-/// insumos, que es todo lo que hace falta para la tabla); el detalle y la edición usan esta,
-/// que trae las líneas para que editar sea recargar la pantalla y no rearmar de memoria.
+/// Una cotización con sus líneas. El listado usa <c>CotizacionResponse</c>; el detalle y la
+/// edición usan esta, que trae las líneas para que editar sea recargar y no rearmar de memoria.
 /// </summary>
 public sealed record CotizacionDetalleResponse(
     Guid Id,
     string Numero,
     int Anio,
-    Guid? ClienteId,
+    string? ClienteCodigo,
     string ClienteNombre,
     byte TipoClienteId,
-    Guid TipoServicioId,
+    string TipoServicioCodigo,
     string TipoServicioNombre,
     DateOnly Fecha,
     string ModalidadCodigo,
@@ -884,7 +740,7 @@ public sealed record CotizacionDetalleResponse(
     DateTime CreatedAt,
     IReadOnlyList<DetalleInsumoResponse> Insumos,
     IReadOnlyList<DetalleAmortizableResponse> Amortizables,
-    Guid? TecnicoAsignadoId,
+    string? TecnicoCodigo,
     DateOnly? FechaEstimada,
     string? DireccionServicio);
 

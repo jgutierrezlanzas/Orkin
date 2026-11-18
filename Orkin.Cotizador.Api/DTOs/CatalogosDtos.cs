@@ -429,14 +429,19 @@ public sealed record ActualizarVehiculoRequest(
 /// <summary>
 /// Opción legible leída directamente de una vista <c>vv*</c> del ERP (D-20). El valor que se
 /// guarda sigue siendo <see cref="Codigo"/>; <see cref="Descripcion"/> solo se muestra en la UI.
-/// <see cref="Detalle"/> es información extra del ERP (placa del vehículo, cliente de la locación)
-/// y <see cref="UnidadMedida"/> solo aplica a dosificaciones.
+/// <see cref="Detalle"/> es información extra del ERP (placa del vehículo, cliente de la locación,
+/// iniciales del técnico o actividad del tipo de servicio); <see cref="UnidadMedida"/> es la unidad
+/// de venta del artículo o de la dosificación; <see cref="Clasificacion"/> es el
+/// <c>CAT_CLIENTE</c> del cliente o la <c>CLASIFICACION</c> del artículo; <see cref="Costo"/> es el
+/// <c>COSTO_UNITARIO</c> del artículo. Ningún campo es dato propio del cotizador.
 /// </summary>
 public sealed record OpcionErpResponse(
     string Codigo,
     string Descripcion,
     string? Detalle = null,
-    string? UnidadMedida = null);
+    string? UnidadMedida = null,
+    string? Clasificacion = null,
+    decimal? Costo = null);
 
 /// <summary>Un único contrato para todas las opciones ERP que antes se capturaban como texto.</summary>
 public sealed record OpcionesErpResponse(
@@ -448,4 +453,11 @@ public sealed record OpcionesErpResponse(
     IReadOnlyList<OpcionErpResponse> Metodos,
     IReadOnlyList<OpcionErpResponse> Frecuencias,
     IReadOnlyList<OpcionErpResponse> Equipos,
-    IReadOnlyList<OpcionErpResponse> Bodegas);
+    IReadOnlyList<OpcionErpResponse> Bodegas,
+    IReadOnlyList<OpcionErpResponse> Clientes,
+    IReadOnlyList<OpcionErpResponse> TiposServicio,
+    IReadOnlyList<OpcionErpResponse> Tecnicos,
+    IReadOnlyList<OpcionErpResponse> Articulos,
+    IReadOnlyList<OpcionErpResponse> ActivosAmortizables,
+    IReadOnlyList<OpcionErpResponse> Unidades,
+    IReadOnlyList<OpcionErpResponse> Clasificaciones);

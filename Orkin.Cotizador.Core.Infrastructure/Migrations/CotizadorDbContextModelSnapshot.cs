@@ -2111,13 +2111,16 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("datetime2(3)")
                         .HasColumnName("AprobadaUtc");
 
+                    b.Property<string>("ClienteCodigo")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("ClienteCodigo");
+
                     b.Property<string>("ClienteDocumento")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)")
                         .HasColumnName("ClienteDocumento");
-
-                    b.Property<Guid?>("ClienteId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ClienteNombre")
                         .IsRequired()
@@ -2179,9 +2182,23 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("EsVersionActual");
 
+                    b.Property<string>("EstadoCodigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("EstadoCodigo");
+
                     b.Property<byte>("EstadoId")
                         .HasColumnType("tinyint")
                         .HasColumnName("Estado");
+
+                    b.Property<string>("EstadoNombre")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("EstadoNombre");
 
                     b.Property<DateOnly>("Fecha")
                         .HasColumnType("date")
@@ -2212,9 +2229,21 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("tinyint")
                         .HasColumnName("MetodoCosteo");
 
+                    b.Property<string>("ModalidadCodigo")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("ModalidadCodigo");
+
                     b.Property<byte?>("ModalidadId")
                         .HasColumnType("tinyint")
                         .HasColumnName("Modalidad");
+
+                    b.Property<string>("ModalidadNombre")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("ModalidadNombre");
 
                     b.Property<string>("MotivoAnulacion")
                         .HasMaxLength(1000)
@@ -2262,8 +2291,17 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("rowversion")
                         .HasColumnName("RowVersion");
 
-                    b.Property<Guid?>("TecnicoAsignadoId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<string>("TecnicoCodigo")
+                        .HasMaxLength(5)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(5)")
+                        .HasColumnName("TecnicoCodigo");
+
+                    b.Property<string>("TecnicoNombre")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("TecnicoNombre");
 
                     b.Property<DateOnly>("TipoCambioFecha")
                         .HasColumnType("date")
@@ -2285,8 +2323,19 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("tinyint")
                         .HasColumnName("TipoConsecutivoId");
 
-                    b.Property<Guid>("TipoServicioId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<string>("TipoServicioCodigo")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("TipoServicioCodigo");
+
+                    b.Property<string>("TipoServicioNombre")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("TipoServicioNombre");
 
                     b.Property<decimal>("TotalAmortizablesMensual")
                         .HasPrecision(18, 6)
@@ -2341,12 +2390,10 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
                     b.HasIndex("TipoConsecutivoId");
 
-                    b.HasIndex("TipoServicioId");
-
                     b.HasIndex("VersionAnteriorId");
 
-                    b.HasIndex("ClienteId", "Fecha")
-                        .HasDatabaseName("IX_Cotizacion_Cliente_Fecha");
+                    b.HasIndex("ClienteCodigo", "Fecha")
+                        .HasDatabaseName("IX_Cotizacion_ClienteCodigo_Fecha");
 
                     b.HasIndex("EstadoId", "Fecha")
                         .HasDatabaseName("IX_Cotizacion_Estado_Fecha");
@@ -2504,8 +2551,12 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnName("Id")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-                    b.Property<Guid>("ActivoAmortizableId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<string>("ActivoCodigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("ActivoCodigo");
 
                     b.Property<string>("ActivoNombre")
                         .HasMaxLength(250)
@@ -2586,8 +2637,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ActivoAmortizableId")
-                        .HasDatabaseName("IX_DetalleAmortizable_Activo");
+                    b.HasIndex("ActivoCodigo")
+                        .HasDatabaseName("IX_DetalleAmortizable_ActivoCodigo");
 
                     b.HasIndex("CotizacionId", "Orden")
                         .HasDatabaseName("IX_DetalleAmortizable_Cotizacion");
@@ -2648,8 +2699,12 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("decimal(18,6)")
                         .HasColumnName("PrecioUnitario");
 
-                    b.Property<Guid>("ProductoId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<string>("ProductoCodigo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("ProductoCodigo");
 
                     b.Property<string>("ProductoNombre")
                         .HasMaxLength(250)
@@ -2672,9 +2727,6 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("decimal(18,6)")
                         .HasColumnName("Total");
 
-                    b.Property<Guid?>("UnidadMedidaId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("UnidadMedidaTexto")
                         .HasMaxLength(15)
                         .HasColumnType("nvarchar(15)")
@@ -2692,8 +2744,8 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProductoId")
-                        .HasDatabaseName("IX_DetalleInsumo_Producto");
+                    b.HasIndex("ProductoCodigo")
+                        .HasDatabaseName("IX_DetalleInsumo_ProductoCodigo");
 
                     b.HasIndex("SemestreId");
 
@@ -6031,6 +6083,12 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("varchar(1)")
                         .HasColumnName("ACTIVO");
 
+                    b.Property<string>("CategoriaCliente")
+                        .HasMaxLength(8)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(8)")
+                        .HasColumnName("CAT_CLIENTE");
+
                     b.Property<string>("NombreCliente")
                         .HasMaxLength(150)
                         .IsUnicode(false)
@@ -6280,6 +6338,18 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(2)")
                         .HasColumnName("ACTIVO");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DESCRIPCION");
+
+                    b.Property<string>("TipoActividad")
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("TIPOACTIVIDAD");
 
                     b.HasKey("Codigo");
 
@@ -6549,11 +6619,6 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.Cotizacion", b =>
                 {
-                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.Cliente", "Cliente")
-                        .WithMany()
-                        .HasForeignKey("ClienteId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.EstadoCotizacionCatalogo", "Estado")
                         .WithMany()
                         .HasForeignKey("EstadoId")
@@ -6580,25 +6645,15 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasForeignKey("TipoConsecutivoId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.TipoServicio", "TipoServicio")
-                        .WithMany()
-                        .HasForeignKey("TipoServicioId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.Cotizacion", "VersionAnterior")
                         .WithMany()
                         .HasForeignKey("VersionAnteriorId");
-
-                    b.Navigation("Cliente");
 
                     b.Navigation("Estado");
 
                     b.Navigation("Modalidad");
 
                     b.Navigation("TipoCambio");
-
-                    b.Navigation("TipoServicio");
 
                     b.Navigation("VersionAnterior");
                 });
@@ -6624,19 +6679,11 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.DetalleAmortizable", b =>
                 {
-                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.ActivoAmortizable", "ActivoAmortizable")
-                        .WithMany()
-                        .HasForeignKey("ActivoAmortizableId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.Cotizacion", "Cotizacion")
                         .WithMany("DetalleAmortizables")
                         .HasForeignKey("CotizacionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("ActivoAmortizable");
 
                     b.Navigation("Cotizacion");
                 });
@@ -6649,20 +6696,12 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Orkin.Cotizador.Core.Domain.Entidades.Producto", "Producto")
-                        .WithMany()
-                        .HasForeignKey("ProductoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Orkin.Cotizador.Core.Domain.Catalogos.SemestreCatalogo", "Semestre")
                         .WithMany()
                         .HasForeignKey("SemestreId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Cotizacion");
-
-                    b.Navigation("Producto");
 
                     b.Navigation("Semestre");
                 });

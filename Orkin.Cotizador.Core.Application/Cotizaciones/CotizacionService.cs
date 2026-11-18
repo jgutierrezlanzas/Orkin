@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Orkin.Cotizador.Core.Application.Catalogos;
 using Orkin.Cotizador.Core.Domain.Cotizacion;
-using Orkin.Cotizador.Core.Domain.Entidades;
 using Orkin.Cotizador.Core.Domain.MotorCalculo;
 using Orkin.Cotizador.Core.Infrastructure.Persistence;
 
@@ -9,54 +8,52 @@ namespace Orkin.Cotizador.Core.Application.Cotizaciones;
 
 /// <summary>
 /// Servicio de cotizaciones. Arma la entrada del motor, calcula y (en próximas iteraciones) persiste.
+/// <para><b>D-24:</b> no consulta <c>dbo.Cliente</c>, <c>dbo.Producto</c> ni
+/// <c>dbo.ActivoAmortizable</c>. Todo código se valida contra las vistas <c>vv*</c> a través de
+/// <see cref="CatalogoErpService"/>, y el nombre/unidad/costo resultante se congela en la entrada
+/// del motor.</para>
 /// </summary>
 public sealed class CotizacionService
 {
-    private readonly CotizadorDbContext _contexto;
     private readonly IConstructorConfiguracionMotor _configuracion;
     private readonly TipoCambioService _tipoCambio;
+    private readonly CatalogoErpService _catalogoErp;
+    private readonly CotizadorDbContext _contexto;
 
     public CotizacionService(
         CotizadorDbContext contexto,
         IConstructorConfiguracionMotor configuracion,
-        TipoCambioService tipoCambio)
+        TipoCambioService tipoCambio,
+        CatalogoErpService catalogoErp)
     {
         _contexto = contexto;
         _configuracion = configuracion;
         _tipoCambio = tipoCambio;
+        _catalogoErp = catalogoErp;
     }
 
     /// <summary>
-    /// Calcula una cotización en memoria sin persistirla. Útil para el preview antes de guardar.
-    /// </summary>
-    /// <summary>
-    /// Calcula una cotización en memoria. El cliente puede venir del catálogo
-    /// (<paramref name="clienteId"/>) o ser alguien nuevo que todavía no existe: en ese caso
-    /// quien cotizó eligió el tipo de cliente (<paramref name="tipoClienteId"/>) porque el
-    /// tipo es lo que decide el método de costeo, y sin método no hay precio.
+    /// Calcula una cotización en memoria. El cliente puede venir del ERP
+    /// (<paramref name="clienteCodigo"/>) o ser alguien nuevo que todavía no existe: en ese caso
+    /// quien cotizó eligió el tipo de cliente (<paramref name="tipoClienteId"/>) porque el tipo es
+    /// lo que decide el método de costeo, y sin método no hay precio.
     /// </summary>
     public async Task<ResultadoCalculo> CalcularAsync(
-        Guid? clienteId,
+        string? clienteCodigo,
         byte? tipoClienteId,
         DateOnly fecha,
         decimal margen,
-        IReadOnlyList<(Guid ProductoId, decimal Cantidad, byte? SemestreId)> insumos,
-        IReadOnlyList<(Guid ActivoId, decimal Cantidad, int? MesesVidaUtil)>? amortizables = null,
+        IReadOnlyList<(string ProductoCodigo, decimal Cantidad, byte? SemestreId)> insumos,
+        IReadOnlyList<(string ActivoCodigo, decimal Cantidad, int? MesesVidaUtil)>? amortizables = null,
         CancellationToken cancellationToken = default)
     {
         byte tipo;
 
-        if (clienteId is { } id)
+        if (!string.IsNullOrWhiteSpace(clienteCodigo))
         {
-            // El cliente del catálogo manda sobre el tipo que traiga la solicitud: la ficha es
-            // la verdad y permitir "cotizarle a ACME con margen residencial" es cotizar con el
-            // método de otro.
-            var cliente = await _contexto.Cliente
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == id && c.IsActive, cancellationToken)
-                ?? throw new InvalidOperationException("El cliente no existe o está inactivo.");
-
-            tipo = cliente.TipoClienteId;
+            // El cliente del ERP manda sobre el tipo que traiga la solicitud: la ficha es la verdad
+            // y permitir "cotizarle a ACME con margen residencial" es cotizar con el método de otro.
+            tipo = (await _catalogoErp.ClienteAsync(clienteCodigo, cancellationToken)).TipoClienteId;
         }
         else
         {
@@ -66,11 +63,9 @@ public sealed class CotizacionService
                     "Para un cliente nuevo hace falta el tipo de cliente: es lo que decide el método de costeo.");
             }
 
-            var existe = await _contexto.TipoClienteCatalogo
-                .AsNoTracking()
-                .AnyAsync(t => t.Id == tipoElegido && t.EsActivo, cancellationToken);
-
-            if (!existe)
+            if (!await _contexto.TipoClienteCatalogo
+                    .AsNoTracking()
+                    .AnyAsync(t => t.Id == tipoElegido && t.EsActivo, cancellationToken))
             {
                 throw new InvalidOperationException("El tipo de cliente no existe o está inactivo.");
             }
@@ -86,56 +81,60 @@ public sealed class CotizacionService
                 $"El tipo de cliente '{tipo}' no tiene un método de costeo asignado.");
         }
 
-        var (tipoCambioId, tipoCambioValor, tipoCambioFecha) = await _tipoCambio.ObtenerAsync(fecha, cancellationToken);
+        var (_, tipoCambioValor, _) = await _tipoCambio.ObtenerAsync(fecha, cancellationToken);
 
-        var lineasInsumo = new List<LineaInsumo>();
-        foreach (var (productoId, cantidad, semestreId) in insumos)
+        var articulosInsumo = await _catalogoErp.ArticulosAsync(
+            insumos.Select(i => i.ProductoCodigo), soloAmortizables: false, cancellationToken);
+
+        var lineasInsumo = new List<LineaInsumo>(insumos.Count);
+        foreach (var (productoCodigo, cantidad, semestreId) in insumos)
         {
-            var producto = await _contexto.Producto
-                .AsNoTracking()
-                .Include(p => p.UnidadMedida)
-                .FirstOrDefaultAsync(p => p.Id == productoId && p.IsActive, cancellationToken)
-                ?? throw new InvalidOperationException($"El producto '{productoId}' no existe o está inactivo.");
+            var codigo = productoCodigo?.Trim() ?? string.Empty;
+            if (!articulosInsumo.TryGetValue(codigo, out var articulo))
+            {
+                throw new InvalidOperationException(
+                    $"Producto: el código '{codigo}' no existe o está inactivo en el catálogo ERP.");
+            }
 
             lineasInsumo.Add(new LineaInsumo(
-                producto.Nombre,
-                producto.UnidadMedida?.Abreviatura ?? string.Empty,
+                articulo.Nombre,
+                articulo.UnidadMedida,
                 cantidad,
-                producto.CostoActual,
+                articulo.CostoUnitario,
                 semestreId));
         }
 
         var lineasAmortizables = new List<LineaAmortizable>();
-        if (amortizables is not null)
+        if (amortizables is { Count: > 0 })
         {
-            foreach (var (activoId, cantidad, mesesVidaUtil) in amortizables)
-            {
-                var activo = await _contexto.ActivoAmortizable
-                    .AsNoTracking()
-                    .Include(a => a.UnidadMedida)
-                    .FirstOrDefaultAsync(a => a.Id == activoId && a.IsActive, cancellationToken)
-                    ?? throw new InvalidOperationException($"El activo '{activoId}' no existe o está inactivo.");
+            var articulosActivo = await _catalogoErp.ArticulosAsync(
+                amortizables.Select(a => a.ActivoCodigo), soloAmortizables: true, cancellationToken);
 
-                // La vida útil de la cotización pisa la del catálogo: el catálogo trae el valor
-                // típico (12 meses), pero una trampa a la intemperie dura 6 y la misma bajo
-                // techo dura 24 — quien cotiza lo sabe. Si la cotización no trae el dato, se
-                // usa el del catálogo. Si el catálogo tampoco lo trae (D-04), el cálculo falla
-                // con mensaje claro en vez de dividir entre cero.
-                var vidaUtil = mesesVidaUtil is > 0 ? mesesVidaUtil.Value : activo.MesesVidaUtil;
-                if (vidaUtil is null or <= 0)
+            foreach (var (activoCodigo, cantidad, mesesVidaUtil) in amortizables)
+            {
+                var codigo = activoCodigo?.Trim() ?? string.Empty;
+                if (!articulosActivo.TryGetValue(codigo, out var articulo))
+                {
+                    throw new InvalidOperationException(
+                        $"Activo amortizable: el código '{codigo}' no existe, está inactivo o no es amortizable en el ERP.");
+                }
+
+                // vvArticulos no trae vida útil. A diferencia del catálogo local, acá no hay un
+                // valor típico al que caer: quien cotiza lo ingresa y 0 sigue prohibido (H-04).
+                if (mesesVidaUtil is not > 0)
                 {
                     throw new CalculoInvalidoException(
-                        $"El activo \"{activo.Nombre}\" no tiene meses de vida útil. " +
-                        "Ingréselos en la línea del activo dentro de la cotización.",
+                        $"El activo \"{articulo.Nombre}\" necesita meses de vida útil mayores a cero. " +
+                        "El ERP no trae ese dato: ingréselos en la línea del activo.",
                         "vida útil no definida");
                 }
 
                 lineasAmortizables.Add(new LineaAmortizable(
-                    activo.Nombre,
-                    activo.UnidadMedida?.Abreviatura ?? string.Empty,
+                    articulo.Nombre,
+                    articulo.UnidadMedida,
                     cantidad,
-                    activo.CostoActual,
-                    vidaUtil.Value));
+                    articulo.CostoUnitario,
+                    mesesVidaUtil.Value));
             }
         }
 

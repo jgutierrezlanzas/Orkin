@@ -13,11 +13,11 @@ public sealed class CotizacionService
     }
 
     /// <summary>
-    /// Calcula en memoria. El cliente puede venir del catálogo (<paramref name="clienteId"/>) o
-    /// ser nuevo: en ese caso hace falta el tipo que elige quien cotiza.
+    /// Calcula en memoria. El cliente puede venir del ERP (<paramref name="clienteCodigo"/>) o ser
+    /// nuevo: en ese caso hace falta el tipo que elige quien cotiza.
     /// </summary>
     public async Task<ApiResponse<CotizacionCalculadaResponse>?> CalcularAsync(
-        Guid? clienteId,
+        string? clienteCodigo,
         byte? tipoClienteId,
         DateOnly fecha,
         decimal margen,
@@ -26,19 +26,19 @@ public sealed class CotizacionService
     {
         var request = new
         {
-            ClienteId = clienteId,
+            ClienteCodigo = clienteCodigo,
             TipoClienteId = tipoClienteId,
             Fecha = fecha,
             Margen = margen,
             Insumos = insumos.Select(i => new
             {
-                i.ProductoId,
+                i.ProductoCodigo,
                 i.Cantidad,
                 i.SemestreId
             }).ToList(),
             Amortizables = (amortizables ?? []).Select(a => new
             {
-                a.ActivoId,
+                a.ActivoCodigo,
                 a.Cantidad,
                 a.MesesVidaUtil
             }).ToList()
@@ -51,19 +51,19 @@ public sealed class CotizacionService
     public async Task<PaginatedCotizaciones> ListarAsync(
         int pagina = 1,
         int tamanio = 20,
-        Guid? clienteId = null,
+        string? clienteCodigo = null,
         string? estado = null)
     {
         var url = $"api/cotizaciones?pagina={pagina}&tamanio={tamanio}";
 
-        if (clienteId.HasValue)
+        if (!string.IsNullOrWhiteSpace(clienteCodigo))
         {
-            url += $"&clienteId={clienteId.Value}";
+            url += $"&clienteCodigo={Uri.EscapeDataString(clienteCodigo.Trim())}";
         }
 
         if (!string.IsNullOrWhiteSpace(estado))
         {
-            url += $"&estado={estado}";
+            url += $"&estado={Uri.EscapeDataString(estado.Trim())}";
         }
 
         var respuesta = await _http.GetFromJsonAsync<ApiResponse<PaginatedCotizaciones>>(url);
@@ -77,48 +77,45 @@ public sealed class CotizacionService
     }
 
     /// <summary>
-    /// Crea la cotización. Con <paramref name="clienteId"/> va para un cliente del catálogo; sin
-    /// él, para un cliente nuevo cuyo nombre va en <paramref name="clienteNombre"/> y cuyo tipo
-    /// elige quien cotiza.
-    /// <para>Los tres últimos (técnico, fecha estimada y dirección) son opcionales y van al final
-    /// a propósito: el formulario los ofrece y esta firma los acepta sin que nadie tenga que
-    /// acordarse de pasarlos.</para>
+    /// Crea la cotización. Con <paramref name="clienteCodigo"/> va para un cliente del ERP; sin
+    /// él, para uno nuevo cuyo nombre va en <paramref name="clienteNombre"/> y cuyo tipo elige
+    /// quien cotiza.
     /// </summary>
     public async Task<ApiResponse<CotizacionListItem>?> CrearAsync(
-        Guid? clienteId,
+        string? clienteCodigo,
         string? clienteNombre,
         byte? tipoClienteId,
-        Guid tipoServicioId,
+        string tipoServicioCodigo,
         DateOnly fecha,
         string? modalidadCodigo,
         decimal margen,
         List<LineaInsumoRequest> insumos,
         List<LineaAmortizableRequest>? amortizables = null,
-        Guid? tecnicoAsignadoId = null,
+        string? tecnicoCodigo = null,
         DateOnly? fechaEstimada = null,
         string? direccionServicio = null)
     {
         var request = new
         {
-            ClienteId = clienteId,
+            ClienteCodigo = clienteCodigo,
             ClienteNombre = clienteNombre,
             TipoClienteId = tipoClienteId,
-            TipoServicioId = tipoServicioId,
+            TipoServicioCodigo = tipoServicioCodigo,
             Fecha = fecha,
             ModalidadCodigo = modalidadCodigo,
-            TecnicoAsignadoId = tecnicoAsignadoId,
+            TecnicoCodigo = tecnicoCodigo,
             FechaEstimada = fechaEstimada,
             DireccionServicio = direccionServicio,
             Margen = margen,
             Insumos = insumos.Select(i => new
             {
-                i.ProductoId,
+                i.ProductoCodigo,
                 i.Cantidad,
                 i.SemestreId
             }).ToList(),
             Amortizables = (amortizables ?? []).Select(a => new
             {
-                a.ActivoId,
+                a.ActivoCodigo,
                 a.Cantidad,
                 a.MesesVidaUtil
             }).ToList()
@@ -128,10 +125,7 @@ public sealed class CotizacionService
         return await response.Content.ReadFromJsonAsync<ApiResponse<CotizacionListItem>>();
     }
 
-    /// <summary>
-    /// Trae una cotización con sus líneas de insumo — lo que hace falta para recargar el
-    /// formulario de edición y el detalle completo.
-    /// </summary>
+    /// <summary>Trae una cotización con sus líneas, para recargar edición y detalle.</summary>
     public async Task<CotizacionDetalleModel?> ObtenerDetalleAsync(Guid id)
     {
         var response = await _http.GetFromJsonAsync<ApiResponse<CotizacionDetalleModel>>($"api/cotizaciones/{id}");
@@ -139,47 +133,43 @@ public sealed class CotizacionService
     }
 
     /// <summary>
-    /// Actualiza una cotización existente (solo en BORRADOR o RECHAZADA). La API recalcula
-    /// todo: las líneas se reemplazan completas y el resultado sale del motor.
-    /// <para><b>La actualización es de reemplazo, no de parche.</b> Lo que no se manda se borra:
-    /// por eso <paramref name="modalidadCodigo"/> y <paramref name="amortizables"/> son
-    /// parámetros obligatorios y no opcionales con valor por omisión. Mandarlos en null «por
-    /// convenience» dejaría el método capaz de borrar en silencio la modalidad y los activos
-    /// amortizables de una cotización, que es exactamente lo que pasó cuando este método no los
-    /// aceptaba. Que el compilador lo exija es la protección.</para>
-    /// <para>El cliente y su tipo no se mandan porque no se cambian: ya viajó con ese nombre y su
-    /// tipo decide el método de costeo.</para>
+    /// Actualiza una cotización existente (solo en BORRADOR o RECHAZADA). La API recalcula todo:
+    /// las líneas se reemplazan completas.
+    /// <para><b>Es de reemplazo, no de parche.</b> Lo que no se manda se borra: por eso
+    /// <paramref name="modalidadCodigo"/> y <paramref name="amortizables"/> son obligatorios.
+    /// Mandarlos en null «por convenience» dejaría el método capaz de borrar en silencio la
+    /// modalidad y los activos, que es exactamente lo que pasó antes.</para>
     /// </summary>
     public async Task<ApiResponse<CotizacionListItem>?> ActualizarAsync(
         Guid id,
-        Guid tipoServicioId,
+        string tipoServicioCodigo,
         DateOnly fecha,
         decimal margen,
         List<LineaInsumoRequest> insumos,
         List<LineaAmortizableRequest>? amortizables,
         string? modalidadCodigo,
-        Guid? tecnicoAsignadoId = null,
+        string? tecnicoCodigo = null,
         DateOnly? fechaEstimada = null,
         string? direccionServicio = null)
     {
         var request = new
         {
-            TipoServicioId = tipoServicioId,
+            TipoServicioCodigo = tipoServicioCodigo,
             Fecha = fecha,
             ModalidadCodigo = modalidadCodigo,
-            TecnicoAsignadoId = tecnicoAsignadoId,
+            TecnicoCodigo = tecnicoCodigo,
             FechaEstimada = fechaEstimada,
             DireccionServicio = direccionServicio,
             Margen = margen,
             Insumos = insumos.Select(i => new
             {
-                i.ProductoId,
+                i.ProductoCodigo,
                 i.Cantidad,
                 i.SemestreId
             }).ToList(),
             Amortizables = (amortizables ?? []).Select(a => new
             {
-                a.ActivoId,
+                a.ActivoCodigo,
                 a.Cantidad,
                 a.MesesVidaUtil
             }).ToList()
