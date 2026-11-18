@@ -3,7 +3,7 @@ using Orkin.Cotizador.UI.Web.Client.Models;
 
 namespace Orkin.Cotizador.UI.Web.Client.Services;
 
-/// <summary>Acceso a la API de plantillas de orden de trabajo (Fase 2).</summary>
+/// <summary>Acceso a las tablas legacy de plantillas a través de la API única (D-22).</summary>
 public sealed class PlantillaService
 {
     private readonly HttpClient _http;
@@ -14,7 +14,7 @@ public sealed class PlantillaService
     }
 
     public async Task<List<PlantillaModel>> ListarAsync(
-        string? texto = null, Guid? clienteId = null, Guid? tecnicoId = null, bool soloActivas = true)
+        string? texto = null, string? cliente = null, bool soloActivas = true)
     {
         var parametros = new List<string>();
 
@@ -23,26 +23,21 @@ public sealed class PlantillaService
             parametros.Add($"texto={Uri.EscapeDataString(texto.Trim())}");
         }
 
-        if (clienteId is { } idCliente)
+        if (!string.IsNullOrWhiteSpace(cliente))
         {
-            parametros.Add($"clienteId={idCliente}");
-        }
-
-        if (tecnicoId is { } idTecnico)
-        {
-            parametros.Add($"tecnicoId={idTecnico}");
+            parametros.Add($"cliente={Uri.EscapeDataString(cliente.Trim())}");
         }
 
         parametros.Add($"soloActivas={soloActivas.ToString().ToLowerInvariant()}");
 
-        var url = "api/plantillas?" + string.Join('&', parametros);
-        var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<PlantillaModel>>>(url);
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<List<PlantillaModel>>>(
+            "api/plantillas?" + string.Join('&', parametros));
         return respuesta?.Datos ?? [];
     }
 
-    public async Task<PlantillaModel?> ObtenerAsync(Guid id)
+    public async Task<PlantillaModel?> ObtenerAsync(long plantilla)
     {
-        var respuesta = await _http.GetFromJsonAsync<ApiResponse<PlantillaModel>>($"api/plantillas/{id}");
+        var respuesta = await _http.GetFromJsonAsync<ApiResponse<PlantillaModel>>($"api/plantillas/{plantilla}");
         return respuesta?.Datos;
     }
 
@@ -50,69 +45,60 @@ public sealed class PlantillaService
     {
         var request = new
         {
-            modelo.Codigo,
-            modelo.Nombre,
-            modelo.ClienteId,
-            modelo.LocacionCodigo,
+            modelo.Cliente,
+            modelo.Locacion,
             modelo.Direccion,
-            modelo.TecnicoId,
+            modelo.Tecnico,
             modelo.Contacto,
             modelo.Telefono,
-            modelo.VehiculoCodigo,
+            modelo.Vehiculo,
             modelo.DescripcionTrabajo,
             modelo.Notas,
-            modelo.EsActivo,
+            modelo.Activo,
             Detalles = modelo.Detalles.Select(d => new
             {
-                d.Id,
-                d.Consecutivo,
-                d.ProductoId,
-                d.DescripcionArticulo,
-                d.TipoPlagaCodigo,
-                d.LugarTratarCodigo,
+                d.CodigoArticulo,
+                d.DescripArticulo,
+                d.TipoPlaga,
+                d.LugarTratar,
                 d.Area,
                 d.Concentracion,
-                d.DosificacionCodigo,
-                d.MetodoAplicacionCodigo,
+                d.CodigoDosificacion,
+                d.MetodoAplicacion,
                 d.Cantidad,
-                d.UnidadMedidaId,
+                d.Umedida,
                 d.CostoUnitario,
-                d.CostoTotal,
                 d.MaximoPermitido
             }).ToList(),
             Servicios = modelo.Servicios.Select(s => new
             {
-                s.Id,
-                s.Consecutivo,
-                s.TipoServicioId,
-                s.FrecuenciaCodigo
+                s.CodigoServicio,
+                s.CodigoFrecuencia
             }).ToList(),
             Equipos = modelo.Equipos.Select(e => new
             {
-                e.Id,
-                e.Consecutivo,
-                e.EquipoCodigo,
+                e.CodigoEquipo,
                 e.Utilizado
             }).ToList()
         };
 
         var response = esEdicion
-            ? await _http.PutAsJsonAsync($"api/plantillas/{modelo.Id}", request)
+            ? await _http.PutAsJsonAsync($"api/plantillas/{modelo.Plantilla}", request)
             : await _http.PostAsJsonAsync("api/plantillas", request);
 
         return await response.Content.ReadFromJsonAsync<ApiResponse<PlantillaModel>>();
     }
 
-    public async Task<ApiResponse<PlantillaModel>?> CopiarAsync(Guid id, string? codigo, string? nombre)
+    public async Task<ApiResponse<PlantillaModel>?> CopiarAsync(long plantilla, string? descripcionTrabajo)
     {
         var response = await _http.PostAsJsonAsync(
-            $"api/plantillas/{id}/copiar", new { Codigo = codigo, Nombre = nombre });
+            $"api/plantillas/{plantilla}/copiar", new { DescripcionTrabajo = descripcionTrabajo });
         return await response.Content.ReadFromJsonAsync<ApiResponse<PlantillaModel>>();
     }
 
-    public async Task<bool> DarDeBajaAsync(Guid id)
+    public async Task<bool> DarDeBajaAsync(long plantilla)
     {
-        var response = await _http.DeleteAsync($"api/plantillas/{id}");
+        var response = await _http.DeleteAsync($"api/plantillas/{plantilla}");
         var resultado = await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
         return resultado?.Exito == true;
     }

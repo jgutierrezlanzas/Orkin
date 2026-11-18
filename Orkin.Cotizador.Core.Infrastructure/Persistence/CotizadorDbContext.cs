@@ -40,10 +40,12 @@ public class CotizadorDbContext : DbContext
     public DbSet<DetalleInsumo> DetalleInsumo => Set<DetalleInsumo>();
     public DbSet<DetalleAmortizable> DetalleAmortizable => Set<DetalleAmortizable>();
     public DbSet<CotizacionAprobacion> CotizacionAprobacion => Set<CotizacionAprobacion>();
-    public DbSet<Plantilla> Plantilla => Set<Plantilla>();
-    public DbSet<PlantillaDetalle> PlantillaDetalle => Set<PlantillaDetalle>();
-    public DbSet<PlantillaServicio> PlantillaServicio => Set<PlantillaServicio>();
-    public DbSet<PlantillaEquipo> PlantillaEquipo => Set<PlantillaEquipo>();
+    // Plantillas: se gestionan las tablas legacy existentes, no se crean tablas nuevas (D-22).
+    // ExcludeFromMigrations en la configuración: EF las mapea pero no intenta crearlas.
+    public DbSet<PlantillaOrdenTrabajo> PlantillaOrdenTrabajo => Set<PlantillaOrdenTrabajo>();
+    public DbSet<PlantillaOrdenTrabajoDetalle> PlantillaOrdenTrabajoDetalle => Set<PlantillaOrdenTrabajoDetalle>();
+    public DbSet<PlantillaOrdenTrabajoServicio> PlantillaOrdenTrabajoServicio => Set<PlantillaOrdenTrabajoServicio>();
+    public DbSet<PlantillaOrdenTrabajoEquipos> PlantillaOrdenTrabajoEquipos => Set<PlantillaOrdenTrabajoEquipos>();
     public DbSet<ParametroGeneral> ParametroGeneral => Set<ParametroGeneral>();
     public DbSet<Consecutivo> Consecutivo => Set<Consecutivo>();
     public DbSet<NotificacionEnviada> NotificacionEnviada => Set<NotificacionEnviada>();
@@ -890,76 +892,72 @@ public class CotizadorDbContext : DbContext
         aprobacion.HasOne(a => a.Cotizacion).WithMany(c => c.Aprobaciones).HasForeignKey(a => a.CotizacionId).OnDelete(DeleteBehavior.Cascade);
         aprobacion.HasOne(a => a.Estado).WithMany().HasForeignKey(a => a.EstadoId).OnDelete(DeleteBehavior.Restrict);
 
-        // ── dbo.Plantilla y sus tres hijas (Fase 2) ───────────────────────────────
-        // D-20: las columnas que en el legacy apuntaban a vv* (locación, vehículo, plaga,
-        // lugar a tratar, dosificación, método, frecuencia, equipo) se guardan como código
-        // texto. Solo se declaran FK a catálogos que sí viven en la plataforma.
-        var plantilla = modelBuilder.Entity<Plantilla>();
-        ConfigurarBase(plantilla);
-        plantilla.ToTable("Plantilla", Esquemas.Negocio);
-        plantilla.Property(p => p.Codigo).HasColumnName("Codigo").HasMaxLength(30).IsRequired();
-        plantilla.Property(p => p.Nombre).HasColumnName("Nombre").HasMaxLength(150).IsRequired();
-        plantilla.Property(p => p.LocacionCodigo).HasColumnName("LocacionCodigo").HasMaxLength(50);
-        plantilla.Property(p => p.Direccion).HasColumnName("Direccion").HasMaxLength(300);
-        plantilla.Property(p => p.Contacto).HasColumnName("Contacto").HasMaxLength(150);
-        plantilla.Property(p => p.Telefono).HasColumnName("Telefono").HasMaxLength(30);
-        plantilla.Property(p => p.VehiculoCodigo).HasColumnName("VehiculoCodigo").HasMaxLength(50);
-        plantilla.Property(p => p.DescripcionTrabajo).HasColumnName("DescripcionTrabajo").HasMaxLength(1000);
-        plantilla.Property(p => p.Notas).HasColumnName("Notas").HasMaxLength(2000);
-        plantilla.HasIndex(p => p.Codigo).IsUnique().HasDatabaseName("UX_Plantilla_Codigo");
-        plantilla.HasOne(p => p.Cliente).WithMany().HasForeignKey(p => p.ClienteId).OnDelete(DeleteBehavior.Restrict);
-        plantilla.HasOne(p => p.Tecnico).WithMany().HasForeignKey(p => p.TecnicoId).OnDelete(DeleteBehavior.Restrict);
+        ConfigurarPlantillasLegacy(modelBuilder);
+    }
 
-        var plantillaDetalle = modelBuilder.Entity<PlantillaDetalle>();
-        ConfigurarBase(plantillaDetalle, conIsActive: false);
-        plantillaDetalle.ToTable("PlantillaDetalle", Esquemas.Negocio, t =>
-        {
-            t.HasCheckConstraint("CK_PlantillaDetalle_Consecutivo", "[Consecutivo] >= 1");
-            t.HasCheckConstraint("CK_PlantillaDetalle_Cantidad", "[Cantidad] >= 0");
-            t.HasCheckConstraint("CK_PlantillaDetalle_CostoTotal", "[CostoTotal] >= 0");
-            t.HasCheckConstraint("CK_PlantillaDetalle_MaximoPermitido", "[MaximoPermitido] >= 0");
-        });
-        plantillaDetalle.Property(d => d.Consecutivo).HasColumnName("Consecutivo");
-        plantillaDetalle.Property(d => d.DescripcionArticulo).HasColumnName("DescripcionArticulo").HasMaxLength(250);
-        plantillaDetalle.Property(d => d.TipoPlagaCodigo).HasColumnName("TipoPlagaCodigo").HasMaxLength(50);
-        plantillaDetalle.Property(d => d.LugarTratarCodigo).HasColumnName("LugarTratarCodigo").HasMaxLength(50);
-        plantillaDetalle.Property(d => d.Area).HasColumnName("Area").HasMaxLength(150);
-        plantillaDetalle.Property(d => d.Concentracion).HasColumnName("Concentracion").HasMaxLength(100);
-        plantillaDetalle.Property(d => d.DosificacionCodigo).HasColumnName("DosificacionCodigo").HasMaxLength(50);
-        plantillaDetalle.Property(d => d.MetodoAplicacionCodigo).HasColumnName("MetodoAplicacionCodigo").HasMaxLength(50);
-        plantillaDetalle.Property(d => d.Cantidad).HasColumnName("Cantidad").HasPrecision(18, 4);
-        plantillaDetalle.Property(d => d.CostoUnitario).HasColumnName("CostoUnitario").HasPrecision(18, 6);
-        plantillaDetalle.Property(d => d.CostoTotal).HasColumnName("CostoTotal").HasPrecision(18, 6);
-        plantillaDetalle.Property(d => d.MaximoPermitido).HasColumnName("MaximoPermitido").HasPrecision(18, 4);
-        plantillaDetalle.HasIndex(d => new { d.PlantillaId, d.Consecutivo }).IsUnique()
-            .HasDatabaseName("UX_PlantillaDetalle_Plantilla_Consecutivo");
-        plantillaDetalle.HasOne(d => d.Plantilla).WithMany(p => p.Detalles)
-            .HasForeignKey(d => d.PlantillaId).OnDelete(DeleteBehavior.Cascade);
-        plantillaDetalle.HasOne(d => d.Producto).WithMany().HasForeignKey(d => d.ProductoId).OnDelete(DeleteBehavior.Restrict);
-        plantillaDetalle.HasOne(d => d.UnidadMedida).WithMany().HasForeignKey(d => d.UnidadMedidaId).OnDelete(DeleteBehavior.Restrict);
+    /// <summary>
+    /// Plantillas: D-22. Las cuatro tablas YA EXISTEN en <c>SINCOERPORKIN</c> con los nombres,
+    /// tipos y claves del WinForms. Se mapean con <c>ExcludeFromMigrations</c> para que EF sepa
+    /// leerlas/escribirlas pero NUNCA intente crearlas ni alterarlas: la estructura es del ERP.
+    /// <para>
+    /// No se declaran relaciones entre cabecera e hijos: la cabecera usa <c>bigint</c> y los
+    /// hijos <c>int</c>, y en la BD legacy no hay FK. El servicio carga los hijos filtrando por
+    /// <c>PLANTILLA</c>, que es exactamente lo que hacía el repositorio del WinForms.
+    /// </para>
+    /// </summary>
+    private static void ConfigurarPlantillasLegacy(ModelBuilder modelBuilder)
+    {
+        var cabecera = modelBuilder.Entity<PlantillaOrdenTrabajo>();
+        cabecera.ToTable("Plantilla_Orden_Trabajo", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        cabecera.HasKey(p => p.Plantilla);
+        cabecera.Property(p => p.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        cabecera.Property(p => p.Cliente).HasColumnName("CLIENTE").HasMaxLength(20).IsUnicode(false);
+        cabecera.Property(p => p.Locacion).HasColumnName("LOCACION").HasMaxLength(5).IsUnicode(false);
+        cabecera.Property(p => p.Direccion).HasColumnName("DIRECCION").HasMaxLength(100).IsUnicode(false);
+        cabecera.Property(p => p.Tecnico).HasColumnName("TECNICO").HasMaxLength(4).IsUnicode(false);
+        cabecera.Property(p => p.Contacto).HasColumnName("CONTACTO").HasMaxLength(35).IsUnicode(false);
+        cabecera.Property(p => p.Telefono).HasColumnName("TELEFONO").HasMaxLength(10).IsUnicode(false);
+        cabecera.Property(p => p.Vehiculo).HasColumnName("VEHICULO").HasMaxLength(4).IsUnicode(false);
+        cabecera.Property(p => p.DescripTrabajo).HasColumnName("DESCRIP_TRABAJO").HasMaxLength(100).IsUnicode(false);
+        cabecera.Property(p => p.Notas).HasColumnName("NOTAS").HasMaxLength(100).IsUnicode(false);
+        cabecera.Property(p => p.Activo).HasColumnName("ACTIVO").HasMaxLength(2).IsUnicode(false).IsRequired();
+        cabecera.Property(p => p.FechaCreacion).HasColumnName("FECHA_CREACION").HasColumnType("date");
+        cabecera.Property(p => p.UsuarioCreacion).HasColumnName("USUARIO_CREACION").HasMaxLength(25).IsUnicode(false);
 
-        var plantillaServicio = modelBuilder.Entity<PlantillaServicio>();
-        ConfigurarBase(plantillaServicio, conIsActive: false);
-        plantillaServicio.ToTable("PlantillaServicio", Esquemas.Negocio,
-            t => t.HasCheckConstraint("CK_PlantillaServicio_Consecutivo", "[Consecutivo] >= 1"));
-        plantillaServicio.Property(s => s.Consecutivo).HasColumnName("Consecutivo");
-        plantillaServicio.Property(s => s.FrecuenciaCodigo).HasColumnName("FrecuenciaCodigo").HasMaxLength(50);
-        plantillaServicio.HasIndex(s => new { s.PlantillaId, s.Consecutivo }).IsUnique()
-            .HasDatabaseName("UX_PlantillaServicio_Plantilla_Consecutivo");
-        plantillaServicio.HasOne(s => s.Plantilla).WithMany(p => p.Servicios)
-            .HasForeignKey(s => s.PlantillaId).OnDelete(DeleteBehavior.Cascade);
-        plantillaServicio.HasOne(s => s.TipoServicio).WithMany().HasForeignKey(s => s.TipoServicioId).OnDelete(DeleteBehavior.Restrict);
+        var detalle = modelBuilder.Entity<PlantillaOrdenTrabajoDetalle>();
+        detalle.ToTable("Plantilla_Orden_Trabajo_Detalle", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        detalle.HasKey(d => new { d.Plantilla, d.Consecutivo });
+        detalle.Property(d => d.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        detalle.Property(d => d.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
+        detalle.Property(d => d.CodigoArticulo).HasColumnName("CODIGO_ARTICULO").HasMaxLength(10).IsUnicode(false);
+        detalle.Property(d => d.DescripArticulo).HasColumnName("DESCRIP_ARTICULO").HasMaxLength(50).IsUnicode(false);
+        detalle.Property(d => d.TipoPlaga).HasColumnName("TIPO_PLAGA").HasMaxLength(4).IsUnicode(false);
+        detalle.Property(d => d.LugarTratar).HasColumnName("LUGAR_TRATAR").HasMaxLength(100).IsUnicode(false);
+        detalle.Property(d => d.Area).HasColumnName("AREA").HasPrecision(15, 2);
+        detalle.Property(d => d.Concentracion).HasColumnName("CONCENTRACION").HasMaxLength(20).IsUnicode(false);
+        detalle.Property(d => d.CodigoDosificacion).HasColumnName("CODIGO_DOSIFICACION").HasMaxLength(4).IsUnicode(false);
+        detalle.Property(d => d.MetodoAplicacion).HasColumnName("METODO_APLICACION").HasMaxLength(4).IsUnicode(false);
+        detalle.Property(d => d.Cantidad).HasColumnName("CANTIDAD").HasPrecision(18, 0);
+        detalle.Property(d => d.Umedida).HasColumnName("UMEDIDA").HasMaxLength(6).IsUnicode(false);
+        detalle.Property(d => d.CostoUnitario).HasColumnName("COSTO_UNITARIO").HasPrecision(18, 6);
+        detalle.Property(d => d.CostoTotal).HasColumnName("COSTO_TOTAL").HasPrecision(15, 2);
+        detalle.Property(d => d.MaximoPermitido).HasColumnName("MAXIMO_PERMITIDO").HasPrecision(18, 0);
 
-        var plantillaEquipo = modelBuilder.Entity<PlantillaEquipo>();
-        ConfigurarBase(plantillaEquipo, conIsActive: false);
-        plantillaEquipo.ToTable("PlantillaEquipo", Esquemas.Negocio,
-            t => t.HasCheckConstraint("CK_PlantillaEquipo_Consecutivo", "[Consecutivo] >= 1"));
-        plantillaEquipo.Property(e => e.Consecutivo).HasColumnName("Consecutivo");
-        plantillaEquipo.Property(e => e.EquipoCodigo).HasColumnName("EquipoCodigo").HasMaxLength(50);
-        plantillaEquipo.HasIndex(e => new { e.PlantillaId, e.Consecutivo }).IsUnique()
-            .HasDatabaseName("UX_PlantillaEquipo_Plantilla_Consecutivo");
-        plantillaEquipo.HasOne(e => e.Plantilla).WithMany(p => p.Equipos)
-            .HasForeignKey(e => e.PlantillaId).OnDelete(DeleteBehavior.Cascade);
+        var servicio = modelBuilder.Entity<PlantillaOrdenTrabajoServicio>();
+        servicio.ToTable("Plantilla_Orden_Trabajo_Servicio", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        servicio.HasKey(s => new { s.Plantilla, s.Consecutivo, s.CodigoServicio, s.CodigoFrecuencia });
+        servicio.Property(s => s.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        servicio.Property(s => s.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
+        servicio.Property(s => s.CodigoServicio).HasColumnName("CODIGO_SERVICIO").HasMaxLength(4).IsUnicode(false);
+        servicio.Property(s => s.CodigoFrecuencia).HasColumnName("CODIGO_FRECUENCIA").HasMaxLength(4).IsUnicode(false);
+
+        var equipos = modelBuilder.Entity<PlantillaOrdenTrabajoEquipos>();
+        equipos.ToTable("Plantilla_Orden_Trabajo_Equipos", Esquemas.Negocio, t => t.ExcludeFromMigrations());
+        equipos.HasKey(e => new { e.Plantilla, e.Consecutivo });
+        equipos.Property(e => e.Plantilla).HasColumnName("PLANTILLA").ValueGeneratedNever();
+        equipos.Property(e => e.Consecutivo).HasColumnName("CONSECUTIVO").ValueGeneratedNever();
+        equipos.Property(e => e.CodigoEquipo).HasColumnName("CODIGO_EQUIPO").HasMaxLength(4).IsUnicode(false);
+        equipos.Property(e => e.Utilizado).HasColumnName("UTILIZADO").HasMaxLength(2).IsUnicode(false);
     }
 
     // ═════════════════════════════════════════════════════════════════════════════

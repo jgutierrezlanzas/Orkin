@@ -7,6 +7,8 @@
 > **Principio rector:** no se migra código, se migran **capacidades**. Se conservan las reglas de negocio válidas y se corrigen los defectos del legacy (SQL concatenado, credenciales incrustadas, estados ambiguos, servicios incompletos). El cotizador es el **módulo 1**; este roadmap cubre el resto de las opciones que hoy solo existen en el WinForms.
 >
 > **Regla de oro de catálogos (D-20):** **no se copian a la plataforma catálogos que ya existen en SOFTLAND/FUMIPLAGA o en las vistas `vv*` de `SINCOERPORKIN`.** Solo se modelan localmente los datos que el cotizador realmente necesita y que no tienen origen en esos sistemas. Si el dato ya está en el ERP, se consume desde ahí (vista o conexión configurada), se homologa en tablas y se muestra en la grilla del flujo ETL; no se crea una tabla paralela "por si acaso".
+>
+> **Regla de oro de lo legacy (D-22):** para las capacidades del WinForms **se usan las estructuras de BD que ya existen** (`Plantilla_Orden_Trabajo`, `_Detalle`, `_Servicio`, `_Equipos`, `Plantilla_Calendario`, `TmpPlantillas`). Lo que se migra es **cómo se gestionan y se visualizan** (API + frontend), no su esquema. No se crean tablas nuevas ni se importan datos a tablas paralelas.
 
 ---
 
@@ -80,7 +82,8 @@ Leyenda de estado: ✅ ya cubierto · 🔶 parcial · 🆕 por construir · ❓ 
 |---|---|---|
 | Ya cubiertas por el cotizador | `ParametrosGenerales`, `Seguridad_*` (parcial) | Mapear a `dbo.ParametroGeneral`, `seg.Usuario`, `seg.Rol`, `seg.Permiso` |
 | Catálogos a crear/confirmar | Maestros `U_*` vía vistas `vv*` | ETL con homologación + simulación (patrón yaImplementado) |
-| Núcleo operativo nuevo | `Plantilla_Orden_Trabajo*`, `Orden_Trabajo*`, `Requisa*`, `ProgramacionVisita*`, `Documento_Inv*` | Modelo EF Core propio, con `Codigo`/`Numero` consecutivo y auditoría |
+| Núcleo operativo legacy (D-22) | `Plantilla_Orden_Trabajo`, `_Detalle`, `_Servicio`, `_Equipos` | **Tablas existentes, mapeadas tal cual** con `ExcludeFromMigrations()`. Clave `PLANTILLA` (`bigint`, sin identity), hijos con `int`, `ACTIVO = SI/NO`, consecutivos `MAX + 1`. No se crean tablas ni se importan datos. |
+| Núcleo operativo nuevo | `Orden_Trabajo*`, `Requisa*`, `ProgramacionVisita*`, `Documento_Inv*` | Modelo EF Core propio sobre las estructuras del ERP, con `Codigo`/`Numero` consecutivo y auditoría |
 | Técnicas/puente | `NotificarProgramacionVisitaTemporal`, `NotificacionesEnviadas`, `logs` | Sustituir por `int.JobEjecucion`, `aud.Notificacion`, `aud.Bitacora` |
 | A decidir | `Plantilla_Calendario` | Depende de si se conserva Google Calendar o se crea agenda propia |
 
@@ -165,17 +168,19 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ---
 
-### Fase 2 — Plantillas ✅ Completada
-**Objetivo:** reemplazar `FrmPlantillas` / `FrmCrudPlantillas`, base de visitas y órdenes.
+### Fase 2 — Plantillas ✅ Completada (corregida por D-22)
+**Objetivo:** reemplazar la **gestión y visualización** de `FrmPlantillas` / `FrmCrudPlantillas`, sin tocar el esquema de sus tablas.
+
+> ⚠️ **Corrección aplicada:** la primera implementación creó `dbo.Plantilla`, `PlantillaDetalle`, `PlantillaServicio` y `PlantillaEquipo`. Eso **no era válido**: D-22 exige operar sobre las tablas legacy que ya están en `SINCOERPORKIN`. La migración `20261118000037_PlantillasSoloLegacy` eliminó esas cuatro tablas nuevas (estaban vacías) y las entidades/API/UI se reescribieron sobre `Plantilla_Orden_Trabajo*`. Las tablas legacy se mapean con `ExcludeFromMigrations()`: EF las lee y escribe, pero nunca las crea ni las altera.
 
 **Entregables**
-- ✅ Entidades `Plantilla`, `PlantillaDetalle`, `PlantillaServicio`, `PlantillaEquipo`, con su migración (`20261117203820_PlantillasFase2`) aplicada a `SINCOERPORKIN`. Convenio de clave: solo FK locales a `Cliente`, `Tecnico`, `Producto` y `UnidadMedida`; el resto de los campos ERP se guardan como códigos texto (Fase 2, D-21).
-- ✅ Listado con filtros (texto, cliente, técnico, solo activas), alta, edición, eliminación lógica y **Copiar plantilla**, en `/plantillas` con diálogo compuesto por pestañas.
-- ✅ Detalle de producto con tipo de plaga, lugar a tratar, dosificación, concentración, método, cantidad y máximo permitido. La copia conserva siempre `MAXIMO_PERMITIDO` (corrige el defecto del copiador legacy, que lo omitía).
+- ✅ Entidades `PlantillaOrdenTrabajo`, `PlantillaOrdenTrabajoDetalle`, `PlantillaOrdenTrabajoServicio` y `PlantillaOrdenTrabajoEquipos`, mapeadas a las tablas reales con sus claves compuestas y columnas `varchar`/`decimal` originales. Clave `PLANTILLA` (`bigint`, sin identity) asignada por `MAX + 1`; auditoría `FECHA_CREACION` / `USUARIO_CREACION`; baja lógica `ACTIVO = NO` (no borrado físico, para no romper `Plantilla_Calendario`).
+- ✅ Listado con filtros (texto, cliente, solo activas), alta, edición, baja y **Copiar plantilla**, en `/plantillas` con diálogo de pestañas. El alta exige cliente, locación, producto, servicio y equipo; `TECNICO` y `VEHICULO` quedan vacíos como en el WinForms. `COSTO_TOTAL = CANTIDAD × COSTO_UNITARIO`; `UMEDIDA` se conserva tal cual (sin normalizar).
+- ✅ Detalle de producto con tipo de plaga, lugar a tratar, dosificación, concentración, método, cantidad y `MAXIMO_PERMITIDO`. La copia conserva siempre `MAXIMO_PERMITIDO` (corrige el defecto del copiador legacy, que lo omitía). Los catálogos ERP se capturan como código texto (D-20), sin tablas paralelas ni FK locales.
 - ✅ Permisos sembrados en BD: `PLANTILLAS.VER` (Administrador, Supervisor, Vendedor), `.EDITAR`, `.COPIAR` y `.ELIMINAR` (Administrador, Supervisor).
-- ✅ Verificado: build `0 Errores`, tests `87/87`, ciclo API end-to-end (alta → listado → copia → edición con reconciliación por `Id` → baja lógica → `401` sin token) y UI `/plantillas` sin errores de consola. Sin registros de prueba en BD.
+- ✅ Verificado: build `0 Errores`, tests `88/88`, migración aplicada (0 tablas nuevas; `PlantillasSoloLegacy` es la última en `__EFMigrationsHistory`) y API end-to-end contra datos reales: `soloActivas=true` → **3.218**, `soloActivas=false` → **3.503**, detalle de la plantilla 1 con 4 productos / 1 servicio / 1 equipo y nombres de cliente de `dbo.Cliente`. Sin registros `PRUEBA/TEST/DEMO`.
 
-**Dependencias:** Fase 1 (catálogos de detalle). **Riesgo:** medio — fue la primera entidad compuesta; resuelto con reconciliación explícita por `Id` y estados `Added`/`Deleted` en el `DbContext`.
+**Dependencias:** Fase 1 (catálogos compartidos). **Riesgo:** medio — resuelto respetando las claves compuestas y los códigos ERP del legacy, sin migración de datos ni reconciliación por `Id` artificial.
 
 ---
 
@@ -313,18 +318,19 @@ El sidebar es de la **plataforma**, no del cotizador:
 | 6 | Usuarios legacy `Seguridad_Usuarios` | Mapear a `seg.Usuario` e importar sin passwords en claro. |
 | 7 | **D-20 — catálogos duplicados** | **No copiar a la plataforma catálogos que ya existen en SOFTLAND/FUMIPLAGA o en `SINCOERPORKIN.vv*`.** Solo modelar localmente lo que el cotizador realmente necesita y no tiene origen. Se cancela `AgregarCatalogosLegacy` y se retiran los 6 catálogos nuevos. |
 | 8 | **D-21 — catálogo compartido y menú** | Una sola copia de cada catálogo, una sola API y un solo grupo `Catálogos compartidos` en el menú, consumido por cotizador y por los módulos legacy. Todo termina viniendo de Softland; no se crean catálogos por aplicación. |
+| 9 | **D-22 — BD legacy existente** | Las capacidades del WinForms operan sobre **las tablas que ya existen** en `SINCOERPORKIN` (`Plantilla_Orden_Trabajo*`, `Plantilla_Calendario`, `TmpPlantillas`, etc.). Se migra la API y el frontend, **no el esquema**: no se crean tablas nuevas ni se importan datos a tablas paralelas. Se corrige la Fase 2, que había creado `dbo.Plantilla` y sus hijas; esas tablas se eliminaron con `PlantillasSoloLegacy`. |
 
 ---
 
 ## 7. Próximo paso concreto
 
-Con las decisiones de la §6 ya cerradas, el siguiente trabajo es la **Fase 1**:
+Con D-20, D-21 y D-22 cerrados y las fases 0–2 completadas, el siguiente trabajo es la **Fase 3 — Programación de visitas**:
 
-1. **Retirar del código** la migración `AgregarCatalogosLegacy` y las entidades/servicios/cargadores/controllers de los 6 catálogos ya existentes en el ERP, conforme a D-20.
-2. Terminar la UI de los catálogos propios que sí usa el cotizador (técnicos, unidades, categorías, tipos de servicio, productos, clientes, tipos de cambio).
-3. Resolver `Cotizacion.TecnicoAsignadoId` y la selección de técnicos en `CotizacionesController.Opciones`.
-4. Verificar duplicados y datos de prueba en los catálogos propios; no crear flujos nuevos para catálogos del ERP.
-5. Mantener el sidebar con el grupo `Catálogos compartidos` (ya ajustado) y agregar `Operación` solo cuando cada página exista; nunca duplicar un catálogo entre grupos.
+1. Mantener el principio D-22 desde el primer día: `Plantilla_Calendario` **ya existe**; la agenda propia y su importador deben leer/escribir esa tabla y las de programación del ERP, sin crear tablas de visitas paralelas.
+2. Reutilizar el catálogo único compartido (técnicos, clientes, plantillas) y la API única; no duplicar catálogos por módulo (D-21).
+3. Respetar la regla legacy: una plantilla no se elimina físicamente mientras tenga filas en `Plantilla_Calendario`.
+4. Verificar la UI `/plantillas` en navegador (grilla con 3.218 activas de 3.503, sin errores de consola) antes de seguir con la agenda.
+5. Mantener el sidebar con `Catálogos compartidos` y agregar páginas a `Operación` solo cuando existan; nunca duplicar un catálogo entre grupos.
 
 ---
 

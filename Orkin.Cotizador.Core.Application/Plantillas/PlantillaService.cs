@@ -1,415 +1,519 @@
 using Microsoft.EntityFrameworkCore;
+using Orkin.Cotizador.Core.Domain.Comun;
 using Orkin.Cotizador.Core.Domain.Entidades;
 using Orkin.Cotizador.Core.Infrastructure.Persistence;
 
 namespace Orkin.Cotizador.Core.Application.Plantillas;
 
+/// <summary>Una plantilla para la grilla: cabecera legacy + conteos + nombre de cliente.</summary>
+public sealed record PlantillaResumen(
+    PlantillaOrdenTrabajo Cabecera,
+    int Detalles,
+    int Servicios,
+    int Equipos,
+    string? ClienteNombre);
+
+/// <summary>Una plantilla completa: cabecera legacy y sus tres colecciones en las tablas originales.</summary>
+public sealed record PlantillaCompleta(
+    PlantillaOrdenTrabajo Cabecera,
+    IReadOnlyList<PlantillaOrdenTrabajoDetalle> Detalles,
+    IReadOnlyList<PlantillaOrdenTrabajoServicio> Servicios,
+    IReadOnlyList<PlantillaOrdenTrabajoEquipos> Equipos,
+    string? ClienteNombre);
+
+/// <summary>Datos editables de una plantilla. Las claves (<c>PLANTILLA</c>, <c>CONSECUTIVO</c>) las
+/// asigna el servicio, igual que hacía <c>PlantillasRepository</c> con <c>MAX + 1</c>.</summary>
+public sealed record PlantillaGuardar(
+    string? Cliente,
+    string? Locacion,
+    string? Direccion,
+    string? Tecnico,
+    string? Contacto,
+    string? Telefono,
+    string? Vehiculo,
+    string? DescripTrabajo,
+    string? Notas,
+    string? Activo,
+    IReadOnlyList<PlantillaOrdenTrabajoDetalle> Detalles,
+    IReadOnlyList<PlantillaOrdenTrabajoServicio> Servicios,
+    IReadOnlyList<PlantillaOrdenTrabajoEquipos> Equipos);
+
 /// <summary>
-/// Catálogo compuesto de plantillas de orden de trabajo (Fase 2). Una sola entidad para la
-/// plataforma: la usará la orden de trabajo y la agenda de visitas sin duplicar plantillas por
-/// módulo (D-21).
+/// Gestión de las plantillas del WinForms sobre <b>sus propias tablas</b>:
+/// <c>Plantilla_Orden_Trabajo</c>, <c>_Detalle</c>, <c>_Servicio</c> y <c>_Equipos</c> (D-22).
 /// <para>
-/// Las líneas se reconcilian por <c>Id</c>: las que vienen con Id se actualizan, las que no se
-/// agregan y las que ya no están se quitan de la colección. El borrado lógico es solo de la
-/// cabecera (<see cref="Plantilla.IsActive"/>); las líneas viven mientras viva su plantilla.
+/// No hay tablas paralelas ni migración de datos: lo que se migró es esta lógica (antes en
+/// <c>PlantillasRepository</c> y <c>FrmCrudPlantillas</c>), respetando claves, códigos ERP,
+/// <c>ACTIVO = SI/NO</c> y los consecutivos <c>MAX + 1</c> del legacy.
 /// </para>
 /// </summary>
 public sealed class PlantillaService
 {
-    private readonly CotizadorDbContext _contexto;
+    private const string ActivoSi = "SI";
+    private const string ActivoNo = "NO";
 
-    public PlantillaService(CotizadorDbContext contexto)
+    private readonly CotizadorDbContext _contexto;
+    private readonly IContextoUsuario _usuario;
+
+    public PlantillaService(CotizadorDbContext contexto, IContextoUsuario? usuario = null)
     {
         _contexto = contexto;
+        _usuario = usuario ?? new ContextoUsuarioSistema();
     }
 
-    private IQueryable<Plantilla> ConsultaCompleta() => _contexto.Plantilla
-        .Include(p => p.Cliente)
-        .Include(p => p.Tecnico)
-        .Include(p => p.Detalles).ThenInclude(d => d.Producto)
-        .Include(p => p.Detalles).ThenInclude(d => d.UnidadMedida)
-        .Include(p => p.Servicios).ThenInclude(s => s.TipoServicio)
-        .Include(p => p.Equipos);
+    // ── Lectura ───────────────────────────────────────────────────────────────────
 
-    public async Task<IReadOnlyList<Plantilla>> ListarAsync(
+    public async Task<IReadOnlyList<PlantillaResumen>> ListarAsync(
         string? texto = null,
-        Guid? clienteId = null,
-        Guid? tecnicoId = null,
+        string? cliente = null,
         bool soloActivas = true,
         CancellationToken cancellationToken = default)
     {
-        var query = ConsultaCompleta().AsNoTracking();
+        var consulta = _contexto.PlantillaOrdenTrabajo.AsNoTracking();
 
         if (soloActivas)
         {
-            query = query.Where(p => p.IsActive);
+            consulta = consulta.Where(p => p.Activo == ActivoSi);
         }
 
-        if (clienteId is { } idCliente)
+        if (!string.IsNullOrWhiteSpace(cliente))
         {
-            query = query.Where(p => p.ClienteId == idCliente);
+            consulta = consulta.Where(p => p.Cliente == cliente.Trim());
         }
 
-        if (tecnicoId is { } idTecnico)
+        var filtro = texto?.Trim();
+        if (!string.IsNullOrWhiteSpace(filtro))
         {
-            query = query.Where(p => p.TecnicoId == idTecnico);
+            // El legacy buscaba por nombre de cliente y descripción. Acá además se busca por el
+            // número de plantilla cuando el filtro es numérico (la grilla nueva lo muestra).
+            var esNumero = long.TryParse(filtro, out var numero);
+            consulta = consulta.Where(p =>
+                (p.DescripTrabajo ?? string.Empty).Contains(filtro) ||
+                (p.Cliente ?? string.Empty).Contains(filtro) ||
+                (p.Locacion ?? string.Empty).Contains(filtro) ||
+                (esNumero && p.Plantilla == numero));
         }
 
-        if (!string.IsNullOrWhiteSpace(texto))
-        {
-            var patron = $"%{texto.Trim()}%";
-            query = query.Where(p =>
-                EF.Functions.Like(p.Codigo, patron) || EF.Functions.Like(p.Nombre, patron));
-        }
-
-        return await query
-            .OrderBy(p => p.Nombre)
-            .ThenBy(p => p.Codigo)
+        var cabeceras = await consulta
+            .OrderBy(p => p.Plantilla)
             .ToListAsync(cancellationToken);
+
+        if (cabeceras.Count == 0)
+        {
+            return [];
+        }
+
+        // Las hijas se cuentan por rango de PLANTILLA en vez de por IN (...): hay más de 3.500
+        // plantillas y un IN con todos los ids supera el límite de parámetros de SQL Server.
+        var desde = LimiteInt(cabeceras.Min(p => p.Plantilla));
+        var hasta = LimiteInt(cabeceras.Max(p => p.Plantilla));
+
+        var detalles = await ConteoDetallesAsync(desde, hasta, cancellationToken);
+        var servicios = await ConteoServiciosAsync(desde, hasta, cancellationToken);
+        var equipos = await ConteoEquiposAsync(desde, hasta, cancellationToken);
+
+        var nombresCliente = await NombresClienteAsync(
+            cabeceras.Select(p => p.Cliente).Where(c => !string.IsNullOrWhiteSpace(c)).Distinct(),
+            cancellationToken);
+
+        return cabeceras.Select(p => new PlantillaResumen(
+            p,
+            detalles.GetValueOrDefault(p.Plantilla),
+            servicios.GetValueOrDefault(p.Plantilla),
+            equipos.GetValueOrDefault(p.Plantilla),
+            p.Cliente is null ? null : nombresCliente.GetValueOrDefault(p.Cliente))).ToList();
     }
 
-    public async Task<Plantilla?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default)
-        => await ConsultaCompleta().AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
-
-    public async Task<Plantilla> CrearAsync(
-        string codigo,
-        string nombre,
-        Guid? clienteId,
-        string? locacionCodigo,
-        string? direccion,
-        Guid? tecnicoId,
-        string? contacto,
-        string? telefono,
-        string? vehiculoCodigo,
-        string? descripcionTrabajo,
-        string? notas,
-        IReadOnlyList<PlantillaDetalle> detalles,
-        IReadOnlyList<PlantillaServicio> servicios,
-        IReadOnlyList<PlantillaEquipo> equipos,
+    public async Task<PlantillaCompleta?> ObtenerAsync(
+        long plantilla,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(codigo);
-        ArgumentException.ThrowIfNullOrWhiteSpace(nombre);
+        var cabecera = await _contexto.PlantillaOrdenTrabajo
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Plantilla == plantilla, cancellationToken);
 
-        codigo = codigo.Trim().ToUpperInvariant();
-
-        if (await _contexto.Plantilla.AnyAsync(p => p.Codigo == codigo, cancellationToken))
+        if (cabecera is null)
         {
-            throw new InvalidOperationException($"Ya existe una plantilla con el código '{codigo}'.");
+            return null;
         }
 
-        var entidad = new Plantilla
+        return await CompletaAsync(cabecera, cancellationToken);
+    }
+
+    // ── Escritura ─────────────────────────────────────────────────────────────────
+
+    public async Task<PlantillaCompleta> CrearAsync(
+        PlantillaGuardar datos,
+        CancellationToken cancellationToken = default)
+    {
+        Validar(datos);
+
+        var numero = await SiguientePlantillaAsync(cancellationToken);
+        var cabecera = new PlantillaOrdenTrabajo
         {
-            Id = Guid.NewGuid(),
-            Codigo = codigo,
-            Nombre = nombre.Trim(),
-            ClienteId = clienteId,
-            LocacionCodigo = locacionCodigo?.Trim(),
-            Direccion = direccion?.Trim(),
-            TecnicoId = tecnicoId,
-            Contacto = contacto?.Trim(),
-            Telefono = telefono?.Trim(),
-            VehiculoCodigo = vehiculoCodigo?.Trim(),
-            DescripcionTrabajo = descripcionTrabajo?.Trim(),
-            Notas = notas?.Trim(),
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            Plantilla = numero,
+            Cliente = Limite(datos.Cliente, 20),
+            Locacion = Limite(datos.Locacion, 5),
+            Direccion = Limite(datos.Direccion, 100),
+            // El WinForms dejaba TECNICO y VEHICULO vacíos en el alta (FrmCrudPlantillas).
+            Tecnico = Limite(datos.Tecnico, 4) ?? string.Empty,
+            Contacto = Limite(datos.Contacto, 35),
+            Telefono = Limite(datos.Telefono, 10),
+            Vehiculo = Limite(datos.Vehiculo, 4) ?? string.Empty,
+            DescripTrabajo = Limite(datos.DescripTrabajo, 100),
+            Notas = Limite(datos.Notas, 100),
+            Activo = ActivoSi,
+            FechaCreacion = DateOnly.FromDateTime(DateTime.Today),
+            UsuarioCreacion = UsuarioCreacion()
         };
 
-        Renumerar(detalles, servicios, equipos);
-        entidad.Detalles = detalles.ToList();
-        entidad.Servicios = servicios.ToList();
-        entidad.Equipos = equipos.ToList();
-
-        _contexto.Plantilla.Add(entidad);
+        _contexto.PlantillaOrdenTrabajo.Add(cabecera);
+        await GuardarHijosAsync(numero, datos, cancellationToken);
         await _contexto.SaveChangesAsync(cancellationToken);
 
-        return entidad;
+        return (await ObtenerAsync(numero, cancellationToken))!;
     }
 
-    public async Task<Plantilla> ActualizarAsync(
-        Guid id,
-        string nombre,
-        Guid? clienteId,
-        string? locacionCodigo,
-        string? direccion,
-        Guid? tecnicoId,
-        string? contacto,
-        string? telefono,
-        string? vehiculoCodigo,
-        string? descripcionTrabajo,
-        string? notas,
-        bool esActivo,
-        IReadOnlyList<PlantillaDetalle> detalles,
-        IReadOnlyList<PlantillaServicio> servicios,
-        IReadOnlyList<PlantillaEquipo> equipos,
+    public async Task<PlantillaCompleta> ActualizarAsync(
+        long plantilla,
+        PlantillaGuardar datos,
+        bool activo,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(nombre);
+        var cabecera = await _contexto.PlantillaOrdenTrabajo
+            .FirstOrDefaultAsync(p => p.Plantilla == plantilla, cancellationToken)
+            ?? throw new InvalidOperationException($"No existe la plantilla {plantilla}.");
 
-        var entidad = await ConsultaCompleta()
-            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException($"No existe la plantilla '{id}'.");
+        cabecera.Cliente = Limite(datos.Cliente, 20);
+        cabecera.Locacion = Limite(datos.Locacion, 5);
+        cabecera.Direccion = Limite(datos.Direccion, 100);
+        cabecera.Tecnico = Limite(datos.Tecnico, 4);
+        cabecera.Contacto = Limite(datos.Contacto, 35);
+        cabecera.Telefono = Limite(datos.Telefono, 10);
+        cabecera.Vehiculo = Limite(datos.Vehiculo, 4);
+        cabecera.DescripTrabajo = Limite(datos.DescripTrabajo, 100);
+        cabecera.Notas = Limite(datos.Notas, 100);
+        cabecera.Activo = activo ? ActivoSi : ActivoNo;
+        // FECHA_CREACION y USUARIO_CREACION son auditoría del alta: no se tocan.
 
-        entidad.Nombre = nombre.Trim();
-        entidad.ClienteId = clienteId;
-        entidad.LocacionCodigo = locacionCodigo?.Trim();
-        entidad.Direccion = direccion?.Trim();
-        entidad.TecnicoId = tecnicoId;
-        entidad.Contacto = contacto?.Trim();
-        entidad.Telefono = telefono?.Trim();
-        entidad.VehiculoCodigo = vehiculoCodigo?.Trim();
-        entidad.DescripcionTrabajo = descripcionTrabajo?.Trim();
-        entidad.Notas = notas?.Trim();
-        entidad.IsActive = esActivo;
-        entidad.UpdatedAt = DateTime.UtcNow;
-
-        Renumerar(detalles, servicios, equipos);
-
-        Reconciliar(entidad.Detalles, detalles, d => d.Id, (destino, origen) =>
-        {
-            destino.Consecutivo = origen.Consecutivo;
-            destino.ProductoId = origen.ProductoId;
-            destino.DescripcionArticulo = origen.DescripcionArticulo;
-            destino.TipoPlagaCodigo = origen.TipoPlagaCodigo;
-            destino.LugarTratarCodigo = origen.LugarTratarCodigo;
-            destino.Area = origen.Area;
-            destino.Concentracion = origen.Concentracion;
-            destino.DosificacionCodigo = origen.DosificacionCodigo;
-            destino.MetodoAplicacionCodigo = origen.MetodoAplicacionCodigo;
-            destino.Cantidad = origen.Cantidad;
-            destino.UnidadMedidaId = origen.UnidadMedidaId;
-            destino.CostoUnitario = origen.CostoUnitario;
-            destino.CostoTotal = origen.CostoTotal;
-            destino.MaximoPermitido = origen.MaximoPermitido;
-            destino.UpdatedAt = DateTime.UtcNow;
-        }, origen => new PlantillaDetalle
-        {
-            // Id sin asignar: la clave es ValueGeneratedOnAdd. Si se le pusiera un Guid aquí,
-            // EF lo tomaría como entidad existente (Modified) e intentaría un UPDATE inexistente.
-            PlantillaId = id,
-            Consecutivo = origen.Consecutivo,
-            ProductoId = origen.ProductoId,
-            DescripcionArticulo = origen.DescripcionArticulo,
-            TipoPlagaCodigo = origen.TipoPlagaCodigo,
-            LugarTratarCodigo = origen.LugarTratarCodigo,
-            Area = origen.Area,
-            Concentracion = origen.Concentracion,
-            DosificacionCodigo = origen.DosificacionCodigo,
-            MetodoAplicacionCodigo = origen.MetodoAplicacionCodigo,
-            Cantidad = origen.Cantidad,
-            UnidadMedidaId = origen.UnidadMedidaId,
-            CostoUnitario = origen.CostoUnitario,
-            CostoTotal = origen.CostoTotal,
-            MaximoPermitido = origen.MaximoPermitido,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
-
-        Reconciliar(entidad.Servicios, servicios, s => s.Id, (destino, origen) =>
-        {
-            destino.Consecutivo = origen.Consecutivo;
-            destino.TipoServicioId = origen.TipoServicioId;
-            destino.FrecuenciaCodigo = origen.FrecuenciaCodigo;
-            destino.UpdatedAt = DateTime.UtcNow;
-        }, origen => new PlantillaServicio
-        {
-            PlantillaId = id,
-            Consecutivo = origen.Consecutivo,
-            TipoServicioId = origen.TipoServicioId,
-            FrecuenciaCodigo = origen.FrecuenciaCodigo,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
-
-        Reconciliar(entidad.Equipos, equipos, e => e.Id, (destino, origen) =>
-        {
-            destino.Consecutivo = origen.Consecutivo;
-            destino.EquipoCodigo = origen.EquipoCodigo;
-            destino.Utilizado = origen.Utilizado;
-            destino.UpdatedAt = DateTime.UtcNow;
-        }, origen => new PlantillaEquipo
-        {
-            PlantillaId = id,
-            Consecutivo = origen.Consecutivo,
-            EquipoCodigo = origen.EquipoCodigo,
-            Utilizado = origen.Utilizado,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
-
+        await GuardarHijosAsync(plantilla, datos, cancellationToken);
         await _contexto.SaveChangesAsync(cancellationToken);
 
-        return entidad;
+        return (await ObtenerAsync(plantilla, cancellationToken))!;
     }
 
     /// <summary>
-    /// Copia una plantilla: cabecera, productos, servicios y equipos. Corrige el defecto del
-    /// copiador legacy, que omitía <c>MAXIMO_PERMITIDO</c> y dejaba la copia con 0.
+    /// Copia la cabecera y las tres colecciones con un número nuevo. A diferencia del copiador
+    /// del WinForms, <c>MAXIMO_PERMITIDO</c> se conserva.
     /// </summary>
-    public async Task<Plantilla> CopiarAsync(
-        Guid id,
-        string? codigo = null,
-        string? nombre = null,
+    public async Task<PlantillaCompleta> CopiarAsync(
+        long plantilla,
+        string? descripcionTrabajo = null,
         CancellationToken cancellationToken = default)
     {
-        var origen = await ConsultaCompleta()
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException($"No existe la plantilla '{id}'.");
+        var original = await ObtenerAsync(plantilla, cancellationToken)
+            ?? throw new InvalidOperationException($"No existe la plantilla {plantilla}.");
 
-        var codigoCopia = await CodigoCopiaDisponibleAsync(
-            string.IsNullOrWhiteSpace(codigo) ? origen.Codigo : codigo, cancellationToken);
-
-        var ahora = DateTime.UtcNow;
-        var copia = new Plantilla
-        {
-            Id = Guid.NewGuid(),
-            Codigo = codigoCopia,
-            Nombre = string.IsNullOrWhiteSpace(nombre) ? $"{origen.Nombre} (copia)" : nombre.Trim(),
-            ClienteId = origen.ClienteId,
-            LocacionCodigo = origen.LocacionCodigo,
-            Direccion = origen.Direccion,
-            TecnicoId = origen.TecnicoId,
-            Contacto = origen.Contacto,
-            Telefono = origen.Telefono,
-            VehiculoCodigo = origen.VehiculoCodigo,
-            DescripcionTrabajo = origen.DescripcionTrabajo,
-            Notas = origen.Notas,
-            IsActive = true,
-            CreatedAt = ahora,
-            UpdatedAt = ahora,
-            Detalles = origen.Detalles.OrderBy(d => d.Consecutivo).Select((d, i) => new PlantillaDetalle
+        var datos = new PlantillaGuardar(
+            original.Cabecera.Cliente,
+            original.Cabecera.Locacion,
+            original.Cabecera.Direccion,
+            original.Cabecera.Tecnico,
+            original.Cabecera.Contacto,
+            original.Cabecera.Telefono,
+            original.Cabecera.Vehiculo,
+            descripcionTrabajo ?? original.Cabecera.DescripTrabajo,
+            original.Cabecera.Notas,
+            ActivoSi,
+            original.Detalles.Select(d => new PlantillaOrdenTrabajoDetalle
             {
-                Id = Guid.NewGuid(),
-                Consecutivo = i + 1,
-                ProductoId = d.ProductoId,
-                DescripcionArticulo = d.DescripcionArticulo,
-                TipoPlagaCodigo = d.TipoPlagaCodigo,
-                LugarTratarCodigo = d.LugarTratarCodigo,
+                CodigoArticulo = d.CodigoArticulo,
+                DescripArticulo = d.DescripArticulo,
+                TipoPlaga = d.TipoPlaga,
+                LugarTratar = d.LugarTratar,
                 Area = d.Area,
                 Concentracion = d.Concentracion,
-                DosificacionCodigo = d.DosificacionCodigo,
-                MetodoAplicacionCodigo = d.MetodoAplicacionCodigo,
+                CodigoDosificacion = d.CodigoDosificacion,
+                MetodoAplicacion = d.MetodoAplicacion,
                 Cantidad = d.Cantidad,
-                UnidadMedidaId = d.UnidadMedidaId,
+                Umedida = d.Umedida,
                 CostoUnitario = d.CostoUnitario,
                 CostoTotal = d.CostoTotal,
-                // El legacy perdía este valor al copiar. Acá se conserva siempre.
-                MaximoPermitido = d.MaximoPermitido,
-                CreatedAt = ahora,
-                UpdatedAt = ahora
+                MaximoPermitido = d.MaximoPermitido
             }).ToList(),
-            Servicios = origen.Servicios.OrderBy(s => s.Consecutivo).Select((s, i) => new PlantillaServicio
+            original.Servicios.Select(s => new PlantillaOrdenTrabajoServicio
             {
-                Id = Guid.NewGuid(),
-                Consecutivo = i + 1,
-                TipoServicioId = s.TipoServicioId,
-                FrecuenciaCodigo = s.FrecuenciaCodigo,
-                CreatedAt = ahora,
-                UpdatedAt = ahora
+                CodigoServicio = s.CodigoServicio,
+                CodigoFrecuencia = s.CodigoFrecuencia
             }).ToList(),
-            Equipos = origen.Equipos.OrderBy(e => e.Consecutivo).Select((e, i) => new PlantillaEquipo
+            original.Equipos.Select(e => new PlantillaOrdenTrabajoEquipos
             {
-                Id = Guid.NewGuid(),
-                Consecutivo = i + 1,
-                EquipoCodigo = e.EquipoCodigo,
-                Utilizado = e.Utilizado,
-                CreatedAt = ahora,
-                UpdatedAt = ahora
-            }).ToList()
-        };
+                CodigoEquipo = e.CodigoEquipo,
+                Utilizado = e.Utilizado
+            }).ToList());
 
-        _contexto.Plantilla.Add(copia);
-        await _contexto.SaveChangesAsync(cancellationToken);
-
-        return copia;
+        return await CrearAsync(datos, cancellationToken);
     }
 
-    /// <summary>Baja lógica: la plantilla deja de aparecer pero sus líneas se conservan.</summary>
-    public async Task DarDeBajaAsync(Guid id, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Baja lógica: <c>ACTIVO = NO</c>, el mismo código que usa el WinForms. No borra la fila ni
+    /// sus líneas, para no destruir datos reales del ERP ni romper <c>Plantilla_Calendario</c>.
+    /// </summary>
+    public async Task DarDeBajaAsync(
+        long plantilla,
+        CancellationToken cancellationToken = default)
     {
-        var entidad = await _contexto.Plantilla
-            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException($"No existe la plantilla '{id}'.");
+        var cabecera = await _contexto.PlantillaOrdenTrabajo
+            .FirstOrDefaultAsync(p => p.Plantilla == plantilla, cancellationToken)
+            ?? throw new InvalidOperationException($"No existe la plantilla {plantilla}.");
 
-        entidad.IsActive = false;
-        entidad.UpdatedAt = DateTime.UtcNow;
-
+        cabecera.Activo = ActivoNo;
         await _contexto.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<string> CodigoCopiaDisponibleAsync(string baseCodigo, CancellationToken ct)
-    {
-        var prefijo = baseCodigo.Trim().ToUpperInvariant();
-        var candidato = $"{prefijo}-COPIA";
-        var sufijo = 1;
+    // ── Internos ──────────────────────────────────────────────────────────────────
 
-        while (await _contexto.Plantilla.AnyAsync(p => p.Codigo == candidato, ct))
+    private async Task<PlantillaCompleta> CompletaAsync(
+        PlantillaOrdenTrabajo cabecera,
+        CancellationToken cancellationToken)
+    {
+        var numero = LimiteInt(cabecera.Plantilla);
+
+        var detalles = await _contexto.PlantillaOrdenTrabajoDetalle
+            .AsNoTracking()
+            .Where(d => d.Plantilla == numero)
+            .OrderBy(d => d.Consecutivo)
+            .ToListAsync(cancellationToken);
+        var servicios = await _contexto.PlantillaOrdenTrabajoServicio
+            .AsNoTracking()
+            .Where(s => s.Plantilla == numero)
+            .OrderBy(s => s.Consecutivo)
+            .ToListAsync(cancellationToken);
+        var equipos = await _contexto.PlantillaOrdenTrabajoEquipos
+            .AsNoTracking()
+            .Where(e => e.Plantilla == numero)
+            .OrderBy(e => e.Consecutivo)
+            .ToListAsync(cancellationToken);
+
+        string? nombreCliente = null;
+        if (!string.IsNullOrWhiteSpace(cabecera.Cliente))
         {
-            candidato = $"{prefijo}-COPIA-{++sufijo}";
+            var nombres = await NombresClienteAsync([cabecera.Cliente], cancellationToken);
+            nombreCliente = nombres.GetValueOrDefault(cabecera.Cliente);
         }
 
-        return candidato;
+        return new PlantillaCompleta(cabecera, detalles, servicios, equipos, nombreCliente);
     }
 
-    private static void Renumerar(
-        IReadOnlyList<PlantillaDetalle> detalles,
-        IReadOnlyList<PlantillaServicio> servicios,
-        IReadOnlyList<PlantillaEquipo> equipos)
+    private async Task<int> GuardarHijosAsync(
+        long plantilla,
+        PlantillaGuardar datos,
+        CancellationToken cancellationToken)
     {
-        for (var i = 0; i < detalles.Count; i++)
-        {
-            detalles[i].Consecutivo = i + 1;
-        }
+        var numero = LimiteInt(plantilla);
 
-        for (var i = 0; i < servicios.Count; i++)
-        {
-            servicios[i].Consecutivo = i + 1;
-        }
+        var detallesActuales = await _contexto.PlantillaOrdenTrabajoDetalle
+            .Where(d => d.Plantilla == numero).OrderBy(d => d.Consecutivo).ToListAsync(cancellationToken);
+        var serviciosActuales = await _contexto.PlantillaOrdenTrabajoServicio
+            .Where(s => s.Plantilla == numero).OrderBy(s => s.Consecutivo).ToListAsync(cancellationToken);
+        var equiposActuales = await _contexto.PlantillaOrdenTrabajoEquipos
+            .Where(e => e.Plantilla == numero).OrderBy(e => e.Consecutivo).ToListAsync(cancellationToken);
 
-        for (var i = 0; i < equipos.Count; i++)
+        var detallesNuevos = datos.Detalles.OrderBy(d => d.Consecutivo).ToList();
+        for (var i = 0; i < detallesNuevos.Count; i++)
         {
-            equipos[i].Consecutivo = i + 1;
-        }
-    }
-
-    private void Reconciliar<T>(
-        ICollection<T> destino,
-        IReadOnlyList<T> origen,
-        Func<T, Guid> clave,
-        Action<T, T> copiar,
-        Func<T, T> crear) where T : class
-    {
-        var actuales = destino.ToDictionary(clave);
-        var deseados = new HashSet<Guid>();
-
-        foreach (var entrada in origen)
-        {
-            var id = clave(entrada);
-            if (id != Guid.Empty && actuales.TryGetValue(id, out var existente))
+            var origen = detallesNuevos[i];
+            var consecutivo = i + 1;
+            var destino = detallesActuales.FirstOrDefault(d => d.Consecutivo == consecutivo);
+            if (destino is null)
             {
-                copiar(existente, entrada);
-                deseados.Add(id);
+                destino = new PlantillaOrdenTrabajoDetalle { Plantilla = numero, Consecutivo = consecutivo };
+                _contexto.PlantillaOrdenTrabajoDetalle.Add(destino);
             }
-            else
-            {
-                var nuevo = crear(entrada);
-                destino.Add(nuevo);
-                // Las entidades nuevas se marcan explícitamente como Added. Si solo se agregan
-                // a la navegación, el detector de cambios puede clasificarlas como Modified
-                // (especialmente en el proveedor InMemory) y generar un UPDATE de una fila
-                // inexistente en lugar del INSERT correspondiente.
-                _contexto.Entry(nuevo).State = EntityState.Added;
-            }
+
+            destino.CodigoArticulo = Limite(origen.CodigoArticulo, 10);
+            destino.DescripArticulo = Limite(origen.DescripArticulo, 50) ?? string.Empty;
+            destino.TipoPlaga = Limite(origen.TipoPlaga, 4);
+            destino.LugarTratar = Limite(origen.LugarTratar, 100);
+            destino.Area = origen.Area is { } area ? Math.Round(area, 2) : null;
+            destino.Concentracion = Limite(origen.Concentracion, 20);
+            destino.CodigoDosificacion = Limite(origen.CodigoDosificacion, 4);
+            destino.MetodoAplicacion = Limite(origen.MetodoAplicacion, 4);
+            destino.Cantidad = origen.Cantidad is { } cantidad ? Math.Round(cantidad, 0) : null;
+            destino.Umedida = Limite(origen.Umedida, 6);
+            destino.CostoUnitario = origen.CostoUnitario is { } unitario ? Math.Round(unitario, 6) : null;
+            // El legacy calculaba el total en el formulario: CANTIDAD × COSTO_UNITARIO.
+            destino.CostoTotal = Math.Round((origen.Cantidad ?? 0) * (origen.CostoUnitario ?? 0), 2);
+            destino.MaximoPermitido = origen.MaximoPermitido is { } maximo ? Math.Round(maximo, 0) : null;
         }
 
-        foreach (var id in actuales.Keys.Where(id => !deseados.Contains(id)).ToList())
+        var serviciosNuevos = datos.Servicios.OrderBy(s => s.Consecutivo).ToList();
+        for (var i = 0; i < serviciosNuevos.Count; i++)
         {
-            var eliminado = actuales[id];
-            destino.Remove(eliminado);
-            _contexto.Entry(eliminado).State = EntityState.Deleted;
+            var origen = serviciosNuevos[i];
+            var consecutivo = i + 1;
+            var codigoServicio = Limite(origen.CodigoServicio, 4) ?? string.Empty;
+            var codigoFrecuencia = Limite(origen.CodigoFrecuencia, 4) ?? string.Empty;
+            var destino = serviciosActuales.ElementAtOrDefault(i);
+
+            // CODIGO_SERVICIO y CODIGO_FRECUENCIA son parte de la PK legacy: si cambian, la fila
+            // se sustituye en lugar de intentar modificar la clave de una entidad rastreada.
+            if (destino is not null &&
+                (destino.CodigoServicio != codigoServicio || destino.CodigoFrecuencia != codigoFrecuencia))
+            {
+                _contexto.PlantillaOrdenTrabajoServicio.Remove(destino);
+                destino = null;
+            }
+
+            if (destino is null)
+            {
+                _contexto.PlantillaOrdenTrabajoServicio.Add(new PlantillaOrdenTrabajoServicio
+                {
+                    Plantilla = numero,
+                    Consecutivo = consecutivo,
+                    CodigoServicio = codigoServicio,
+                    CodigoFrecuencia = codigoFrecuencia
+                });
+                continue;
+            }
+
+            destino.CodigoServicio = codigoServicio;
+            destino.CodigoFrecuencia = codigoFrecuencia;
+        }
+
+        var equiposNuevos = datos.Equipos.OrderBy(e => e.Consecutivo).ToList();
+        for (var i = 0; i < equiposNuevos.Count; i++)
+        {
+            var origen = equiposNuevos[i];
+            var consecutivo = i + 1;
+            var codigoEquipo = Limite(origen.CodigoEquipo, 4);
+            var utilizado = string.IsNullOrWhiteSpace(origen.Utilizado)
+                ? ActivoSi
+                : CodigoSiNo(origen.Utilizado);
+            var destino = equiposActuales.ElementAtOrDefault(i);
+            if (destino is null)
+            {
+                _contexto.PlantillaOrdenTrabajoEquipos.Add(new PlantillaOrdenTrabajoEquipos
+                {
+                    Plantilla = numero,
+                    Consecutivo = consecutivo,
+                    CodigoEquipo = codigoEquipo,
+                    Utilizado = utilizado
+                });
+                continue;
+            }
+
+            destino.CodigoEquipo = codigoEquipo;
+            destino.Utilizado = utilizado;
+        }
+
+        _contexto.PlantillaOrdenTrabajoDetalle.RemoveRange(
+            detallesActuales.Where(d => d.Consecutivo > detallesNuevos.Count));
+        _contexto.PlantillaOrdenTrabajoServicio.RemoveRange(
+            serviciosActuales.Skip(serviciosNuevos.Count));
+        _contexto.PlantillaOrdenTrabajoEquipos.RemoveRange(
+            equiposActuales.Skip(equiposNuevos.Count));
+
+        return numero;
+    }
+
+    private async Task<long> SiguientePlantillaAsync(CancellationToken cancellationToken)
+    {
+        // MAX(PLANTILLA) + 1, igual que getPlantillaOrdenTrabajoId() del legacy. Max sobre un
+        // nullable devuelve null con la tabla vacía, así que no hace falta DefaultIfEmpty (que
+        // no se traduce en todos los providers).
+        var maximo = await _contexto.PlantillaOrdenTrabajo
+            .MaxAsync(p => (long?)p.Plantilla, cancellationToken);
+        return (maximo ?? 0) + 1;
+    }
+
+    private async Task<IReadOnlyDictionary<long, int>> ConteoDetallesAsync(
+        int desde, int hasta, CancellationToken cancellationToken)
+    {
+        var filas = await _contexto.PlantillaOrdenTrabajoDetalle.AsNoTracking()
+            .Where(d => d.Plantilla >= desde && d.Plantilla <= hasta)
+            .GroupBy(d => d.Plantilla)
+            .Select(g => new { Plantilla = g.Key, Total = g.Count() })
+            .ToListAsync(cancellationToken);
+        return filas.ToDictionary(f => (long)f.Plantilla, f => f.Total);
+    }
+
+    private async Task<IReadOnlyDictionary<long, int>> ConteoServiciosAsync(
+        int desde, int hasta, CancellationToken cancellationToken)
+    {
+        var filas = await _contexto.PlantillaOrdenTrabajoServicio.AsNoTracking()
+            .Where(s => s.Plantilla >= desde && s.Plantilla <= hasta)
+            .GroupBy(s => s.Plantilla)
+            .Select(g => new { Plantilla = g.Key, Total = g.Count() })
+            .ToListAsync(cancellationToken);
+        return filas.ToDictionary(f => (long)f.Plantilla, f => f.Total);
+    }
+
+    private async Task<IReadOnlyDictionary<long, int>> ConteoEquiposAsync(
+        int desde, int hasta, CancellationToken cancellationToken)
+    {
+        var filas = await _contexto.PlantillaOrdenTrabajoEquipos.AsNoTracking()
+            .Where(e => e.Plantilla >= desde && e.Plantilla <= hasta)
+            .GroupBy(e => e.Plantilla)
+            .Select(g => new { Plantilla = g.Key, Total = g.Count() })
+            .ToListAsync(cancellationToken);
+        return filas.ToDictionary(f => (long)f.Plantilla, f => f.Total);
+    }
+
+    private async Task<IReadOnlyDictionary<string, string>> NombresClienteAsync(
+        IEnumerable<string?> codigos,
+        CancellationToken cancellationToken)
+    {
+        var lista = codigos.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!).Distinct().ToList();
+        if (lista.Count == 0)
+        {
+            return new Dictionary<string, string>();
+        }
+
+        return await _contexto.Cliente
+            .AsNoTracking()
+            .Where(c => lista.Contains(c.Codigo))
+            .Select(c => new { c.Codigo, c.Nombre })
+            .ToDictionaryAsync(c => c.Codigo, c => c.Nombre, cancellationToken);
+    }
+
+    private string UsuarioCreacion()
+    {
+        var nombre = string.IsNullOrWhiteSpace(_usuario.NombreUsuario)
+            ? "SISTEMA"
+            : _usuario.NombreUsuario.Trim();
+        return Limite(nombre, 25)!;
+    }
+
+    private static void Validar(PlantillaGuardar datos)
+    {
+        if (string.IsNullOrWhiteSpace(datos.Cliente))
+        {
+            throw new InvalidOperationException("La plantilla requiere un cliente.");
+        }
+
+        if (string.IsNullOrWhiteSpace(datos.Locacion))
+        {
+            throw new InvalidOperationException("La plantilla requiere una locación.");
+        }
+
+        if (datos.Detalles.Count == 0 || datos.Servicios.Count == 0 || datos.Equipos.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "La plantilla requiere al menos un producto, un servicio y un equipo.");
         }
     }
+
+    private static string CodigoSiNo(string valor)
+        => valor.Trim().Equals("SI", StringComparison.OrdinalIgnoreCase) ||
+           valor.Trim().Equals("S", StringComparison.OrdinalIgnoreCase) ||
+           valor.Trim().Equals("TRUE", StringComparison.OrdinalIgnoreCase)
+            ? ActivoSi
+            : ActivoNo;
+
+    private static string? Limite(string? valor, int longitud)
+        => valor is null ? null : valor.Trim().Length <= longitud ? valor.Trim() : valor.Trim()[..longitud];
+
+    private static int LimiteInt(long valor)
+        => (int)Math.Min(valor, int.MaxValue);
 }

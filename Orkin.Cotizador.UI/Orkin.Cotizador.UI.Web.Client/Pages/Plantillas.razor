@@ -11,7 +11,9 @@
     <div class="d-flex justify-space-between align-center mb-4">
         <div>
             <MudText Typo="Typo.h4" Color="Color.Primary">Plantillas</MudText>
-            <MudText Typo="Typo.caption" Class="mud-text-secondary">Operación · plantillas de orden de trabajo</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Operación · plantillas de orden de trabajo (SINCOERPORKIN)
+            </MudText>
         </div>
         @if (_puedeEditar)
         {
@@ -21,57 +23,49 @@
 
     <MudPaper Class="pa-4 mb-4" Elevation="1" Outlined="true">
         <MudGrid Spacing="3">
-            <MudItem xs="12" md="4">
-                <MudTextField @bind-Value="_texto" Label="Buscar por código o nombre" Variant="Variant.Outlined" Margin="Margin.Dense"
+            <MudItem xs="12" md="5">
+                <MudTextField @bind-Value="_texto" Label="Número, cliente, locación o descripción" Variant="Variant.Outlined" Margin="Margin.Dense"
                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
             </MudItem>
-            <MudItem xs="12" md="3">
-                <MudSelect T="Guid?" @bind-Value="_clienteId" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
+            <MudItem xs="12" md="4">
+                <MudSelect T="string?" @bind-Value="_cliente" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
                     @foreach (var cliente in _clientes)
                     {
-                        <MudSelectItem T="Guid?" Value="@cliente.Id">@cliente.Nombre</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" md="3">
-                <MudSelect T="Guid?" @bind-Value="_tecnicoId" Label="Técnico" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
-                    @foreach (var tecnico in _tecnicos)
-                    {
-                        <MudSelectItem T="Guid?" Value="@tecnico.Id">@tecnico.Nombre</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Nombre</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
             <MudItem xs="12" md="2" Class="d-flex align-center">
                 <MudCheckBox @bind-Value="_soloActivas" Label="Solo activas" Color="Color.Primary" />
             </MudItem>
-            <MudItem xs="12" Class="d-flex justify-end">
+            <MudItem xs="12" md="1" Class="d-flex align-center justify-end">
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search" OnClick="Cargar">Buscar</MudButton>
             </MudItem>
         </MudGrid>
     </MudPaper>
 
     <MudTable Items="_plantillas" Loading="_cargando" Hover="true" Dense="true" Breakpoint="Breakpoint.Sm"
-              RowClassFunc="@((p, i) => p.EsActivo ? string.Empty : "mud-text-secondary")">
+              RowClassFunc="@((p, i) => p.Activo == "SI" ? string.Empty : "mud-text-secondary")">
         <HeaderContent>
-            <MudTh>Código</MudTh>
-            <MudTh>Nombre</MudTh>
+            <MudTh>Plantilla</MudTh>
             <MudTh>Cliente</MudTh>
-            <MudTh>Técnico</MudTh>
+            <MudTh>Descripción del trabajo</MudTh>
+            <MudTh>Locación</MudTh>
             <MudTh>Productos</MudTh>
             <MudTh>Servicios</MudTh>
             <MudTh>Activa</MudTh>
             <MudTh>Acciones</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="Código">@context.Codigo</MudTd>
-            <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+            <MudTd DataLabel="Plantilla">@context.Plantilla</MudTd>
             <MudTd DataLabel="Cliente">@context.ClienteNombre</MudTd>
-            <MudTd DataLabel="Técnico">@context.TecnicoNombre</MudTd>
-            <MudTd DataLabel="Productos">@context.Detalles.Count</MudTd>
-            <MudTd DataLabel="Servicios">@context.Servicios.Count</MudTd>
+            <MudTd DataLabel="Descripción">@context.DescripcionTrabajo</MudTd>
+            <MudTd DataLabel="Locación">@context.Locacion</MudTd>
+            <MudTd DataLabel="Productos">@context.DetallesCount</MudTd>
+            <MudTd DataLabel="Servicios">@context.ServiciosCount</MudTd>
             <MudTd DataLabel="Activa">
-                <MudIcon Icon="@(context.EsActivo ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)"
-                         Color="@(context.EsActivo ? Color.Success : Color.Default)" />
+                <MudIcon Icon="@(context.Activo == "SI" ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)"
+                         Color="@(context.Activo == "SI" ? Color.Success : Color.Default)" />
             </MudTd>
             <MudTd>
                 @if (_puedeEditar)
@@ -84,7 +78,7 @@
                     <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" Color="Color.Secondary"
                                    OnClick="@(() => Copiar(context))" aria-label="Copiar" />
                 }
-                @if (_puedeEliminar && context.EsActivo)
+                @if (_puedeEliminar && context.Activo == "SI")
                 {
                     <MudIconButton Icon="@Icons.Material.Filled.Archive" Size="Size.Small" Color="Color.Error"
                                    OnClick="@(() => DarDeBaja(context))" aria-label="Dar de baja" />
@@ -100,10 +94,8 @@
 @code {
     private List<PlantillaModel> _plantillas = [];
     private List<ClienteModel> _clientes = [];
-    private List<TecnicoModel> _tecnicos = [];
     private string? _texto;
-    private Guid? _clienteId;
-    private Guid? _tecnicoId;
+    private string? _cliente;
     private bool _soloActivas = true;
     private bool _cargando;
     private bool _puedeEditar;
@@ -118,20 +110,18 @@
         _puedeEliminar = estado.User.HasClaim("orkin:permiso", "PLANTILLAS.ELIMINAR");
 
         await Task.WhenAll(
-            Cargar(() => Catalogos.ListarClientesAsync(), lista => _clientes = lista),
-            Cargar(() => Catalogos.ListarTecnicosAsync(), lista => _tecnicos = lista),
+            CargarCatalogo(),
             Cargar());
     }
 
-    private static async Task Cargar<T>(Func<Task<List<T>>> obtener, Action<List<T>> asignar)
-        => asignar(await obtener());
+    private async Task CargarCatalogo() => _clientes = await Catalogos.ListarClientesAsync();
 
     private async Task Cargar()
     {
         _cargando = true;
         try
         {
-            _plantillas = await ServicioPlantillas.ListarAsync(_texto, _clienteId, _tecnicoId, _soloActivas);
+            _plantillas = await ServicioPlantillas.ListarAsync(_texto, _cliente, _soloActivas);
         }
         catch (Exception ex)
         {
@@ -145,29 +135,21 @@
 
     private Task Nueva() => AbrirDialogo(new PlantillaModel(), esEdicion: false);
 
-    private Task Editar(PlantillaModel plantilla) => AbrirDialogo(Clonar(plantilla), esEdicion: true);
-
-    private static PlantillaModel Clonar(PlantillaModel p) => new()
+    private async Task Editar(PlantillaModel plantilla)
     {
-        Id = p.Id,
-        Codigo = p.Codigo,
-        Nombre = p.Nombre,
-        ClienteId = p.ClienteId,
-        ClienteNombre = p.ClienteNombre,
-        LocacionCodigo = p.LocacionCodigo,
-        Direccion = p.Direccion,
-        TecnicoId = p.TecnicoId,
-        TecnicoNombre = p.TecnicoNombre,
-        Contacto = p.Contacto,
-        Telefono = p.Telefono,
-        VehiculoCodigo = p.VehiculoCodigo,
-        DescripcionTrabajo = p.DescripcionTrabajo,
-        Notas = p.Notas,
-        EsActivo = p.EsActivo,
-        Detalles = [.. p.Detalles],
-        Servicios = [.. p.Servicios],
-        Equipos = [.. p.Equipos]
-    };
+        try
+        {
+            var completa = await ServicioPlantillas.ObtenerAsync(plantilla.Plantilla);
+            if (completa is not null)
+            {
+                await AbrirDialogo(completa, esEdicion: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo abrir la plantilla: {ex.Message}", Severity.Error);
+        }
+    }
 
     private async Task AbrirDialogo(PlantillaModel modelo, bool esEdicion)
     {
@@ -181,7 +163,9 @@
             FullWidth = true,
             CloseButton = true
         };
-        var titulo = esEdicion ? $"Editar — {modelo.Nombre}" : "Nueva plantilla";
+        var titulo = esEdicion
+            ? $"Editar plantilla {modelo.Plantilla}"
+            : "Nueva plantilla";
         var dialogo = await DialogService.ShowAsync<PlantillaDialogo>(titulo, parametros, opciones);
 
         var resultado = await dialogo.Result;
@@ -204,10 +188,10 @@
 
     private async Task Copiar(PlantillaModel plantilla)
     {
-        var respuesta = await ServicioPlantillas.CopiarAsync(plantilla.Id, null, null);
+        var respuesta = await ServicioPlantillas.CopiarAsync(plantilla.Plantilla, null);
         if (respuesta?.Exito == true)
         {
-            Snackbar.Add("Plantilla copiada correctamente.", Severity.Success);
+            Snackbar.Add($"Plantilla copiada como {respuesta.Datos?.Plantilla}.", Severity.Success);
             await Cargar();
         }
         else
@@ -221,8 +205,8 @@
         var dialogo = await DialogService.ShowAsync<ConfirmarDialogo>(
             "Dar de baja plantilla", new DialogParameters<ConfirmarDialogo>
             {
-                { d => d.Titulo, $"Dar de baja «{plantilla.Nombre}»" },
-                { d => d.Mensaje, "La plantilla y sus líneas se conservan, pero dejan de aparecer." }
+                { d => d.Titulo, $"Dar de baja la plantilla {plantilla.Plantilla}" },
+                { d => d.Mensaje, "La plantilla y sus líneas se conservan: ACTIVO pasa a NO, igual que en el WinForms." }
             }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
 
         var resultado = await dialogo.Result;
@@ -231,7 +215,7 @@
             return;
         }
 
-        if (await ServicioPlantillas.DarDeBajaAsync(plantilla.Id))
+        if (await ServicioPlantillas.DarDeBajaAsync(plantilla.Plantilla))
         {
             Snackbar.Add("Plantilla dada de baja.", Severity.Success);
             await Cargar();

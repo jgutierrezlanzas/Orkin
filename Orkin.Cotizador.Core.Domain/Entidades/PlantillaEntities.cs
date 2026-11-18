@@ -1,142 +1,124 @@
-using Orkin.Cotizador.Core.Domain.Catalogos;
-using Orkin.Cotizador.Core.Domain.Comun;
-
 namespace Orkin.Cotizador.Core.Domain.Entidades;
 
 /// <summary>
-/// Plantilla de orden de trabajo (Fase 2). Reemplaza <c>Plantilla_Orden_Trabajo</c> del legacy,
-/// con auditoría de la plataforma y baja lógica (<see cref="BaseEntity.IsActive"/>, que aquí
-/// corresponde al <c>ACTIVO</c> del legacy).
+/// Cabecera de la plantilla de orden de trabajo <b>legacy</b>. Se mapea directamente a
+/// <c>dbo.Plantilla_Orden_Trabajo</c>: la migración de esta plataforma NO crea ni reemplaza la
+/// tabla. Lo que se migra es la forma de gestionarla (API + frontend), no su estructura.
 /// <para>
-/// <b>D-20:</b> lo que en el legacy eran columnas que apuntaban a catálogos del ERP —locación,
-/// vehículo, tipo de plaga, lugar a tratar, dosificación, método, frecuencia, equipo— se guarda
-/// como <b>código texto</b> congelado, sin tabla local ni FK. Los únicos FK son a entidades que
-/// sí viven en la plataforma: cliente, técnico, producto, unidad de medida y tipo de servicio.
+/// No hereda de <see cref="Comun.BaseEntity"/>: la tabla no tiene <c>Id</c>, <c>CreatedAt</c> ni
+/// <c>RowVersion</c>. Su clave es <c>PLANTILLA</c> (bigint, sin identity) y la auditoría propia
+/// son <c>FECHA_CREACION</c> y <c>USUARIO_CREACION</c>. La baja lógica es <c>ACTIVO</c> con los
+/// mismos códigos del ERP: <c>SI</c> / <c>NO</c>.
 /// </para>
 /// </summary>
-public class Plantilla : BaseEntity
+public class PlantillaOrdenTrabajo
 {
-    /// <summary>Identificador estable y único, en lugar del <c>PLANTILLA bigint</c> del legacy.</summary>
-    public string Codigo { get; set; } = null!;
+    /// <summary>Clave legacy. No es identity: el servicio asigna <c>MAX(PLANTILLA) + 1</c>.</summary>
+    public long Plantilla { get; set; }
 
-    public string Nombre { get; set; } = null!;
+    /// <summary>Código de cliente de SOFTLAND (varchar 20). No se modela como FK.</summary>
+    public string? Cliente { get; set; }
 
-    public Guid? ClienteId { get; set; }
-
-    public Cliente? Cliente { get; set; }
-
-    /// <summary>Código ERP de <c>vvLocacionesClientes</c>. No se modela como entidad local.</summary>
-    public string? LocacionCodigo { get; set; }
+    /// <summary>Código de <c>vvLocacionesClientes</c> (varchar 5).</summary>
+    public string? Locacion { get; set; }
 
     public string? Direccion { get; set; }
 
-    public Guid? TecnicoId { get; set; }
-
-    public Tecnico? Tecnico { get; set; }
+    /// <summary>Código de <c>vvTecnicos</c> (varchar 4). Vacío en las plantillas actuales.</summary>
+    public string? Tecnico { get; set; }
 
     public string? Contacto { get; set; }
 
     public string? Telefono { get; set; }
 
-    /// <summary>Código ERP de <c>vvTipodeVehiculos</c>. No se modela como entidad local.</summary>
-    public string? VehiculoCodigo { get; set; }
+    /// <summary>Código de <c>vvVehiculos</c> (varchar 4).</summary>
+    public string? Vehiculo { get; set; }
 
-    public string? DescripcionTrabajo { get; set; }
+    /// <summary><c>DESCRIP_TRABAJO</c>. Es el "nombre" visible de la plantilla en el legacy.</summary>
+    public string? DescripTrabajo { get; set; }
 
     public string? Notas { get; set; }
 
-    public ICollection<PlantillaDetalle> Detalles { get; set; } = new List<PlantillaDetalle>();
+    /// <summary><c>SI</c> = activa, <c>NO</c> = dada de baja. Mismos códigos que el WinForms.</summary>
+    public string Activo { get; set; } = "SI";
 
-    public ICollection<PlantillaServicio> Servicios { get; set; } = new List<PlantillaServicio>();
+    public DateOnly? FechaCreacion { get; set; }
 
-    public ICollection<PlantillaEquipo> Equipos { get; set; } = new List<PlantillaEquipo>();
+    public string? UsuarioCreacion { get; set; }
 }
 
 /// <summary>
-/// Línea de producto de una plantilla. Réplica de <c>Plantilla_Orden_Trabajo_Detalle</c>.
-/// No lleva <c>IsActive</c>: la línea existe mientras exista su plantilla.
+/// Línea de producto de <c>dbo.Plantilla_Orden_Trabajo_Detalle</c>. Clave compuesta
+/// <c>(PLANTILLA, CONSECUTIVO)</c>, exactamente como en la tabla legacy.
 /// </summary>
-public class PlantillaDetalle : BaseEntity
+public class PlantillaOrdenTrabajoDetalle
 {
-    public Guid PlantillaId { get; set; }
+    public int Plantilla { get; set; }
 
-    public Plantilla Plantilla { get; set; } = null!;
-
-    /// <summary>Equivale al <c>CONSECUTIVO</c> del legacy; se renumera desde 1 al copiar.</summary>
     public int Consecutivo { get; set; }
 
-    public Guid? ProductoId { get; set; }
+    /// <summary>Código de artículo de SOFTLAND (varchar 10).</summary>
+    public string? CodigoArticulo { get; set; }
 
-    public Producto? Producto { get; set; }
+    public string? DescripArticulo { get; set; }
 
-    /// <summary>Snapshot de <c>DESCRIP_ARTICULO</c> para no depender del catálogo al imprimir.</summary>
-    public string? DescripcionArticulo { get; set; }
+    /// <summary>Código de <c>vvTipodePlagas</c>.</summary>
+    public string? TipoPlaga { get; set; }
 
-    /// <summary>Código ERP de <c>vvTipodePlagas</c>.</summary>
-    public string? TipoPlagaCodigo { get; set; }
+    /// <summary>Código de <c>vvTipodeUbicaciones</c> (<c>LUGAR_TRATAR</c>).</summary>
+    public string? LugarTratar { get; set; }
 
-    /// <summary>Código ERP de <c>vvTipodeUbicaciones</c> (<c>LUGAR_TRATAR</c>).</summary>
-    public string? LugarTratarCodigo { get; set; }
-
-    public string? Area { get; set; }
+    public decimal? Area { get; set; }
 
     public string? Concentracion { get; set; }
 
-    /// <summary>Código ERP de <c>vvDosificacion</c>.</summary>
-    public string? DosificacionCodigo { get; set; }
+    /// <summary>Código de <c>vvDosificacion</c>.</summary>
+    public string? CodigoDosificacion { get; set; }
 
-    /// <summary>Código ERP de <c>vvMetodosAplicacion</c>.</summary>
-    public string? MetodoAplicacionCodigo { get; set; }
+    /// <summary>Código de <c>vvMetodosAplicacion</c>.</summary>
+    public string? MetodoAplicacion { get; set; }
 
-    public decimal Cantidad { get; set; }
+    public decimal? Cantidad { get; set; }
 
-    public Guid? UnidadMedidaId { get; set; }
+    /// <summary>Unidad de venta tal como viene del ERP (varchar 6), sin normalizar.</summary>
+    public string? Umedida { get; set; }
 
-    public UnidadMedida? UnidadMedida { get; set; }
+    public decimal? CostoUnitario { get; set; }
 
-    public decimal CostoUnitario { get; set; }
-
-    public decimal CostoTotal { get; set; }
+    public decimal? CostoTotal { get; set; }
 
     /// <summary>
-    /// <c>MAXIMO_PERMITIDO</c>. El copiador del legacy lo omitía; acá se copia siempre.
+    /// <c>MAXIMO_PERMITIDO</c>. El copiador del WinForms lo omitía; el de la API lo conserva.
     /// </summary>
-    public decimal MaximoPermitido { get; set; }
+    public decimal? MaximoPermitido { get; set; }
 }
 
 /// <summary>
-/// Línea de servicio de una plantilla. Réplica de <c>Plantilla_Orden_Trabajo_Servicio</c>.
+/// Línea de servicio de <c>dbo.Plantilla_Orden_Trabajo_Servicio</c>. La clave legacy tiene cuatro
+/// columnas <c>(PLANTILLA, CONSECUTIVO, CODIGO_SERVICIO, CODIGO_FRECUENCIA)</c> y se respeta tal cual.
 /// </summary>
-public class PlantillaServicio : BaseEntity
+public class PlantillaOrdenTrabajoServicio
 {
-    public Guid PlantillaId { get; set; }
-
-    public Plantilla Plantilla { get; set; } = null!;
+    public int Plantilla { get; set; }
 
     public int Consecutivo { get; set; }
 
-    /// <summary>FK local: los tipos de servicio sí son un catálogo compartido de la plataforma.</summary>
-    public Guid? TipoServicioId { get; set; }
+    public string CodigoServicio { get; set; } = null!;
 
-    public TipoServicio? TipoServicio { get; set; }
-
-    /// <summary>Código ERP de <c>vvFrecuencia</c>. No se modela como entidad local.</summary>
-    public string? FrecuenciaCodigo { get; set; }
+    public string CodigoFrecuencia { get; set; } = null!;
 }
 
 /// <summary>
-/// Línea de equipo de una plantilla. Réplica de <c>Plantilla_Orden_Trabajo_Equipos</c>.
+/// Línea de equipo de <c>dbo.Plantilla_Orden_Trabajo_Equipos</c>. <c>UTILIZADO</c> usa los mismos
+/// códigos del legacy (<c>SI</c> / <c>NO</c>), no un <c>bool</c> de la plataforma.
 /// </summary>
-public class PlantillaEquipo : BaseEntity
+public class PlantillaOrdenTrabajoEquipos
 {
-    public Guid PlantillaId { get; set; }
-
-    public Plantilla Plantilla { get; set; } = null!;
+    public int Plantilla { get; set; }
 
     public int Consecutivo { get; set; }
 
-    /// <summary>Código ERP de <c>vvTipodeEquipos</c>. No se modela como entidad local.</summary>
-    public string? EquipoCodigo { get; set; }
+    public string? CodigoEquipo { get; set; }
 
-    public bool Utilizado { get; set; }
+    public string? Utilizado { get; set; }
 }

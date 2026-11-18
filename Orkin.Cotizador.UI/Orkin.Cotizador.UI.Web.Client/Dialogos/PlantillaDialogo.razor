@@ -1,60 +1,60 @@
-@* Alta y edición de plantilla de orden de trabajo (Fase 2).
-   Los catálogos del ERP (plaga, locación, dosificación, método, frecuencia, equipo) se capturan
-   como código texto: no hay tabla local ni FK para ellos (D-20). *@
+@* Alta y edición de plantilla de orden de trabajo sobre las tablas legacy existentes (D-22).
+   Los catálogos del ERP (locación, plaga, ubicación, dosificación, método, frecuencia, equipo)
+   se capturan como código texto: no hay tabla local ni FK para ellos (D-20). *@
 <MudDialog>
     <DialogContent>
         <MudGrid Spacing="2">
-            <MudItem xs="12" md="3">
-                <MudTextField @bind-Value="Modelo.Codigo" Label="Código" Variant="Variant.Outlined" Margin="Margin.Dense"
-                              Disabled="EsEdicion" Required="true" RequiredError="Ponga un código" />
-            </MudItem>
-            <MudItem xs="12" md="9">
-                <MudTextField @bind-Value="Modelo.Nombre" Label="Nombre" Variant="Variant.Outlined" Margin="Margin.Dense"
-                              Required="true" RequiredError="Ponga un nombre" />
-            </MudItem>
-            <MudItem xs="12" md="4">
-                <MudSelect T="Guid?" @bind-Value="Modelo.ClienteId" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
+            @if (EsEdicion)
+            {
+                <MudItem xs="12" md="2">
+                    <MudTextField Value="@Modelo.Plantilla" Label="Plantilla" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
+                </MudItem>
+            }
+            <MudItem xs="12" md="@(EsEdicion ? 5 : 6)">
+                <MudSelect T="string?" @bind-Value="Modelo.Cliente" Label="Cliente" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true"
+                           Required="true" RequiredError="Seleccione un cliente">
                     @foreach (var cliente in _clientes)
                     {
-                        <MudSelectItem T="Guid?" Value="@cliente.Id">@cliente.Nombre</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@cliente.Codigo">@cliente.Nombre</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
-            <MudItem xs="12" md="4">
-                <MudSelect T="Guid?" @bind-Value="Modelo.TecnicoId" Label="Técnico" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
+            <MudItem xs="12" md="@(EsEdicion ? 5 : 6)">
+                <MudSelect T="string?" @bind-Value="Modelo.Tecnico" Label="Técnico (opcional)" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
                     @foreach (var tecnico in _tecnicos)
                     {
-                        <MudSelectItem T="Guid?" Value="@tecnico.Id">@tecnico.Nombre</MudSelectItem>
+                        <MudSelectItem T="string?" Value="@tecnico.Codigo">@tecnico.Nombre</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
-            <MudItem xs="12" md="4">
-                <MudTextField @bind-Value="Modelo.LocacionCodigo" Label="Locación (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.Locacion" Label="Locación (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Required="true" RequiredError="Ingrese la locación" />
             </MudItem>
-            <MudItem xs="12" md="6">
+            <MudItem xs="12" md="5">
                 <MudTextField @bind-Value="Modelo.Direccion" Label="Dirección" Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudItem>
-            <MudItem xs="12" md="3">
+            <MudItem xs="12" md="2">
                 <MudTextField @bind-Value="Modelo.Contacto" Label="Contacto" Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudItem>
-            <MudItem xs="12" md="3">
+            <MudItem xs="12" md="2">
                 <MudTextField @bind-Value="Modelo.Telefono" Label="Teléfono" Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudItem>
-            <MudItem xs="12" md="4">
-                <MudTextField @bind-Value="Modelo.VehiculoCodigo" Label="Vehículo (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudItem xs="12" md="3">
+                <MudTextField @bind-Value="Modelo.Vehiculo" Label="Vehículo (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudItem>
-            <MudItem xs="12" md="8">
+            <MudItem xs="12" md="7">
                 <MudTextField @bind-Value="Modelo.DescripcionTrabajo" Label="Descripción del trabajo" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudSelect T="string?" @bind-Value="Modelo.Activo" Label="Activo" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                    <MudSelectItem T="string?" Value="@("SI")">SI</MudSelectItem>
+                    <MudSelectItem T="string?" Value="@("NO")">NO</MudSelectItem>
+                </MudSelect>
             </MudItem>
             <MudItem xs="12">
                 <MudTextField @bind-Value="Modelo.Notas" Label="Notas" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
             </MudItem>
-            @if (EsEdicion)
-            {
-                <MudItem xs="12">
-                    <MudSwitch @bind-Value="Modelo.EsActivo" Label="Plantilla activa" Color="Color.Primary" />
-                </MudItem>
-            }
         </MudGrid>
 
         <MudTabs Elevation="0" Outlined="true" Class="mt-4" Rounded="true">
@@ -73,48 +73,46 @@
                         </div>
                         <MudGrid Spacing="2">
                             <MudItem xs="12" md="4">
-                                <MudSelect T="Guid?" Value="linea.ProductoId" ValueChanged="@((Guid? v) => AlCambiarProducto(linea, v))"
-                                           Label="Producto" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
+                                <MudSelect T="string?" Value="linea.CodigoArticulo" ValueChanged="@((string? v) => AlCambiarProducto(linea, v))"
+                                           Label="Artículo (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
                                     @foreach (var producto in _productos)
                                     {
-                                        <MudSelectItem T="Guid?" Value="@producto.Id">@producto.Codigo — @producto.Nombre</MudSelectItem>
+                                        <MudSelectItem T="string?" Value="@producto.Codigo">@producto.Codigo — @producto.Nombre</MudSelectItem>
                                     }
                                 </MudSelect>
                             </MudItem>
                             <MudItem xs="12" md="4">
-                                <MudTextField @bind-Value="linea.DescripcionArticulo" Label="Descripción" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudTextField @bind-Value="linea.DescripArticulo" Label="Descripción del artículo" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                             <MudItem xs="12" md="2">
-                                <MudNumericField @bind-Value="linea.Cantidad" Label="Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                                <MudNumericField Value="linea.Cantidad" ValueChanged="@((decimal? v) => { linea.Cantidad = v; Recalcular(linea); })"
+                                                 Label="Cantidad" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
                             </MudItem>
                             <MudItem xs="12" md="2">
-                                <MudSelect T="Guid?" @bind-Value="linea.UnidadMedidaId" Label="Unidad" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
-                                    @foreach (var unidad in _unidades)
-                                    {
-                                        <MudSelectItem T="Guid?" Value="@unidad.Id">@unidad.Abreviatura</MudSelectItem>
-                                    }
-                                </MudSelect>
+                                @* UMEDIDA se conserva tal como viene del ERP (UNIDAD_VENTA), sin normalizar. *@
+                                <MudTextField @bind-Value="linea.Umedida" Label="Unidad (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                             <MudItem xs="12" md="3">
-                                <MudTextField @bind-Value="linea.TipoPlagaCodigo" Label="Tipo de plaga (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudTextField @bind-Value="linea.TipoPlaga" Label="Tipo de plaga (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                             <MudItem xs="12" md="3">
-                                <MudTextField @bind-Value="linea.LugarTratarCodigo" Label="Lugar a tratar (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudTextField @bind-Value="linea.LugarTratar" Label="Lugar a tratar (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                             <MudItem xs="12" md="2">
-                                <MudTextField @bind-Value="linea.Area" Label="Área" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudNumericField @bind-Value="linea.Area" Label="Área" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
                             </MudItem>
                             <MudItem xs="12" md="2">
                                 <MudTextField @bind-Value="linea.Concentracion" Label="Concentración" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                             <MudItem xs="12" md="2">
-                                <MudTextField @bind-Value="linea.DosificacionCodigo" Label="Dosificación (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudTextField @bind-Value="linea.CodigoDosificacion" Label="Dosificación (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                             <MudItem xs="12" md="3">
-                                <MudTextField @bind-Value="linea.MetodoAplicacionCodigo" Label="Método (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudTextField @bind-Value="linea.MetodoAplicacion" Label="Método (ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                             <MudItem xs="12" md="2">
-                                <MudNumericField @bind-Value="linea.CostoUnitario" Label="Costo unit." Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                                <MudNumericField Value="linea.CostoUnitario" ValueChanged="@((decimal? v) => { linea.CostoUnitario = v; Recalcular(linea); })"
+                                                 Label="Costo unit." Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
                             </MudItem>
                             <MudItem xs="12" md="2">
                                 <MudNumericField @bind-Value="linea.CostoTotal" Label="Costo total" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true" />
@@ -127,7 +125,7 @@
                 }
                 @if (Modelo.Detalles.Count == 0)
                 {
-                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin productos. Agregue al menos uno si la plantilla lo requiere.</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin productos. La plantilla requiere al menos uno.</MudText>
                 }
             </MudTabPanel>
 
@@ -145,22 +143,22 @@
                                                OnClick="@(() => Modelo.Servicios.Remove(linea))" aria-label="Quitar servicio" />
                             </MudItem>
                             <MudItem xs="12" md="5">
-                                <MudSelect T="Guid?" @bind-Value="linea.TipoServicioId" Label="Tipo de servicio" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
+                                <MudSelect T="string" @bind-Value="linea.CodigoServicio" Label="Tipo de servicio" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Clearable="true">
                                     @foreach (var servicio in _tiposServicio)
                                     {
-                                        <MudSelectItem T="Guid?" Value="@servicio.Id">@servicio.Nombre</MudSelectItem>
+                                        <MudSelectItem T="string" Value="@servicio.Codigo">@servicio.Nombre</MudSelectItem>
                                     }
                                 </MudSelect>
                             </MudItem>
                             <MudItem xs="12" md="4">
-                                <MudTextField @bind-Value="linea.FrecuenciaCodigo" Label="Frecuencia (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                <MudTextField @bind-Value="linea.CodigoFrecuencia" Label="Frecuencia (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                         </MudGrid>
                     </MudPaper>
                 }
                 @if (Modelo.Servicios.Count == 0)
                 {
-                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin servicios.</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin servicios. La plantilla requiere al menos uno.</MudText>
                 }
             </MudTabPanel>
 
@@ -177,18 +175,22 @@
                                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                                                OnClick="@(() => Modelo.Equipos.Remove(linea))" aria-label="Quitar equipo" />
                             </MudItem>
-                            <MudItem xs="12" md="6">
-                                <MudTextField @bind-Value="linea.EquipoCodigo" Label="Equipo (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudItem xs="12" md="5">
+                                <MudTextField @bind-Value="linea.CodigoEquipo" Label="Equipo (código ERP)" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             </MudItem>
                             <MudItem xs="12" md="3">
-                                <MudCheckBox @bind-Value="linea.Utilizado" Label="Utilizado" Color="Color.Primary" />
+                                @* El legacy guarda UTILIZADO como SI/NO, no como bool. *@
+                                <MudSelect T="string?" @bind-Value="linea.Utilizado" Label="Utilizado" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                                    <MudSelectItem T="string?" Value="@("SI")">SI</MudSelectItem>
+                                    <MudSelectItem T="string?" Value="@("NO")">NO</MudSelectItem>
+                                </MudSelect>
                             </MudItem>
                         </MudGrid>
                     </MudPaper>
                 }
                 @if (Modelo.Equipos.Count == 0)
                 {
-                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin equipos.</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary pa-4">Sin equipos. La plantilla requiere al menos uno.</MudText>
                 }
             </MudTabPanel>
         </MudTabs>
@@ -212,10 +214,9 @@
     private List<ClienteModel> _clientes = [];
     private List<TecnicoModel> _tecnicos = [];
     private List<ProductoModel> _productos = [];
-    private List<UnidadMedidaModel> _unidades = [];
     private List<TipoServicioModel> _tiposServicio = [];
 
-    private bool EsEdicion => Modelo.Id != Guid.Empty;
+    private bool EsEdicion => Modelo.Plantilla != 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -224,7 +225,6 @@
             Cargar(() => Catalogos.ListarClientesAsync(), lista => _clientes = lista),
             Cargar(() => Catalogos.ListarTecnicosAsync(), lista => _tecnicos = lista),
             Cargar(() => Catalogos.ListarProductosAsync(), lista => _productos = lista),
-            Cargar(() => Catalogos.ListarUnidadesMedidaAsync(), lista => _unidades = lista),
             Cargar(() => Catalogos.ListarTiposServicioAsync(), lista => _tiposServicio = lista)
         };
         await Task.WhenAll(tareas);
@@ -236,7 +236,8 @@
     private void AgregarDetalle() => Modelo.Detalles.Add(new PlantillaDetalleModel
     {
         Consecutivo = Modelo.Detalles.Count + 1,
-        Cantidad = 1
+        Cantidad = 1,
+        CostoTotal = 0
     });
 
     private void AgregarServicio() => Modelo.Servicios.Add(new PlantillaServicioModel
@@ -247,23 +248,27 @@
     private void AgregarEquipo() => Modelo.Equipos.Add(new PlantillaEquipoModel
     {
         Consecutivo = Modelo.Equipos.Count + 1,
-        Utilizado = true
+        Utilizado = "SI"
     });
 
-    private void AlCambiarProducto(PlantillaDetalleModel linea, Guid? productoId)
+    private void AlCambiarProducto(PlantillaDetalleModel linea, string? codigoArticulo)
     {
-        linea.ProductoId = productoId;
-        var producto = _productos.FirstOrDefault(p => p.Id == productoId);
+        linea.CodigoArticulo = codigoArticulo;
+        var producto = _productos.FirstOrDefault(p => p.Codigo == codigoArticulo);
         if (producto is null)
         {
             return;
         }
 
-        linea.DescripcionArticulo = producto.Nombre;
-        linea.UnidadMedidaId = producto.UnidadMedidaId == Guid.Empty ? null : producto.UnidadMedidaId;
+        linea.DescripArticulo = producto.Nombre;
+        linea.Umedida = producto.UnidadMedidaAbreviatura ?? producto.UnidadMedidaNombre;
         linea.CostoUnitario = producto.CostoActual;
-        linea.CostoTotal = linea.Cantidad * producto.CostoActual;
+        Recalcular(linea);
     }
+
+    /// <summary>COSTO_TOTAL se calcula igual que en el WinForms: CANTIDAD × COSTO_UNITARIO.</summary>
+    private static void Recalcular(PlantillaDetalleModel linea)
+        => linea.CostoTotal = (linea.Cantidad ?? 0) * (linea.CostoUnitario ?? 0);
 
     private void Aceptar() => Dialogo.Close(DialogResult.Ok(Modelo));
 

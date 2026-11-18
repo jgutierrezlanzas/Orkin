@@ -1,126 +1,131 @@
 namespace Orkin.Cotizador.Api.DTOs;
 
-/// <summary>Línea de producto de una plantilla (D-20: los códigos ERP son texto).</summary>
+/// <summary>
+/// Contrato de la API para las tablas legacy de plantillas. Los nombres y los códigos son los de
+/// <c>SINCOERPORKIN</c>: no se inventa un <c>Id</c> ni un <c>Codigo</c> nuevos (D-22).
+/// </summary>
+
 public sealed record PlantillaDetalleResponse(
-    Guid Id,
+    int Plantilla,
     int Consecutivo,
-    Guid? ProductoId,
-    string? ProductoNombre,
-    string? DescripcionArticulo,
-    string? TipoPlagaCodigo,
-    string? LugarTratarCodigo,
-    string? Area,
+    string? CodigoArticulo,
+    string? DescripArticulo,
+    string? TipoPlaga,
+    string? LugarTratar,
+    decimal? Area,
     string? Concentracion,
-    string? DosificacionCodigo,
-    string? MetodoAplicacionCodigo,
-    decimal Cantidad,
-    Guid? UnidadMedidaId,
-    string? UnidadAbreviatura,
-    decimal CostoUnitario,
-    decimal CostoTotal,
-    decimal MaximoPermitido);
+    string? CodigoDosificacion,
+    string? MetodoAplicacion,
+    decimal? Cantidad,
+    string? Umedida,
+    decimal? CostoUnitario,
+    decimal? CostoTotal,
+    decimal? MaximoPermitido);
 
-/// <summary>Línea de servicio de una plantilla.</summary>
 public sealed record PlantillaServicioResponse(
-    Guid Id,
+    int Plantilla,
     int Consecutivo,
-    Guid? TipoServicioId,
-    string? TipoServicioNombre,
-    string? FrecuenciaCodigo);
+    string CodigoServicio,
+    string CodigoFrecuencia);
 
-/// <summary>Línea de equipo de una plantilla.</summary>
 public sealed record PlantillaEquipoResponse(
-    Guid Id,
+    int Plantilla,
     int Consecutivo,
-    string? EquipoCodigo,
-    bool Utilizado);
+    string? CodigoEquipo,
+    string? Utilizado);
 
-/// <summary>Plantilla completa, con sus tres colecciones.</summary>
-public sealed record PlantillaResponse(
-    Guid Id,
-    string Codigo,
-    string Nombre,
-    Guid? ClienteId,
+/// <summary>Fila de la grilla: cabecera legacy y conteos, sin cargar todas las líneas.</summary>
+public sealed record PlantillaResumenResponse(
+    long Plantilla,
+    string? Cliente,
     string? ClienteNombre,
-    string? LocacionCodigo,
+    string? Locacion,
     string? Direccion,
-    Guid? TecnicoId,
-    string? TecnicoNombre,
+    string? DescripcionTrabajo,
+    string Activo,
+    DateOnly? FechaCreacion,
+    string? UsuarioCreacion,
+    int DetallesCount,
+    int ServiciosCount,
+    int EquiposCount);
+
+public sealed record PlantillaResponse(
+    long Plantilla,
+    string? Cliente,
+    string? ClienteNombre,
+    string? Locacion,
+    string? Direccion,
+    string? Tecnico,
     string? Contacto,
     string? Telefono,
-    string? VehiculoCodigo,
+    string? Vehiculo,
     string? DescripcionTrabajo,
     string? Notas,
-    bool EsActivo,
+    string Activo,
+    DateOnly? FechaCreacion,
+    string? UsuarioCreacion,
+    int DetallesCount,
+    int ServiciosCount,
+    int EquiposCount,
     IReadOnlyList<PlantillaDetalleResponse> Detalles,
     IReadOnlyList<PlantillaServicioResponse> Servicios,
     IReadOnlyList<PlantillaEquipoResponse> Equipos);
 
-/// <summary>Una línea de producto tal como la envía la pantalla. <c>Id</c> vacío = línea nueva.</summary>
+/// <summary>Una línea de producto tal como la envía la pantalla.</summary>
 public sealed record PlantillaDetalleGuardarRequest(
-    Guid? Id,
-    int Consecutivo,
-    Guid? ProductoId,
-    string? DescripcionArticulo,
-    string? TipoPlagaCodigo,
-    string? LugarTratarCodigo,
-    string? Area,
+    string? CodigoArticulo,
+    string? DescripArticulo,
+    string? TipoPlaga,
+    string? LugarTratar,
+    decimal? Area,
     string? Concentracion,
-    string? DosificacionCodigo,
-    string? MetodoAplicacionCodigo,
-    decimal Cantidad,
-    Guid? UnidadMedidaId,
-    decimal CostoUnitario,
-    decimal CostoTotal,
-    decimal MaximoPermitido);
+    string? CodigoDosificacion,
+    string? MetodoAplicacion,
+    decimal? Cantidad,
+    string? Umedida,
+    decimal? CostoUnitario,
+    decimal? MaximoPermitido);
 
 /// <summary>Una línea de servicio tal como la envía la pantalla.</summary>
 public sealed record PlantillaServicioGuardarRequest(
-    Guid? Id,
-    int Consecutivo,
-    Guid? TipoServicioId,
-    string? FrecuenciaCodigo);
+    string CodigoServicio,
+    string CodigoFrecuencia);
 
 /// <summary>Una línea de equipo tal como la envía la pantalla.</summary>
 public sealed record PlantillaEquipoGuardarRequest(
-    Guid? Id,
-    int Consecutivo,
-    string? EquipoCodigo,
-    bool Utilizado);
+    string? CodigoEquipo,
+    string? Utilizado);
 
-/// <summary>Alta de plantilla con sus líneas.</summary>
+/// <summary>Alta de plantilla con sus líneas. La clave <c>PLANTILLA</c> la asigna la API.</summary>
 public sealed record CrearPlantillaRequest(
-    string Codigo,
-    string Nombre,
-    Guid? ClienteId,
-    string? LocacionCodigo,
+    string? Cliente,
+    string? Locacion,
     string? Direccion,
-    Guid? TecnicoId,
+    string? Tecnico,
     string? Contacto,
     string? Telefono,
-    string? VehiculoCodigo,
+    string? Vehiculo,
     string? DescripcionTrabajo,
     string? Notas,
     IReadOnlyList<PlantillaDetalleGuardarRequest> Detalles,
     IReadOnlyList<PlantillaServicioGuardarRequest> Servicios,
     IReadOnlyList<PlantillaEquipoGuardarRequest> Equipos);
 
-/// <summary>Edición de plantilla. Las líneas que no vengan se dan de baja de la colección.</summary>
+/// <summary>Edición de plantilla. Las líneas que no vengan se eliminan del conjunto de la plantilla.</summary>
 public sealed record ActualizarPlantillaRequest(
-    string Nombre,
-    Guid? ClienteId,
-    string? LocacionCodigo,
+    bool Activo,
+    string? Cliente,
+    string? Locacion,
     string? Direccion,
-    Guid? TecnicoId,
+    string? Tecnico,
     string? Contacto,
     string? Telefono,
-    string? VehiculoCodigo,
+    string? Vehiculo,
     string? DescripcionTrabajo,
     string? Notas,
-    bool EsActivo,
     IReadOnlyList<PlantillaDetalleGuardarRequest> Detalles,
     IReadOnlyList<PlantillaServicioGuardarRequest> Servicios,
     IReadOnlyList<PlantillaEquipoGuardarRequest> Equipos);
 
-/// <summary>Copia de plantilla. Código y nombre son opcionales: si se omiten se generan.</summary>
-public sealed record CopiarPlantillaRequest(string? Codigo, string? Nombre);
+/// <summary>Copia de plantilla. La descripción es opcional: si se omite se conserva la original.</summary>
+public sealed record CopiarPlantillaRequest(string? DescripcionTrabajo);

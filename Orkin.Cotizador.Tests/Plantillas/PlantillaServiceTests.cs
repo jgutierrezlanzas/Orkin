@@ -1,16 +1,27 @@
 using Microsoft.EntityFrameworkCore;
 using Orkin.Cotizador.Core.Application.Plantillas;
+using Orkin.Cotizador.Core.Domain.Comun;
 using Orkin.Cotizador.Core.Domain.Entidades;
 using Orkin.Cotizador.Core.Infrastructure.Persistence;
 
 namespace Orkin.Cotizador.Tests.Plantillas;
 
 /// <summary>
-/// Fase 2. Las dos promesas que más importan de una entidad compuesta: que la copia conserve
-/// TODO el detalle (el legacy perdía <c>MAXIMO_PERMITIDO</c>) y que la baja sea lógica.
+/// D-22: la gestión de plantillas trabaja sobre las tablas legacy. Estas pruebas verifican que
+/// el servicio respete sus claves (<c>PLANTILLA</c>, <c>CONSECUTIVO</c>), sus códigos (<c>SI/NO</c>)
+/// y la auditoría <c>FECHA_CREACION</c>/<c>USUARIO_CREACION</c>, sin crear tablas paralelas.
 /// </summary>
 public sealed class PlantillaServiceTests
 {
+    private sealed class UsuarioPrueba : IContextoUsuario
+    {
+        public Guid? UsuarioId => Guid.NewGuid();
+        public string? NombreUsuario => "AZAPATA";
+        public string? Ip => null;
+        public string? Agente => null;
+        public string? TraceId => null;
+    }
+
     private sealed class Laboratorio : IAsyncDisposable
     {
         private readonly string _nombre = $"pl-{Guid.NewGuid()}";
@@ -19,8 +30,6 @@ public sealed class PlantillaServiceTests
 
         public CotizadorDbContext Contexto { get; }
 
-        /// <summary>Un request HTTP real usa un scope nuevo: el test también, para no arrastrar
-        /// entidades rastreadas por la creación y simular objetos desconectados del DTO.</summary>
         public CotizadorDbContext Relectura() => Crear();
 
         private CotizadorDbContext Crear() =>
@@ -29,162 +38,152 @@ public sealed class PlantillaServiceTests
         public async ValueTask DisposeAsync() => await Contexto.DisposeAsync();
     }
 
-    private static PlantillaService Servicio(Laboratorio laboratorio) => new(laboratorio.Contexto);
+    private static PlantillaService Servicio(Laboratorio laboratorio)
+        => new(laboratorio.Contexto, new UsuarioPrueba());
 
-    private static async Task<Plantilla> CrearBaseAsync(PlantillaService servicio)
-        => await servicio.CrearAsync(
-            "  PL-01  ", "  Fumigación básica  ", null, "LOC-1", "Calle 1", null,
-            "Contacto", "555", "VEH-1", "Trabajo", "Notas",
-            [
-                new PlantillaDetalle
-                {
-                    TipoPlagaCodigo = "PLAGA-1",
-                    DescripcionArticulo = "Producto A",
-                    Cantidad = 2m,
-                    CostoUnitario = 10m,
-                    CostoTotal = 20m,
-                    MaximoPermitido = 99m
-                },
-                new PlantillaDetalle
-                {
-                    TipoPlagaCodigo = "PLAGA-2",
-                    DescripcionArticulo = "Producto B",
-                    Cantidad = 1m,
-                    CostoUnitario = 5m,
-                    CostoTotal = 5m,
-                    MaximoPermitido = 50m
-                }
-            ],
-            [new PlantillaServicio { FrecuenciaCodigo = "MENSUAL" }],
-            [new PlantillaEquipo { EquipoCodigo = "EQUIPO-1", Utilizado = true }]);
+    private static PlantillaGuardar DatosBase(string descripcion = "Fumigación básica") => new(
+        "000081", "L0070", "Calle 1", null, "Contacto", "555", null, descripcion, "Notas", "SI",
+        [
+            new PlantillaOrdenTrabajoDetalle
+            {
+                CodigoArticulo = "PQ001", DescripArticulo = "Producto A", TipoPlaga = "P01",
+                Cantidad = 2m, CostoUnitario = 10m, MaximoPermitido = 99m
+            },
+            new PlantillaOrdenTrabajoDetalle
+            {
+                CodigoArticulo = "MT002", DescripArticulo = "Producto B", Cantidad = 1m,
+                CostoUnitario = 5m, MaximoPermitido = 50m
+            }
+        ],
+        [new PlantillaOrdenTrabajoServicio { CodigoServicio = "S01", CodigoFrecuencia = "MENS" }],
+        [new PlantillaOrdenTrabajoEquipos { CodigoEquipo = "E01", Utilizado = "SI" }]);
 
     [Fact]
-    public async Task Crear_NormalizaCodigoYRenumerarDetalles()
+    public async Task Crear_AsignaSiguientePlantillaYAduitoriaLegacy()
     {
         await using var laboratorio = new Laboratorio();
-        var plantilla = await CrearBaseAsync(Servicio(laboratorio));
+        var plantilla = await Servicio(laboratorio).CrearAsync(DatosBase());
 
-        Assert.Equal("PL-01", plantilla.Codigo);
-        Assert.Equal("Fumigación básica", plantilla.Nombre);
-        Assert.True(plantilla.IsActive);
+        Assert.Equal(1, plantilla.Cabecera.Plantilla);
+        Assert.Equal("000081", plantilla.Cabecera.Cliente);
+        Assert.Equal("SI", plantilla.Cabecera.Activo);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.Today), plantilla.Cabecera.FechaCreacion);
+        Assert.Equal("AZAPATA", plantilla.Cabecera.UsuarioCreacion);
+        // FrmCrudPlantillas dejaba TECNICO y VEHICULO vacíos en el alta.
+        Assert.Equal(string.Empty, plantilla.Cabecera.Tecnico);
+        Assert.Equal(string.Empty, plantilla.Cabecera.Vehiculo);
+    }
+
+    [Fact]
+    public async Task Crear_RenumerizaDesdeUnoYCalculaCostoTotal()
+    {
+        await using var laboratorio = new Laboratorio();
+        var plantilla = await Servicio(laboratorio).CrearAsync(DatosBase());
+
         Assert.Equal([1, 2], plantilla.Detalles.Select(d => d.Consecutivo).ToArray());
-        Assert.Equal("MENSUAL", Assert.Single(plantilla.Servicios).FrecuenciaCodigo);
-        Assert.True(Assert.Single(plantilla.Equipos).Utilizado);
+        Assert.Equal(20m, plantilla.Detalles[0].CostoTotal);
+        Assert.Equal(5m, plantilla.Detalles[1].CostoTotal);
+        Assert.Equal("SI", Assert.Single(plantilla.Equipos).Utilizado);
     }
 
     [Fact]
-    public async Task Crear_ConCodigoDuplicado_LanzaError()
+    public async Task Crear_SinHijosObligatorios_LanzaError()
     {
         await using var laboratorio = new Laboratorio();
         var servicio = Servicio(laboratorio);
-        await CrearBaseAsync(servicio);
+        var datos = DatosBase() with { Equipos = [] };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.CrearAsync(
-            "pl-01", "Otra", null, null, null, null, null, null, null, null, null, [], [], []));
-
-        Assert.Equal(1, await laboratorio.Contexto.Plantilla.CountAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.CrearAsync(datos));
+        Assert.Empty(await laboratorio.Contexto.PlantillaOrdenTrabajo.ToListAsync());
     }
 
     [Fact]
-    public async Task Copiar_ConservaMaximoPermitidoYRenumerarDesdeUno()
+    public async Task Copiar_ConservaMaximoPermitidoYUsaNuevoNumero()
     {
         await using var laboratorio = new Laboratorio();
         var servicio = Servicio(laboratorio);
-        var original = await CrearBaseAsync(servicio);
+        var original = await servicio.CrearAsync(DatosBase());
 
-        var copia = await servicio.CopiarAsync(original.Id);
+        var copia = await servicio.CopiarAsync(original.Cabecera.Plantilla);
 
-        Assert.NotEqual(original.Id, copia.Id);
-        Assert.Equal("PL-01-COPIA", copia.Codigo);
-        Assert.Equal("Fumigación básica (copia)", copia.Nombre);
-        Assert.True(copia.IsActive);
-
-        Assert.Equal(original.Detalles.Count, copia.Detalles.Count);
+        Assert.Equal(2, copia.Cabecera.Plantilla);
+        Assert.Equal("SI", copia.Cabecera.Activo);
         Assert.Equal([1, 2], copia.Detalles.Select(d => d.Consecutivo).ToArray());
-        // El defecto que se corrige respecto del copiador del legacy.
-        Assert.Equal([99m, 50m], copia.Detalles.OrderBy(d => d.Consecutivo).Select(d => d.MaximoPermitido).ToArray());
-        Assert.Equal(original.Detalles.OrderBy(d => d.Consecutivo).Select(d => d.TipoPlagaCodigo),
-            copia.Detalles.OrderBy(d => d.Consecutivo).Select(d => d.TipoPlagaCodigo));
-
+        // El copiador del WinForms perdía este valor; el de la API lo conserva.
+        Assert.Equal([99m, 50m], copia.Detalles.Select(d => d.MaximoPermitido).ToArray());
+        Assert.Equal(original.Detalles.Select(d => d.CodigoArticulo), copia.Detalles.Select(d => d.CodigoArticulo));
         Assert.Single(copia.Servicios);
-        Assert.Equal("MENSUAL", copia.Servicios.Single().FrecuenciaCodigo);
         Assert.Single(copia.Equipos);
-        Assert.Equal("EQUIPO-1", copia.Equipos.Single().EquipoCodigo);
-        Assert.Equal(2, await laboratorio.Contexto.Plantilla.CountAsync());
     }
 
     [Fact]
-    public async Task Copiar_DosVeces_GeneraCodigosDistintos()
+    public async Task DarDeBaja_PoneActivoNoConservaLineas()
     {
         await using var laboratorio = new Laboratorio();
         var servicio = Servicio(laboratorio);
-        var original = await CrearBaseAsync(servicio);
+        var plantilla = await servicio.CrearAsync(DatosBase());
 
-        var primera = await servicio.CopiarAsync(original.Id);
-        var segunda = await servicio.CopiarAsync(original.Id);
+        await servicio.DarDeBajaAsync(plantilla.Cabecera.Plantilla);
 
-        Assert.Equal("PL-01-COPIA", primera.Codigo);
-        Assert.Equal("PL-01-COPIA-2", segunda.Codigo);
-    }
-
-    [Fact]
-    public async Task DarDeBaja_NoBorraLaFilaNiSusLineas()
-    {
-        await using var laboratorio = new Laboratorio();
-        var servicio = Servicio(laboratorio);
-        var plantilla = await CrearBaseAsync(servicio);
-
-        await servicio.DarDeBajaAsync(plantilla.Id);
-
-        var guardada = await laboratorio.Contexto.Plantilla
-            .Include(p => p.Detalles)
-            .SingleAsync(p => p.Id == plantilla.Id);
-        Assert.False(guardada.IsActive);
+        var guardada = await servicio.ObtenerAsync(plantilla.Cabecera.Plantilla);
+        Assert.Equal("NO", guardada!.Cabecera.Activo);
         Assert.Equal(2, guardada.Detalles.Count);
+        Assert.Equal(1, await laboratorio.Contexto.PlantillaOrdenTrabajo.CountAsync());
     }
 
     [Fact]
-    public async Task Actualizar_ReconciliaLineasPorId()
+    public async Task Actualizar_ReconciliaLineasPorConsecutivo()
     {
         await using var laboratorio = new Laboratorio();
         var servicio = Servicio(laboratorio);
-        var plantilla = await CrearBaseAsync(servicio);
-        var lineas = plantilla.Detalles.OrderBy(d => d.Consecutivo).ToList();
+        var plantilla = await servicio.CrearAsync(DatosBase());
 
         await using var contextoNuevo = laboratorio.Relectura();
-        await new PlantillaService(contextoNuevo).ActualizarAsync(
-            plantilla.Id,
-            "Fumigación editada",
-            null, null, null, null, null, null, null, null, null,
-            esActivo: true,
-            detalles:
-            [
-                new PlantillaDetalle
-                {
-                    Id = lineas[0].Id,
-                    DescripcionArticulo = "Producto A editado",
-                    Cantidad = 3m,
-                    CostoUnitario = 10m,
-                    CostoTotal = 30m,
-                    MaximoPermitido = 77m
-                },
-                new PlantillaDetalle
-                {
-                    DescripcionArticulo = "Producto nuevo",
-                    Cantidad = 1m,
-                    MaximoPermitido = 10m
-                }
-            ],
-            servicios: [],
-            equipos: []);
+        await new PlantillaService(contextoNuevo, new UsuarioPrueba()).ActualizarAsync(
+            plantilla.Cabecera.Plantilla,
+            DatosBase("Fumigación editada") with
+            {
+                Detalles =
+                [
+                    new PlantillaOrdenTrabajoDetalle
+                    {
+                        CodigoArticulo = "PQ001", DescripArticulo = "Producto A editado",
+                        Cantidad = 3m, CostoUnitario = 10m, MaximoPermitido = 77m
+                    }
+                ],
+                Servicios = [],
+                Equipos = []
+            },
+            activo: true);
 
-        var actualizada = await servicio.ObtenerPorIdAsync(plantilla.Id);
-        Assert.Equal("Fumigación editada", actualizada!.Nombre);
-        Assert.Equal(2, actualizada.Detalles.Count);
-        Assert.Contains(actualizada.Detalles, d => d.Id == lineas[0].Id && d.MaximoPermitido == 77m);
-        Assert.DoesNotContain(actualizada.Detalles, d => d.Id == lineas[1].Id);
-        Assert.Contains(actualizada.Detalles, d => d.DescripcionArticulo == "Producto nuevo");
+        var actualizada = await servicio.ObtenerAsync(plantilla.Cabecera.Plantilla);
+        Assert.Equal("Fumigación editada", actualizada!.Cabecera.DescripTrabajo);
+        Assert.Single(actualizada.Detalles);
+        Assert.Equal(77m, actualizada.Detalles[0].MaximoPermitido);
+        Assert.Equal(30m, actualizada.Detalles[0].CostoTotal);
         Assert.Empty(actualizada.Servicios);
         Assert.Empty(actualizada.Equipos);
+    }
+
+    [Fact]
+    public async Task Listar_FiltraPorActivoClienteYTexto()
+    {
+        await using var laboratorio = new Laboratorio();
+        var servicio = Servicio(laboratorio);
+        await servicio.CrearAsync(DatosBase("APLICACION NOCTURNA"));
+        await servicio.CrearAsync(DatosBase("AREAS COMUNES") with { Cliente = "000092" });
+
+        var todas = await servicio.ListarAsync(soloActivas: false);
+        Assert.Equal(2, todas.Count);
+
+        var activas = await servicio.ListarAsync(soloActivas: true);
+        Assert.Equal(2, activas.Count);
+
+        await servicio.DarDeBajaAsync(todas[0].Cabecera.Plantilla);
+        Assert.Single(await servicio.ListarAsync(soloActivas: true));
+
+        Assert.Single(await servicio.ListarAsync(cliente: "000092"));
+        Assert.Single(await servicio.ListarAsync(texto: "NOCTURNA", soloActivas: false));
+        Assert.Single(await servicio.ListarAsync(texto: "2"));
     }
 }
