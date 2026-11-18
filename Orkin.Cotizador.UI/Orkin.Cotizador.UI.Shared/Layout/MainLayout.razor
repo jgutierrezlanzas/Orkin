@@ -72,7 +72,7 @@
                    en "Catálogos compartidos" (D-21). *@
                 @if (TienePermiso("PLANTILLAS.VER") || TienePermiso("VISITAS.VER") ||
                      TienePermiso("OT.VER") || TienePermiso("REQUISAS.VER") ||
-                     TienePermiso("INVENTARIO.VER"))
+                     TienePermiso("INVENTARIO.VER") || TienePermiso("REPORTES.VER"))
                 {
                     <MudNavGroup Title="Operación" Icon="@Icons.Material.Filled.Build" Expanded="true">
                         @if (TienePermiso("PLANTILLAS.VER"))
@@ -94,6 +94,10 @@
                         @if (TienePermiso("INVENTARIO.VER"))
                         {
                             <MudNavLink Href="/inventario/documentos" Icon="@Icons.Material.Filled.LocalShipping">Documentos de inventario</MudNavLink>
+                        }
+                        @if (TienePermiso("REPORTES.VER"))
+                        {
+                            <MudNavLink Href="/reportes" Icon="@Icons.Material.Filled.Print">Reportes</MudNavLink>
                         }
                     </MudNavGroup>
                 }

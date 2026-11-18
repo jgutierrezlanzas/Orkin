@@ -1,0 +1,399 @@
+@page "/reportes"
+@attribute [Authorize("REPORTES.VER")]
+@layout MainLayout
+@using System.Globalization
+@using System.Text.Json
+@using Orkin.Cotizador.UI.Web.Client.Models
+@inject ReportesService ServicioReportes
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Color="Color.Primary">Reportes</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Operación · datasets de los SPs legacy sobre SINCOERPORKIN · PDF generado en la API
+            </MudText>
+        </div>
+        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+            @_catalogo.Count reportes
+        </MudChip>
+    </div>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="4" lg="3">
+            <MudPaper Class="pa-3" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Catálogo único</MudText>
+                @if (_cargandoCatalogo)
+                {
+                    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+                }
+                else
+                {
+                    <div class="d-flex flex-column" style="gap: 2px;">
+                        @foreach (var reporte in _catalogo)
+                        {
+                            <MudButton Variant="@(ReferenceEquals(reporte, _seleccionado) ? Variant.Filled : Variant.Text)"
+                                       Color="@(ReferenceEquals(reporte, _seleccionado) ? Color.Primary : Color.Default)"
+                                       Class="justify-start text-none"
+                                       FullWidth="true"
+                                       OnClick="@(() => Seleccionar(reporte))">
+                                @reporte.Nombre
+                            </MudButton>
+                        }
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="8" lg="9">
+            @if (_seleccionado is not null)
+            {
+                <MudPaper Class="pa-4 mb-3" Elevation="1" Outlined="true">
+                    <MudText Typo="Typo.h6" Color="Color.Primary">@_seleccionado.Nombre</MudText>
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
+                        @_seleccionado.Descripcion
+                    </MudText>
+
+                    <MudDivider Class="my-3" />
+
+                    <MudGrid Spacing="3">
+                        @foreach (var parametro in _seleccionado.Parametros)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                @if (parametro.Tipo == "fecha")
+                                {
+                                    <MudDatePicker Date="@FechaDe(parametro.Clave)"
+                                                   DateChanged="@((DateTime? valor) => CambiarFecha(parametro.Clave, valor))"
+                                                   Label="@parametro.Etiqueta" Variant="Variant.Outlined"
+                                                   Margin="Margin.Dense" />
+                                }
+                                else if (parametro.Tipo == "booleano")
+                                {
+                                    <MudCheckBox T="bool" Value="@BoolDe(parametro.Clave)"
+                                                 ValueChanged="@((bool valor) => CambiarBooleano(parametro.Clave, valor))"
+                                                 Label="@parametro.Etiqueta" Color="Color.Primary" />
+                                }
+                                else
+                                {
+                                    <MudTextField T="string" Value="@TextoDe(parametro.Clave)"
+                                                  ValueChanged="@((string valor) => CambiarTexto(parametro.Clave, valor))"
+                                                  Label="@parametro.Etiqueta" Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense" />
+                                }
+                            </MudItem>
+                        }
+                    </MudGrid>
+
+                    <div class="d-flex flex-wrap gap-2 mt-4">
+                        <MudTooltip Text="Ejecuta el SP legacy en solo lectura y muestra hasta 100 filas en el visor">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Search"
+                                       Disabled="_cargandoDatos" OnClick="VerDatos">Ver datos</MudButton>
+                        </MudTooltip>
+                        @if (_puedeImprimir)
+                        {
+                            <MudTooltip Text="Genera el PDF en la API desde el dataset del SP (REPORTES.IMPRIMIR)">
+                                <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                                           StartIcon="@Icons.Material.Filled.Print"
+                                           Disabled="_cargandoDatos" OnClick="DescargarPdf">Imprimir PDF</MudButton>
+                            </MudTooltip>
+                        }
+                        @if (_puedeExportar)
+                        {
+                            <MudTooltip Text="Exporta el mismo dataset a CSV con BOM para Excel (REPORTES.EXPORTAR)">
+                                <MudButton Variant="Variant.Outlined" Color="Color.Success"
+                                           StartIcon="@Icons.Material.Filled.FileDownload"
+                                           Disabled="_cargandoDatos" OnClick="DescargarCsv">Exportar CSV</MudButton>
+                            </MudTooltip>
+                        }
+                    </div>
+                </MudPaper>
+
+                <MudPaper Class="pa-4 mb-3" Elevation="1" Outlined="true">
+                    <div class="d-flex justify-space-between align-center mb-2">
+                        <MudText Typo="Typo.subtitle2"> Vista previa </MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            @(_datos is null ? "Sin ejecutar" : $"{_datos.Filas.Count} de {_datos.Total} filas")
+                        </MudText>
+                    </div>
+
+                    @if (_cargandoDatos)
+                    {
+                        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+                    }
+                    else if (_datos is null)
+                    {
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                            Elija los parámetros y presione <b>Ver datos</b>. El reporte se ejecuta contra las tablas legacy; no se crea ningún registro.
+                        </MudText>
+                    }
+                    else if (_datos.Filas.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                            El SP no devolvió filas para los parámetros indicados.
+                        </MudText>
+                    }
+                    else
+                    {
+                        <div class="overflow-auto">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                                <thead>
+                                    <tr>
+                                        @foreach (var columna in _datos.Columnas)
+                                        {
+                                            <th class="pa-2" style="background:#F5F5F5; text-align:left; white-space:nowrap;">@columna.Titulo</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var fila in _datos.Filas)
+                                    {
+                                        <tr>
+                                            @foreach (var columna in _datos.Columnas)
+                                            {
+                                                <td class="pa-2" style="border-bottom:1px solid #EEEEEE; white-space:nowrap;">
+                                                    @Valor(fila, columna.Clave)
+                                                </td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </MudPaper>
+
+                <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">Firmas del documento</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        vvTipodeDocumentosFirma · CODIGO = 0003 · ACTIVO = SI
+                    </MudText>
+                    <MudGrid Spacing="3" Class="mt-2">
+                        @foreach (var firma in _firmas.OrderBy(f => f.Orden))
+                        {
+                            <MudItem xs="12" sm="4">
+                                <MudText Typo="Typo.body2"><b>@firma.Nombre</b></MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@firma.Cargo</MudText>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudPaper>
+            }
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private List<ReporteDefinicionModel> _catalogo = [];
+    private List<FirmaReporteModel> _firmas = [];
+    private ReporteDefinicionModel? _seleccionado;
+    private ReporteDatosModel? _datos;
+    private Dictionary<string, string?> _textos = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, DateTime?> _fechas = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, bool> _booleanos = new(StringComparer.OrdinalIgnoreCase);
+    private bool _cargandoCatalogo = true;
+    private bool _cargandoDatos;
+    private bool _puedeImprimir;
+    private bool _puedeExportar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+        _puedeImprimir = estado.User.HasClaim("orkin:permiso", "REPORTES.IMPRIMIR");
+        _puedeExportar = estado.User.HasClaim("orkin:permiso", "REPORTES.EXPORTAR");
+
+        try
+        {
+            _catalogo = await ServicioReportes.ObtenerCatalogoAsync();
+            _firmas = await ServicioReportes.ObtenerFirmasAsync();
+            if (_catalogo.Count > 0)
+            {
+                Seleccionar(_catalogo[0]);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo cargar el catálogo de reportes: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cargandoCatalogo = false;
+        }
+    }
+
+    private void Seleccionar(ReporteDefinicionModel reporte)
+    {
+        _seleccionado = reporte;
+        _datos = null;
+        _textos = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        _fechas = new Dictionary<string, DateTime?>(StringComparer.OrdinalIgnoreCase);
+        _booleanos = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        var hoy = DateTime.Today;
+        foreach (var parametro in reporte.Parametros)
+        {
+            switch (parametro.Tipo)
+            {
+                case "fecha":
+                    _fechas[parametro.Clave] = parametro.Clave switch
+                    {
+                        "desde" => new DateTime(hoy.Year, hoy.Month, 1),
+                        "anio" or "mes" => null,
+                        _ => hoy
+                    };
+                    break;
+                case "booleano":
+                    _booleanos[parametro.Clave] = string.Equals(
+                        parametro.ValorPorDefecto, "true", StringComparison.OrdinalIgnoreCase);
+                    break;
+                default:
+                    _textos[parametro.Clave] = parametro.Clave switch
+                    {
+                        "anio" => hoy.Year.ToString(CultureInfo.InvariantCulture),
+                        "mes" => hoy.Month.ToString(CultureInfo.InvariantCulture),
+                        _ => parametro.ValorPorDefecto
+                    };
+                    break;
+            }
+        }
+    }
+
+    private string? TextoDe(string clave) => _textos.TryGetValue(clave, out var valor) ? valor : null;
+    private DateTime? FechaDe(string clave) => _fechas.TryGetValue(clave, out var valor) ? valor : null;
+    private bool BoolDe(string clave) => _booleanos.TryGetValue(clave, out var valor) && valor;
+
+    private void CambiarTexto(string clave, string? valor) => _textos[clave] = valor;
+    private void CambiarFecha(string clave, DateTime? valor) => _fechas[clave] = valor;
+    private void CambiarBooleano(string clave, bool valor) => _booleanos[clave] = valor;
+
+    private Dictionary<string, object?> Parametros()
+    {
+        var resultado = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        if (_seleccionado is null)
+        {
+            return resultado;
+        }
+
+        foreach (var parametro in _seleccionado.Parametros)
+        {
+            switch (parametro.Tipo)
+            {
+                case "fecha":
+                    if (FechaDe(parametro.Clave) is { } fecha)
+                    {
+                        resultado[parametro.Clave] = DateOnly.FromDateTime(fecha);
+                    }
+                    break;
+                case "booleano":
+                    resultado[parametro.Clave] = BoolDe(parametro.Clave);
+                    break;
+                case "entero":
+                    var textoEntero = TextoDe(parametro.Clave);
+                    if (string.IsNullOrWhiteSpace(textoEntero))
+                    {
+                        break;
+                    }
+                    if (!int.TryParse(textoEntero, NumberStyles.Integer, CultureInfo.InvariantCulture, out var entero))
+                    {
+                        throw new ArgumentException($"{parametro.Etiqueta} debe ser un número entero.");
+                    }
+                    resultado[parametro.Clave] = entero;
+                    break;
+                default:
+                    var texto = TextoDe(parametro.Clave);
+                    if (!string.IsNullOrWhiteSpace(texto))
+                    {
+                        resultado[parametro.Clave] = texto.Trim();
+                    }
+                    break;
+            }
+        }
+
+        return resultado;
+    }
+
+    private async Task VerDatos()
+    {
+        if (_seleccionado is null)
+        {
+            return;
+        }
+
+        _cargandoDatos = true;
+        try
+        {
+            _datos = await ServicioReportes.ObtenerDatosAsync(_seleccionado.Clave, Parametros());
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _cargandoDatos = false;
+        }
+    }
+
+    private Task DescargarPdf() => Descargar("pdf");
+
+    private Task DescargarCsv() => Descargar("csv");
+
+    private async Task Descargar(string formato)
+    {
+        if (_seleccionado is null)
+        {
+            return;
+        }
+
+        _cargandoDatos = true;
+        try
+        {
+            await ServicioReportes.DescargarAsync(_seleccionado.Clave, formato, Parametros());
+            Snackbar.Add($"Archivo {formato.ToUpperInvariant()} generado desde el SP legacy.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _cargandoDatos = false;
+        }
+    }
+
+    /// <summary>
+    /// Los valores de un <c>Dictionary&lt;string, object&gt;</c> que vienen por JSON son
+    /// <see cref="JsonElement"/>: sin este caso el visor mostraría "System.Text.Json.JsonElement"
+    /// en vez del dato real del ERP.
+    /// </summary>
+    private static string Valor(Dictionary<string, object?> fila, string clave)
+    {
+        if (!fila.TryGetValue(clave, out var valor) || valor is null)
+        {
+            return "—";
+        }
+
+        if (valor is JsonElement elemento)
+        {
+            return elemento.ValueKind switch
+            {
+                JsonValueKind.Null or JsonValueKind.Undefined => "—",
+                JsonValueKind.String => elemento.GetString() ?? "—",
+                JsonValueKind.True => "SI",
+                JsonValueKind.False => "NO",
+                _ => elemento.GetRawText()
+            };
+        }
+
+        return valor switch
+        {
+            DateTime fecha => fecha.ToString("dd/MM/yyyy", CultureInfo.GetCultureInfo("es-ES")),
+            DateOnly fecha => fecha.ToString("dd/MM/yyyy", CultureInfo.GetCultureInfo("es-ES")),
+            decimal numero => numero.ToString("N2", CultureInfo.GetCultureInfo("es-ES")),
+            bool booleano => booleano ? "SI" : "NO",
+            _ => valor.ToString()?.Trim() is { Length: > 0 } texto ? texto : "—"
+        };
+    }
+}

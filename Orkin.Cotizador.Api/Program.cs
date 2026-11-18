@@ -305,6 +305,7 @@ public static class Program
         construccion.Services.AddSingleton<RevocacionTokens>();
         construccion.Services.AddScoped<EmisorJwt>();
         construccion.Services.AddScoped<Pdf.GeneradorPdfCotizacion>();
+        construccion.Services.AddScoped<Reportes.GeneradorPdfReporte>();
         construccion.Services.AddHttpContextAccessor();
 
         // La infraestructura registra su propio IContextoUsuario para los procesos que no tienen

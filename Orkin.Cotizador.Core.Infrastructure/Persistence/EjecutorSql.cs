@@ -7,6 +7,19 @@ using Microsoft.EntityFrameworkCore.Storage;
 namespace Orkin.Cotizador.Core.Infrastructure.Persistence;
 
 /// <summary>
+/// Lectura SQL parametrizada que devuelve filas como pares columna/valor. Es el contrato que
+/// necesitan los servicios que solo consultan (por ejemplo los reportes de la Fase 7) y que
+/// permite sustituir el ejecutor real por un doble en las pruebas, sin base de datos.
+/// </summary>
+public interface ILectorSql
+{
+    Task<List<Dictionary<string, object?>>> ConsultarAsync(
+        string sql,
+        CancellationToken cancellationToken = default,
+        params (string Nombre, object? Valor)[] parametros);
+}
+
+/// <summary>
 /// Ejecuta un <c>SELECT</c> y devuelve las filas como pares columna/valor, sin materializar
 /// entidades.
 /// <para><b>Por qué existe:</b> hay tres cosas que EF Core 10 no deja hacer y que el sistema
@@ -29,7 +42,7 @@ namespace Orkin.Cotizador.Core.Infrastructure.Persistence;
 /// sola, porque una sola sentencia corre en su propia transacción: no queda una ventana entre la
 /// lectura y la escritura.</para>
 /// </summary>
-public sealed class EjecutorSql
+public sealed class EjecutorSql : ILectorSql
 {
     private readonly CotizadorDbContext _contexto;
 

@@ -40,6 +40,7 @@ public static class ServiceCollectionExtensions
         // la transacción sea una sola cuando el que llama abrió una.
         services.AddScoped<ConsecutivoService>();
         services.AddScoped<EjecutorSql>();
+        services.AddScoped<ILectorSql>(proveedor => proveedor.GetRequiredService<EjecutorSql>());
         services.AddScoped<UnidadMedidaService>();
         services.AddScoped<CategoriaProductoService>();
         services.AddScoped<TipoServicioService>();
@@ -53,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Requisas.RequisaService>();
         services.AddScoped<Inventario.IExactusService, Inventario.ExactusService>();
         services.AddScoped<Inventario.InventarioService>();
+        services.AddScoped<Reportes.IReporteService, Reportes.ServicioReportes>();
         services.AddScoped<Visitas.IGeneradorOrdenTrabajo, Visitas.GeneradorOrdenTrabajoService>();
         services.AddScoped<Visitas.VisitaService>();
         services.AddScoped<Visitas.ImportadorGoogleService>();

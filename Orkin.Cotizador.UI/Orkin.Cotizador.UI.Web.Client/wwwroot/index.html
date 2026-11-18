@@ -30,8 +30,14 @@
         // forma de «servir» el archivo desde el servidor: los bytes vienen por HttpClient y el
         // navegador es quien lo guarda. window._blazorFiles... no existe; esto es lo que hay.
         window.descargarPdf = function (base64, nombre) {
+            window.descargarArchivo(base64, nombre, 'application/pdf');
+        };
+
+        // Descarga genérica de la Fase 7: el mismo visor baja PDF y CSV (y cualquier otro
+        // archivo que la API devuelva como bytes) sin duplicar el blob por cada formato.
+        window.descargarArchivo = function (base64, nombre, mime) {
             const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;

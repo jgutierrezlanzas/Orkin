@@ -56,6 +56,7 @@ public class Program
         builder.Services.AddScoped<OrdenService>();
         builder.Services.AddScoped<RequisaService>();
         builder.Services.AddScoped<InventarioService>();
+        builder.Services.AddScoped<ReportesService>();
         builder.Services.AddScoped<CotizacionService>();
         builder.Services.AddScoped<IntegracionService>();
         builder.Services.AddScoped<AdminService>();

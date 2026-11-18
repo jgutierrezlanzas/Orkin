@@ -2,6 +2,7 @@
 @attribute [Authorize("REQUISAS.VER")]
 @layout MainLayout
 @inject RequisaService ServicioRequisas
+@inject ReportesService ServicioReportes
 @inject OrdenService ServicioOrdenes
 @inject CatalogoService Catalogos
 @inject AuthenticationStateProvider AuthStateProvider
@@ -143,10 +144,13 @@
                                        OnClick="@(() => Anular(context))" aria-label="Anular" />
                     </MudTooltip>
                 }
-                <MudTooltip Text="Impresión pendiente de la Fase 7">
-                    <MudIconButton Icon="@Icons.Material.Filled.Print" Size="Size.Small" Color="Color.Default"
-                                   Disabled="true" aria-label="Imprimir" />
-                </MudTooltip>
+                @if (_puedeImprimir)
+                {
+                    <MudTooltip Text="Imprime la requisa con SINCO_IMPRIMIR_REQUISAS sobre su fecha; el SP legacy filtra por rango y la API acota el PDF a esta requisa.">
+                        <MudIconButton Icon="@Icons.Material.Filled.Print" Size="Size.Small" Color="Color.Info"
+                                       OnClick="@(() => Imprimir(context))" aria-label="Imprimir requisa" />
+                    </MudTooltip>
+                }
             </MudTd>
         </RowTemplate>
         <NoRecordsContent>
@@ -169,6 +173,7 @@
     private bool _cargando;
     private bool _puedeEditar;
     private bool _puedeAnular;
+    private bool _puedeImprimir;
 
     private DateTime? DesdeDateTime
     {
@@ -187,6 +192,7 @@
         var estado = await AuthStateProvider.GetAuthenticationStateAsync();
         _puedeEditar = estado.User.HasClaim("orkin:permiso", "REQUISAS.EDITAR");
         _puedeAnular = estado.User.HasClaim("orkin:permiso", "REQUISAS.ANULAR");
+        _puedeImprimir = estado.User.HasClaim("orkin:permiso", "REQUISAS.IMPRIMIR");
 
         _clientes = await Catalogos.ListarClientesAsync();
         await Cargar();
@@ -239,6 +245,23 @@
             var requisa = await ServicioRequisas.CrearDesdeOrdenAsync(orden);
             Snackbar.Add($"Requisa {requisa.RequisaNumero} generada desde la orden {orden.OrdenNumero}.", Severity.Success);
             await Cargar();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    /// <summary>
+    /// El SP legacy de requisas no acepta número de requisa, solo rango de fechas: se le pasa la
+    /// fecha de la fila y la API acota el dataset al número pedido antes de generar el PDF.
+    /// </summary>
+    private async Task Imprimir(RequisaModel requisa)
+    {
+        try
+        {
+            await ServicioReportes.ImprimirRequisaAsync(requisa.RequisaNumero, requisa.FechaRequisa);
+            Snackbar.Add($"PDF de la requisa {requisa.RequisaNumero} generado.", Severity.Success);
         }
         catch (Exception ex)
         {

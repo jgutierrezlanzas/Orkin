@@ -52,6 +52,9 @@
         "INVENTARIO.VER",
         "INVENTARIO.EDITAR",
         "INVENTARIO.TRANSFERIR",
+        "REPORTES.VER",
+        "REPORTES.IMPRIMIR",
+        "REPORTES.EXPORTAR",
         "ADMIN.USUARIOS",
         "ADMIN.ROLES",
         "ADMIN.PARAMETROS",
@@ -105,6 +108,9 @@
         "INVENTARIO.VER",
         "INVENTARIO.EDITAR",
         "INVENTARIO.TRANSFERIR",
+        "REPORTES.VER",
+        "REPORTES.IMPRIMIR",
+        "REPORTES.EXPORTAR",
         "AUDITORIA.VER"
       ]
     },
@@ -131,7 +137,8 @@
         "VISITAS.VER",
         "OT.VER",
         "REQUISAS.VER",
-        "INVENTARIO.VER"
+        "INVENTARIO.VER",
+        "REPORTES.VER"
       ]
     }
   ]

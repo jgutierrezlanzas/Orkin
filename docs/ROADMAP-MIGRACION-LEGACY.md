@@ -63,12 +63,12 @@ Leyenda de estado: ✅ ya cubierto · 🔶 parcial · 🆕 por construir · ❓ 
 | 24 | Detalle requisa: entregado / utilizado / devuelto / SobFal | `FormDetalleRequisa` | Componente de línea con cálculo de SobFal | 🆕 | 5 |
 | 25 | Documentos de inventario + detalle | `FrmDocumentoInventario` | `/inventario/documentos` | ✅ | 6 |
 | 26 | Generar / trasladar documento a Exactus | SPs `SINCO_GENERA_DOCINV_EXACTUS`, `SINCO_TRASLADAR_DOCINV_EXACTUS` | Servicio `IExactusService` envolviendo los SPs con parámetros | ✅ | 6 |
-| 27 | Imprimir orden de trabajo | `FrmReportViewer` + `OrdenesDeTrabajo.rdlc` | `/ordenes/{id}/imprimir` — PDF generado en la API desde los SPs | 🆕 decisión cerrada | 7 |
-| 28 | Reportes de requisas y costos | SPs `SINCO_IMPRIMIR_REQUISAS*`, `SINCO_CONSULTAR_*` | `/reportes` — PDF desde API + datasets existentes | 🆕 decisión cerrada | 7 |
+| 27 | Imprimir orden de trabajo | `FrmReportViewer` + `OrdenesDeTrabajo.rdlc` | Acción `Imprimir` en `/ordenes` → PDF generado en la API desde `SINCO_IMPRIMIR_ORDENE_DE_TRABAJO` | ✅ | 7 |
+| 28 | Reportes de requisas y costos | SPs `SINCO_IMPRIMIR_REQUISAS*`, `SINCO_CONSULTAR_*` | `/reportes` — visor, PDF y CSV desde API sobre los datasets existentes | ✅ | 7 |
 | 29 | Notificaciones de visitas y correos | Consola + Windows Service + SPs `SINCO_NOTIFICAR_*` | `IHostedService` + proveedor de correo | 🆕 | 8 |
 | 30 | Integración Google Calendar | `GoogleCalendar.cs` | **Agenda propia con calendarios por técnico y su color + importador** de eventos existentes | ✅ decisión cerrada | 3 |
 | 31 | `PRICING` | Sin handler | **Retirado del menú**; estructura preparada para reactivarlo | ✅ decisión cerrada | 9 |
-| 32 | `REPORTES` (botón del menú) | Sin handler | Se activa con la Fase 7 | 🆕 | 7 |
+| 32 | `REPORTES` (botón del menú) | Sin handler | `/reportes` con catálogo único de 13 SPs y permisos `REPORTES.*` | ✅ | 7 |
 | 33 | `CAMBIAR CONTRASEÑA` (label) | Sin handler | Ya existe en `/cambiar-contrasena` | ✅ | 0 |
 | 34 | Campana de notificaciones | Decorativa | implementar en Fase 8 | 🆕 | 8 |
 
@@ -95,9 +95,9 @@ No se migran "como están". Se clasifican y envuelven:
 |---|---|---|
 | Generación de documentos | `SINCO_GENERA_ORDENE_DE_TRABAJO`, `SINCO_GENERA_ORDENES_DE_TRABAJO`, `SINCO_GENERA_REQUISA`, `SINCO_GENERA_DOCINV_EXACTUS`, `SINCO_TRASLADAR_DOCINV_EXACTUS` | Fases 4–6: envolver en servicios con parámetros; Fase 10: trasladar regla a C# y dejar SP de respaldo |
 | Anulación / renumeración | `SINCO_ANULAR_ORDENES_DE_TRABAJO`, `SINCO_ELIMINAR_NUMERO_DE_ORDEN`, `SINCO_CAMBIAR_NUMERO_DE_ORDEN`, `SINCO_ELIMINAR_REQUISA` | Convertir a servicios con transacción y auditoría (nunca borrado físico sin confirmación) |
-| Reportes | `SINCO_IMPRIMIR_ORDENE_DE_TRABAJO(N)`, `SINCO_IMPRIMIR_REQUISAS*`, `SINCO_IMPRIMIR_ORDENES_DE_TRABAJO` | Fase 7: el servicio de reportes los invoca y genera PDF |
+| Reportes | `SINCO_IMPRIMIR_ORDENE_DE_TRABAJO(N)`, `SINCO_IMPRIMIR_REQUISAS*`, `SINCO_IMPRIMIR_ORDENES_DE_TRABAJO` | ✅ Fase 7: `ServicioReportes` los invoca con parámetros y `GeneradorPdfReporte` arma el PDF en la API |
 | Notificaciones | `SINCO_NOTIFICAR_CLIENTES`, `SINCO_NOTIFICAR_PROXIMOS_SERVICIOS`, `SINCO_NOTIFICAR_CORREOS_ENVIADOS`, `SINCO_NOTIFICAR_REQUISAS_ERRADAS`, `SINCO_MOVER_NOTIFICACION_DESERVICIOS` | Fase 8: sustituir por `BackgroundService` + correo real con bitácora |
-| Consultas de costos/cartera | `SINCO_CONSULTAR_*`, `SINCO_SP_CARTERA_ANTIGUEDAD` | Fase 7/9: proyectar como endpoints de reporte |
+| Consultas de costos/cartera | `SINCO_CONSULTAR_*`, `SINCO_SP_CARTERA_ANTIGUEDAD` | ✅ Fase 7: proyectadas como endpoints de `/reportes` con PDF y CSV (la cartera depende de `FUMIPLAGA.FMP`) |
 | Utilitarios | `SINCO_LIMPIAR_TABLAS_DE_TRABAJO`, `SINCO_ACTUALIZAR_DATOSLOCACIONES` | No migrar; sustituir por mantenimiento web |
 
 > **Regla de oro:** ningún SP se invoca con SQL concatenado. Todos pasan por `SqlParameter` o por `FromSqlInterpolated`, con auditoría de quién lo ejecutó.
@@ -131,10 +131,10 @@ El sidebar es de la **plataforma**, no del cotizador:
 | `Dashboard` | KPIs de toda la operación | ✅ |
 | `Cotizaciones` | Módulo 1 | ✅ |
 | `Catálogos compartidos` | Clientes, productos, unidades, categorías, tipos de servicio, tipos de cambio, técnicos y orígenes ETL | ✅ |
-| `Operación` | Plantillas, visitas, órdenes, requisas, inventario, reportes | 🔶 Plantillas ✅ (Fase 2); resto 🆕 fases 3–7; solo se agregan links cuando la página exista |
+| `Operación` | Plantillas, visitas, órdenes, requisas, inventario, reportes | ✅ Plantillas (Fase 2), visitas (Fase 3), órdenes (Fase 4), requisas (Fase 5), inventario (Fase 6) y reportes (Fase 7) |
 | `Administración` | Usuarios, roles, parámetros, bitácora, cambiar contraseña | ✅ |
 
-`PRICING` no aparece. `REPORTES` aparece dentro de `Operación` cuando la Fase 7 esté lista, no como botón suelto. Ningún grupo muestra dos veces el mismo catálogo.
+`PRICING` no aparece. `REPORTES` está dentro de `Operación` (Fase 7), no como botón suelto. Ningún grupo muestra dos veces el mismo catálogo.
 
 ---
 
@@ -215,7 +215,7 @@ El sidebar es de la **plataforma**, no del cotizador:
 - ✅ **Edición con pestañas** (`OrdenDialogo`): Productos, Servicios, Equipos y Técnicos con combos legibles desde la API única de catálogos (D-20/D-21); costo real desde `COSTO_PROM_LOC`, unidad desde `UNIDAD_VENTA` y precio unitario ajustable. Solo se permite en `GE`.
 - ✅ **Estados y ciclo de vida**: `GE` generada, `AP` aprobada, `AN` anulada. `AP` solo se alcanza hoy al generar la requisa con `dbo.SINCO_GENERA_REQUISA`; no existe SP de aprobación separado. La anulación usa `dbo.SINCO_ANULAR_ORDENES_DE_TRABAJO` y también anula la requisa. Los mensajes `RAISERROR` del legacy se reenvían tal cual.
 - ✅ **Permisos sembrados** `OT.VER`, `.EDITAR`, `.ANULAR`, `.APROBAR`, `.IMPRIMIR` en `seg.Permiso`, `dbo.ModuloPermisoCatalogo` y los tres roles; link `Órdenes de trabajo` en `Operación`.
-- ✅ Imprimir → Fase 7 (el permiso ya existe para no renegociar roles después).
+- ✅ Imprimir (Fase 7): acción en la grilla con `OT.IMPRIMIR`, tooltip que advierte que solo se imprimen órdenes `AP` y mensaje del SP reenviado sin traducir.
 - ✅ **Verificado**: build `0 Errores`, tests `108/108` (7 pruebas nuevas de Fase 4 sobre proveedor InMemory, sin mutar datos reales).
 
 **Dependencias:** Fases 2 y 3. **Riesgo:** alto — resuelto delegando el ciclo de vida a los SPs originales y conservando sus mensajes y consecutivos.
@@ -231,7 +231,7 @@ El sidebar es de la **plataforma**, no del cotizador:
 - ✅ **Alta "Nueva desde orden"** (`NuevaRequisaDialogo`): solo órdenes `GE`; delega en `OrdenTrabajoService.GenerarRequisaAsync`, que invoca `dbo.SINCO_GENERA_REQUISA`. No se vuelve a ejecutar el SP desde el listado ni se duplica su lógica (la requisa toma el número de la orden).
 - ✅ **Edición con pestañas** (`RequisaDialogo`): cabecera, líneas y técnicos. Selector de producto con descripción, unidad y `COSTO_PROM_LOC`; precio manual permitido. Entregada / utilizada / devuelta y `CANTIDAD_SOBFAL = CANTIDAD_UTILIZADA + CANTIDAD_DEVUELTA - CANTIDAD_ENTREGADA`; `COSTO_TOTAL = CANTIDAD_UTILIZADA * COSTO_UNITARIO`. Se conserva y documenta el signo heredado de SobFal y el bug del mensaje de "cantidad devuelta" que valida `nCantidadUtilizada`. Solo se edita en `GE`; en `AP`/`AN` se devuelve el mensaje exacto del WinForms.
 - ✅ **Anulación**: reutiliza `dbo.SINCO_ANULAR_ORDENES_DE_TRABAJO` desde la orden relacionada; no hay SP ni tabla nueva. Mensajes `RAISERROR` y validaciones del legacy se reenvían tal cual.
-- ✅ **Permisos sembrados** `REQUISAS.VER`, `.EDITAR`, `.ANULAR`, `.IMPRIMIR` en `seg.Permiso`, `dbo.ModuloPermisoCatalogo` y los tres roles; link `Requisas` en `Operación`. Imprimir queda deshabilitado con tooltip "Impresión pendiente de la Fase 7" (el permiso ya existe).
+- ✅ **Permisos sembrados** `REQUISAS.VER`, `.EDITAR`, `.ANULAR`, `.IMPRIMIR` en `seg.Permiso`, `dbo.ModuloPermisoCatalogo` y los tres roles; link `Requisas` en `Operación`. Imprimir se activó en la Fase 7 con `SINCO_IMPRIMIR_REQUISAS` y su tooltip.
 - ✅ **Verificado**: build `0 Errores`, tests `115/115` (7 pruebas nuevas de Fase 5 sobre proveedor InMemory, sin mutar datos reales). API real: `GET /api/requisas?estado=GE` devuelve `0048057` (3 líneas, 1 técnico) y `GET /api/catalogos/opciones-erp` devuelve 12 bodegas reales. UI real: menú, KPIs, grilla, detalle de `0048057`, tooltip de impresión y consola sin errores.
 
 **Dependencias:** Fase 4. **Riesgo:** medio — resuelto reutilizando los SPs originales y las vistas reales, y conservando mensajes y reglas heredadas.
@@ -259,12 +259,19 @@ El sidebar es de la **plataforma**, no del cotizador:
 **Decisión cerrada:** se reutilizan los datasets y los SPs `SINCO_IMPRIMIR_*` actuales, y el **PDF se genera desde la API**; la web solo muestra el visor y ofrece la descarga. No se migra `ReportViewer` al cliente.
 
 **Entregables**
-- Servicio de reportes en la API: invoca los SPs `SINCO_IMPRIMIR_*` con parámetros, arma el dataset y genera el PDF.
-- Visor en la web y descarga; firma digital desde `vvTipodeDocumentosFirma` (`CODIGO='0003'`).
-- Reportes de costos/transacciones/cartera como endpoints con filtros y salida PDF/Excel.
-- Permisos: `REPORTES.VER`, `.IMPRIMIR`, `.EXPORTAR`.
+- ✅ `IReporteService`/`ServicioReportes` en Application: catálogo estático de **13 reportes**, un SP por reporte; los nombres de SP y de parámetro salen del catálogo y los valores viajan siempre como `SqlParameter` (sin concatenar datos del usuario). `ILectorSql` permite probarlo sin base de datos.
+- ✅ `GeneradorPdfReporte` en la API (QuestPDF 2026.9.1): mismo dataset del SP, cabecera corporativa, tabla y bloque de firmas leído de `vvTipodeDocumentosFirma` (`CODIGO='0003'`, `ACTIVO='SI'`). La web solo muestra el visor y dispara la descarga.
+- ✅ `ReportesController`: `catalogo`, `firmas`, `{clave}/datos`, `{clave}/pdf`, `{clave}/csv`, más `impresion/orden/{numero}` y `impresion/requisa/{numero}` para las acciones de cada módulo. Los `RAISERROR` se reenvían sin traducir.
+- ✅ `/reportes`: selección de reporte, parámetros según su tipo, vista previa acotada, descarga PDF/CSV y firma del documento 0003.
+- ✅ Acciones de impresión en `/ordenes` (`OT.IMPRIMIR`) y `/requisas` (`REQUISAS.IMPRIMIR`), con tooltips que explican la validación del SP.
+- ✅ Permisos sembrados: módulo `REPORTES` con `REPORTES.VER`, `.IMPRIMIR`, `.EXPORTAR`; Administrador y Supervisor los tres, Vendedor solo `VER`.
+- ✅ 8 pruebas de `ServicioReportes` con doble de `ILectorSql`: catálogo, SQL parametrizado, conversiones, validación, límite del visor, firmas, CSV y propagación del mensaje legacy.
 
-**Dependencias:** Fases 4 y 5. **Riesgo:** medio — la plantilla visual del `.rdlc` se puede migrar después sin cambiar el contrato del endpoint.
+**Quirks heredados documentados (no se corrigieron en el SP):**
+- `SINCO_CONSULTAR_RESUMENCOSTOS_SEMANAL` ignora `@Anyo`/`@Mes` y siempre usa `GETDATE()`; el visor lo advierte en la descripción del reporte.
+- `SINCO_SP_CARTERA_ANTIGUEDAD` consulta `FUMIPLAGA.FMP`, así que requiere ese catálogo accesible desde `SINCOERPORKIN`.
+
+**Dependencias:** Fases 4 y 5. **Riesgo:** medio — resuelto sin migrar `ReportViewer`: el contrato es el dataset del SP y el PDF se arma en la API, así que la plantilla visual se puede ajustar después sin tocar la firma del endpoint.
 
 ---
 
@@ -336,7 +343,7 @@ El sidebar es de la **plataforma**, no del cotizador:
 
 ## 7. Próximo paso concreto
 
-Con D-20, D-21 y D-22 cerrados y las fases 0–6 completadas, el siguiente trabajo es la **Fase 7 — Reportes e impresión**, que cierra las acciones pendientes (`IMPRIMIR` ya sembrado y deshabilitado en OT y requisas) reutilizando los SPs `SINCO_IMPRIMIR_*` y generando el PDF desde la API.
+Con D-20, D-21 y D-22 cerrados y las fases 0–7 completadas, las acciones `IMPRIMIR` de OT y requisas ya están activas y el catálogo `/reportes` genera PDF y CSV desde la API reutilizando los SPs `SINCO_IMPRIMIR_*` y `SINCO_CONSULTAR_*`. El siguiente trabajo es la **Fase 8 — Notificaciones y correos**.
 
 Principios que se mantienen para las fases restantes:
 
