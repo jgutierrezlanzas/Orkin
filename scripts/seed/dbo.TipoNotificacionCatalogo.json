@@ -6,6 +6,8 @@
     { "Codigo": "SOLICITUD_APROBACION", "Nombre": "Solicitud de aprobacion", "Descripcion": "Va al aprobador, interno. Nunca sale de la organizacion.", "Orden": 2 },
     { "Codigo": "APROBACION_CONCEDIDA", "Nombre": "Aprobacion concedida", "Descripcion": "Avisa al cliente de que su cotizacion quedo aprobada.", "Orden": 3 },
     { "Codigo": "COTIZACION_RECHAZADA", "Nombre": "Cotizacion rechazada", "Descripcion": "Va al vendedor que la creo, para que sepa que tiene que corregirla.", "Orden": 4 },
-    { "Codigo": "COTIZACION_ANULADA", "Nombre": "Cotizacion anulada", "Descripcion": "Va al cliente y al interno: una anulacion que el cliente no sabe es la peor forma de perder un cliente.", "Orden": 5 }
+    { "Codigo": "COTIZACION_ANULADA", "Nombre": "Cotizacion anulada", "Descripcion": "Va al cliente y al interno: una anulacion que el cliente no sabe es la peor forma de perder un cliente.", "Orden": 5 },
+    { "Codigo": "VISITA_PROXIMA", "Nombre": "Visita proxima", "Descripcion": "Aviso de programacion de visita leido desde SINCO_NOTIFICAR_CORREOS_ENVIADOS.", "Orden": 6 },
+    { "Codigo": "REQUISA_ERRADA", "Nombre": "Requisa con lineas erradas", "Descripcion": "Aviso interno leido desde SINCO_NOTIFICAR_REQUISAS_ERRADAS.", "Orden": 7 }
   ]
 }

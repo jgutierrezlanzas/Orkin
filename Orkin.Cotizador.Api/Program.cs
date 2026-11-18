@@ -8,11 +8,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Orkin.Cotizador.Api.Middlewares;
 using Orkin.Cotizador.Api.Seguridad;
 using Orkin.Cotizador.Core.Application.DependencyInjection;
+using Orkin.Cotizador.Core.Application.Notificaciones;
 using Orkin.Cotizador.Core.Domain.Comun;
 using Orkin.Cotizador.Core.Domain.Entidades;
 using Orkin.Cotizador.Core.Infrastructure.Configuration;
@@ -255,6 +257,21 @@ public static class Program
             .Validate(o => o.HorasValidez is > 0 and <= 24,
                 $"{SeguridadOptions.Seccion}:HorasValidez debe estar entre 1 y 24. Pasarse de 24 hace " +
                 "que revocar un permiso tarde más de un día en surtir efecto.")
+            .ValidateOnStart();
+
+        // ── Opciones de correo y notificaciones (Fase 8) ──────────────────────────────
+        // Igual que la clave de firma: la configuración del SMTP se valida al arrancar. Un host
+        // mal escrito no puede descubrirse cuando el primer correo lleva tres días en la cola.
+        // Los validadores viven en Application y se prueban sin host: la regla no puede cambiar
+        // en silencio porque sí, y el Program.cs no tiene que repetirla.
+        construccion.Services.AddSingleton<IValidateOptions<CorreoOpciones>, CorreoOpcionesValidador>();
+        construccion.Services.AddOptions<CorreoOpciones>()
+            .Bind(configuration.GetSection(CorreoOpciones.Seccion))
+            .ValidateOnStart();
+
+        construccion.Services.AddSingleton<IValidateOptions<NotificacionesOpciones>, NotificacionesOpcionesValidador>();
+        construccion.Services.AddOptions<NotificacionesOpciones>()
+            .Bind(configuration.GetSection(NotificacionesOpciones.Seccion))
             .ValidateOnStart();
 
         // ── JWT ─────────────────────────────────────────────────────────────────────

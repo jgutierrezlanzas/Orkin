@@ -1,3 +1,5 @@
+@implements IDisposable
+
 <MudThemeProvider Theme="Tema" />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -16,7 +18,27 @@
             <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
             <MudText Typo="Typo.h6" Class="ml-3">ORKIN</MudText>
             <MudSpacer />
-            <MudText Typo="Typo.body2" Class="mr-3">@_nombreUsuario</MudText>
+            @* La campana aparece solo con NOTIFICACIONES.VER. El badge cuenta las avisos
+               enviados no leídos que devuelve la API; si la consulta falla, se conserva el
+               último número conocido en vez de tumbar el layout. *@
+            @if (TienePermiso("NOTIFICACIONES.VER"))
+            {
+                <MudTooltip Text="@(_noLeidas == 0 ? "No tiene notificaciones sin leer" : $"{_noLeidas} notificación(es) sin leer")">
+                    <div style="position:relative;display:inline-flex;">
+                        <MudIconButton Icon="@Icons.Material.Filled.Notifications"
+                                       Color="Color.Inherit"
+                                       OnClick="VerNotificaciones"
+                                       aria-label="Notificaciones" />
+                        @if (_noLeidas > 0)
+                        {
+                            <span style="position:absolute;top:0;right:0;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#E31837;color:white;font-size:11px;line-height:18px;text-align:center;font-weight:600;">
+                                @(_noLeidas > 99 ? "99+" : _noLeidas.ToString())
+                            </span>
+                        }
+                    </div>
+                </MudTooltip>
+            }
+            <MudText Typo="Typo.body2" Class="mx-3">@_nombreUsuario</MudText>
             <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="CerrarSesion" aria-label="Cerrar sesión" />
         </MudAppBar>
 
@@ -150,7 +172,13 @@
     [Inject]
     private AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
 
+    [Inject]
+    private HttpClient Http { get; set; } = null!;
+
     private MudTheme Tema { get; set; } = OrkinTheme.Crear();
+    private int _noLeidas;
+    private CancellationTokenSource? _cancelarSondeo;
+    private Task? _sondeo;
     private bool _drawerAbierto = true;
     private string _nombreUsuario = string.Empty;
     private HashSet<string> _permisos = new(StringComparer.OrdinalIgnoreCase);
@@ -212,9 +240,69 @@
         {
             _permisosCatalogos.Add("CATALOGOS.ORIGENES");
         }
+
+        if (TienePermiso("NOTIFICACIONES.VER"))
+        {
+            try
+            {
+                await CargarBandejaAsync();
+            }
+            catch (Exception)
+            {
+                // La campana es decorativa: si la API no responde al entrar, el usuario sigue
+                // pudiendo trabajar. La página de notificaciones sí mostrará el error.
+                _noLeidas = 0;
+            }
+
+            _cancelarSondeo = new CancellationTokenSource();
+            _sondeo = SondearBandejaAsync(_cancelarSondeo.Token);
+        }
     }
+
+    /// <summary>
+    /// Actualiza el contador cada minuto. Es una herramienta de fondo: si la API está caída no
+    /// merece un snackbar cada vuelta, y menos en el layout, que se monta en todas las pantallas.
+    /// </summary>
+    private async Task SondearBandejaAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
+                await CargarBandejaAsync();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception)
+            {
+                // Se conserva el último contador: la bandeja completa sí avisa al abrirla.
+            }
+        }
+    }
+
+    private async Task CargarBandejaAsync()
+    {
+        var respuesta = await Http.GetFromJsonAsync<RespuestaBandeja>("api/notificaciones/bandeja");
+        if (respuesta?.Exito == true && respuesta.Datos is not null)
+        {
+            _noLeidas = respuesta.Datos.NoLeidas;
+        }
+    }
+
+    private void VerNotificaciones() => Navigation.NavigateTo("/notificaciones");
 
     private void ToggleDrawer() => _drawerAbierto = !_drawerAbierto;
 
     private void CerrarSesion() => Navigation.NavigateTo("/logout", forceLoad: false);
+
+    public void Dispose()
+    {
+        _cancelarSondeo?.Cancel();
+        _cancelarSondeo?.Dispose();
+        _cancelarSondeo = null;
+        _sondeo = null;
+    }
 }

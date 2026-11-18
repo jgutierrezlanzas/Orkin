@@ -1,0 +1,332 @@
+@page "/notificaciones"
+@attribute [Authorize("NOTIFICACIONES.VER")]
+@layout MainLayout
+@using Orkin.Cotizador.UI.Shared.Notificaciones
+@using Orkin.Cotizador.UI.Web.Client.Models
+@inject NotificacionService Servicio
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService Dialogos
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Color="Color.Primary">Notificaciones</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Bandeja de avisos y cola de correo · avisos leídos desde los SPs de SINCOERPORKIN
+            </MudText>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <MudTooltip Text="Vuelve a consultar la bandeja; no envía correo">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Refresh" Disabled="_cargando"
+                           OnClick="CargarAsync">Actualizar</MudButton>
+            </MudTooltip>
+            <MudTooltip Text="Marca todos los avisos enviados como leídos">
+                <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.DoneAll" Disabled="_cargando || _noLeidas == 0"
+                           OnClick="MarcarTodasAsync">Marcar todas</MudButton>
+            </MudTooltip>
+            @if (_puedeConfigurar)
+            {
+                <MudTooltip Text="Invoca los SPs SINCO_NOTIFICAR_* en modo solo lectura y encola los avisos nuevos">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Info"
+                               StartIcon="@Icons.Material.Filled.CloudDownload" Disabled="_cargando"
+                               OnClick="RecogerAsync">Recoger avisos</MudButton>
+                </MudTooltip>
+                <MudTooltip Text="Intenta enviar por SMTP los correos pendientes. Puede enviar correo real a destinatarios del ERP">
+                    <MudButton Variant="Variant.Filled" Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Send" Disabled="_cargando"
+                               OnClick="ProcesarAsync">Procesar cola</MudButton>
+                </MudTooltip>
+            }
+        </div>
+    </div>
+
+    <MudGrid Spacing="3" Class="mb-3">
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Sin leer</MudText>
+                <MudText Typo="Typo.h4" Color="Color.Error">@_noLeidas</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Avisos recientes</MudText>
+                <MudText Typo="Typo.h4" Color="Color.Primary">@_filas.Count</MudText>
+            </MudPaper>
+        </MudItem>
+        @if (_puedeConfigurar && _configuracion is not null)
+        {
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Correo saliente</MudText>
+                    <MudText Typo="Typo.h6" Color="@(_configuracion.CorreoHabilitado ? Color.Success : Color.Warning)">
+                        @(_configuracion.CorreoHabilitado ? "Habilitado" : "Deshabilitado")
+                    </MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        @_configuracion.Servidor:@_configuracion.Puerto · de @_configuracion.De
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Job programado</MudText>
+                    <MudText Typo="Typo.h6" Color="@(_configuracion.JobHabilitado ? Color.Success : Color.Warning)">
+                        @(_configuracion.JobHabilitado ? "Activo" : "Detenido")
+                    </MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        Reintentos: @_configuracion.MaximoIntentos · backoff: @_configuracion.BackoffBaseSegundos s
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+
+    @if (_puedeConfigurar && _configuracion is not null && !_configuracion.ValidarDefinicionesSp)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-3" Dense="true">
+            La validación de definiciones de los SPs está desactivada. No desactive
+            <b>Notificaciones__ValidarDefinicionesSp</b> en producción: es la barrera que impide
+            invocar un SP que escriba en el staging de visitas.
+        </MudAlert>
+    }
+
+    <MudPaper Class="pa-4" Elevation="1" Outlined="true">
+        <div class="d-flex justify-space-between align-center mb-2">
+            <MudText Typo="Typo.subtitle2">Bandeja</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Solo avisos enviados correctamente; los fallidos quedan en la cola con su error.
+            </MudText>
+        </div>
+
+        @if (_cargando)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (_filas.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                No hay notificaciones enviadas. Recoja los avisos de los SPs legacy y procese la cola
+                para verlos acá.
+            </MudText>
+        }
+        else
+        {
+            <div class="overflow-auto">
+                <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                    <thead>
+                        <tr>
+                            <th class="pa-2" style="background:#F5F5F5;text-align:left;">Tipo</th>
+                            <th class="pa-2" style="background:#F5F5F5;text-align:left;">Asunto</th>
+                            <th class="pa-2" style="background:#F5F5F5;text-align:left;">Destinatario</th>
+                            <th class="pa-2" style="background:#F5F5F5;text-align:left;">Estado</th>
+                            <th class="pa-2" style="background:#F5F5F5;text-align:left;">Enviado</th>
+                            <th class="pa-2" style="background:#F5F5F5;text-align:left;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var aviso in _filas)
+                        {
+                            <tr>
+                                <td class="pa-2" style="border-bottom:1px solid #EEEEEE;">
+                                    @(string.IsNullOrWhiteSpace(aviso.TipoNombre) ? aviso.TipoCodigo : aviso.TipoNombre)
+                                </td>
+                                <td class="pa-2" style="border-bottom:1px solid #EEEEEE;">
+                                    @aviso.Asunto
+                                    @if (aviso.LeidoUtc is null)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">Nuevo</MudChip>
+                                    }
+                                </td>
+                                <td class="pa-2" style="border-bottom:1px solid #EEEEEE;">@aviso.Destinatario</td>
+                                <td class="pa-2" style="border-bottom:1px solid #EEEEEE;">@aviso.EstadoCodigo</td>
+                                <td class="pa-2" style="border-bottom:1px solid #EEEEEE;white-space:nowrap;">
+                                    @(aviso.EnviadoUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")
+                                </td>
+                                <td class="pa-2" style="border-bottom:1px solid #EEEEEE;white-space:nowrap;">
+                                    @if (aviso.LeidoUtc is null)
+                                    {
+                                        <MudTooltip Text="Marca este aviso como leído y descuenta el badge de la campana">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Done"
+                                                           Size="Size.Small" Color="Color.Primary"
+                                                           OnClick="@(() => MarcarLeidaAsync(aviso))"
+                                                           aria-label="Marcar como leída" />
+                                        </MudTooltip>
+                                    }
+                                    @if (_puedeConfigurar)
+                                    {
+                                        <MudTooltip Text="Vuelve a encolar el correo para intentar el envío real otra vez">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Send"
+                                                           Size="Size.Small" Color="Color.Error"
+                                                           OnClick="@(() => ReenviarAsync(aviso))"
+                                                           aria-label="Reenviar" />
+                                        </MudTooltip>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private bool _cargando;
+    private bool _puedeConfigurar;
+    private int _noLeidas;
+    private List<NotificacionResumenVista> _filas = [];
+    private NotificacionConfiguracionVista? _configuracion;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthStateProvider.GetAuthenticationStateAsync();
+        _puedeConfigurar = estado.User.HasClaim("orkin:permiso", "NOTIFICACIONES.CONFIGURAR");
+        await CargarAsync();
+
+        if (_puedeConfigurar)
+        {
+            try
+            {
+                _configuracion = await Servicio.ObtenerConfiguracionAsync();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"No se pudo leer la configuración: {ex.Message}", Severity.Warning);
+            }
+        }
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        try
+        {
+            var bandeja = await Servicio.ObtenerBandejaAsync();
+            _noLeidas = bandeja.NoLeidas;
+            _filas = bandeja.Recientes.ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo cargar la bandeja: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task MarcarLeidaAsync(NotificacionResumenVista aviso)
+    {
+        try
+        {
+            await Servicio.MarcarLeidaAsync(aviso.Id);
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo marcar como leída: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task MarcarTodasAsync()
+    {
+        var confirmacion = await ConfirmarAsync(
+            "Marcar todas como leídas",
+            "Se descuentan del badge todas las notificaciones enviadas. Los correos y sus errores se conservan en la bitácora.");
+        if (!confirmacion) return;
+
+        try
+        {
+            var cantidad = await Servicio.MarcarTodasLeidasAsync();
+            Snackbar.Add($"{cantidad} notificación(es) marcada(s) como leída(s).", Severity.Success);
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudieron marcar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RecogerAsync()
+    {
+        _cargando = true;
+        try
+        {
+            var resultado = await Servicio.RecogerAsync();
+            Snackbar.Add(
+                $"{resultado.Encolados} aviso(s) encolado(s) desde los SPs legacy.",
+                Severity.Success);
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo recoger: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task ProcesarAsync()
+    {
+        var confirmacion = await ConfirmarAsync(
+            "Procesar cola de correo",
+            "Se intentará enviar por SMTP a los destinatarios reales que devolvieron los SPs legacy. " +
+            "Cada intento queda registrado en la auditoría del job.");
+        if (!confirmacion) return;
+
+        _cargando = true;
+        try
+        {
+            var resultado = await Servicio.ProcesarAsync();
+            Snackbar.Add(
+                $"{resultado.Enviados} enviado(s), {resultado.Fallidos} fallido(s).",
+                resultado.Fallidos > 0 ? Severity.Warning : Severity.Success);
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo procesar la cola: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task ReenviarAsync(NotificacionResumenVista aviso)
+    {
+        var confirmacion = await ConfirmarAsync(
+            "Reenviar notificación",
+            $"Se volverá a enviar «{aviso.Asunto}» a {aviso.Destinatario}. " +
+            "El cuerpo guardado se reutiliza tal cual; no se reconstruye desde el ERP.");
+        if (!confirmacion) return;
+
+        try
+        {
+            await Servicio.ReenviarAsync(aviso.Id);
+            Snackbar.Add("La notificación volvió a la cola. Envíela con Procesar cola.", Severity.Success);
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No se pudo reenviar: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task<bool> ConfirmarAsync(string titulo, string mensaje)
+    {
+        var dialogo = await Dialogos.ShowAsync<ConfirmarDialogo>(
+            titulo, new DialogParameters<ConfirmarDialogo>
+            {
+                { d => d.Titulo, titulo },
+                { d => d.Mensaje, mensaje }
+            }, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var resultado = await dialogo.Result;
+        return !resultado.Canceled && resultado.Data is true;
+    }
+}

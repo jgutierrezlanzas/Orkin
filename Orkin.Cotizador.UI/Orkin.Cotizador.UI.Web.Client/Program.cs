@@ -59,6 +59,7 @@ public class Program
         builder.Services.AddScoped<ReportesService>();
         builder.Services.AddScoped<CotizacionService>();
         builder.Services.AddScoped<IntegracionService>();
+        builder.Services.AddScoped<NotificacionService>();
         builder.Services.AddScoped<AdminService>();
         builder.Services.AddScoped<CustomAuthStateProvider>();
         builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<CustomAuthStateProvider>());

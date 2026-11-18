@@ -2794,6 +2794,250 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.ToTable("DocumentoGenerado", "dbo");
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.DocumentoInventario", b =>
+                {
+                    b.Property<string>("PaqueteInventario")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("PAQUETE_INVENTARIO");
+
+                    b.Property<string>("DocumentoInv")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DOCUMENTO_INV");
+
+                    b.Property<string>("Aprobado")
+                        .HasMaxLength(1)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("APROBADO");
+
+                    b.Property<string>("Consecutivo")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("CONSECUTIVO");
+
+                    b.Property<DateTime>("FechaDocumento")
+                        .HasColumnType("datetime")
+                        .HasColumnName("FECHA_DOCUMENTO");
+
+                    b.Property<DateTime>("FechaHorCreacion")
+                        .HasColumnType("datetime")
+                        .HasColumnName("FECHA_HOR_CREACION");
+
+                    b.Property<DateTime?>("FechaHoraAprob")
+                        .HasColumnType("datetime")
+                        .HasColumnName("FECHA_HORA_APROB");
+
+                    b.Property<string>("MensajeSistema")
+                        .HasColumnType("text")
+                        .HasColumnName("MENSAJE_SISTEMA");
+
+                    b.Property<string>("OrdenNumero")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("ORDEN_NUMERO");
+
+                    b.Property<string>("Referencia")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(250)")
+                        .HasColumnName("REFERENCIA");
+
+                    b.Property<string>("RequisaNumero")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("REQUISA_NUMERO");
+
+                    b.Property<string>("Seleccionado")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("SELECCIONADO");
+
+                    b.Property<string>("Transferido")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("TRANSFERIDO");
+
+                    b.Property<string>("Usuario")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("USUARIO");
+
+                    b.Property<string>("UsuarioApro")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("USUARIO_APRO");
+
+                    b.HasKey("PaqueteInventario", "DocumentoInv");
+
+                    b.ToTable("Documento_Inv", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.DocumentoInventarioLinea", b =>
+                {
+                    b.Property<string>("PaqueteInventario")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("PAQUETE_INVENTARIO");
+
+                    b.Property<string>("DocumentoInv")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DOCUMENTO_INV");
+
+                    b.Property<int>("LineaDocInv")
+                        .HasColumnType("int")
+                        .HasColumnName("LINEA_DOC_INV");
+
+                    b.Property<string>("AjusteConfig")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("AJUSTE_CONFIG");
+
+                    b.Property<string>("Articulo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("ARTICULO");
+
+                    b.Property<string>("Bodega")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("BODEGA");
+
+                    b.Property<string>("BodegaDestino")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("BODEGA_DESTINO");
+
+                    b.Property<decimal>("Cantidad")
+                        .HasColumnType("decimal(28,8)")
+                        .HasColumnName("CANTIDAD");
+
+                    b.Property<string>("CentroCosto")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("CENTRO_COSTO");
+
+                    b.Property<decimal>("CostoTotalDolar")
+                        .HasColumnType("decimal(28,8)")
+                        .HasColumnName("COSTO_TOTAL_DOLAR");
+
+                    b.Property<decimal>("CostoTotalLocal")
+                        .HasColumnType("decimal(28,8)")
+                        .HasColumnName("COSTO_TOTAL_LOCAL");
+
+                    b.Property<decimal?>("CostoUnitario")
+                        .HasColumnType("decimal(18,6)")
+                        .HasColumnName("COSTO_UNITARIO");
+
+                    b.Property<string>("CuentaContable")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("CUENTA_CONTABLE");
+
+                    b.Property<string>("Localizacion")
+                        .HasMaxLength(8)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(8)")
+                        .HasColumnName("LOCALIZACION");
+
+                    b.Property<string>("LocalizacionDest")
+                        .HasMaxLength(8)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(8)")
+                        .HasColumnName("LOCALIZACION_DEST");
+
+                    b.Property<string>("Lote")
+                        .HasMaxLength(15)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(15)")
+                        .HasColumnName("LOTE");
+
+                    b.Property<string>("Nit")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("NIT");
+
+                    b.Property<byte>("NoteExistsFlag")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("NoteExistsFlag");
+
+                    b.Property<decimal>("PrecioTotalDolar")
+                        .HasColumnType("decimal(28,8)")
+                        .HasColumnName("PRECIO_TOTAL_DOLAR");
+
+                    b.Property<decimal>("PrecioTotalLocal")
+                        .HasColumnType("decimal(28,8)")
+                        .HasColumnName("PRECIO_TOTAL_LOCAL");
+
+                    b.Property<DateTime>("RecordDate")
+                        .HasColumnType("datetime")
+                        .HasColumnName("RecordDate");
+
+                    b.Property<string>("Subsubtipo")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("SUBSUBTIPO");
+
+                    b.Property<string>("Subtipo")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("SUBTIPO");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("TIPO");
+
+                    b.Property<string>("UnidadDistribucion")
+                        .HasMaxLength(6)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(6)")
+                        .HasColumnName("UNIDAD_DISTRIBUCIO");
+
+                    b.HasKey("PaqueteInventario", "DocumentoInv", "LineaDocInv");
+
+                    b.ToTable("Documento_Inv_linea", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.ErpConexion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3518,6 +3762,81 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.ToTable("ImportacionGoogleLote", "int");
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.JobEjecucion", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("Id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Encolados")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("Encolados");
+
+                    b.Property<int>("Enviados")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("Enviados");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("Estado");
+
+                    b.Property<int>("Fallidos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("Fallidos");
+
+                    b.Property<DateTime?>("FinalizadoUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("FinalizadoUtc");
+
+                    b.Property<DateTime>("IniciadoUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("IniciadoUtc");
+
+                    b.Property<string>("Mensaje")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("Mensaje");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("Nombre");
+
+                    b.Property<string>("Operacion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Operacion");
+
+                    b.Property<string>("Usuario")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Usuario");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UsuarioId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre", "IniciadoUtc")
+                        .HasDatabaseName("IX_JobEjecucion_NombreInicio");
+
+                    b.ToTable("JobEjecucion", "int");
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.NotificacionEnviada", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3531,6 +3850,11 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("nvarchar(300)")
                         .HasColumnName("Asunto");
 
+                    b.Property<string>("ClaveNegocio")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("ClaveNegocio");
+
                     b.Property<Guid?>("CotizacionId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3543,6 +3867,10 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("CreatedBy");
+
+                    b.Property<string>("CuerpoHtml")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("CuerpoHtml");
 
                     b.Property<string>("Destinatario")
                         .IsRequired()
@@ -3580,6 +3908,14 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("IsActive");
 
+                    b.Property<DateTime?>("LeidoUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("LeidoUtc");
+
+                    b.Property<DateTime?>("ProximoIntentoUtc")
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("ProximoIntentoUtc");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -3603,13 +3939,19 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClaveNegocio")
+                        .HasDatabaseName("IX_Notificacion_ClaveNegocio");
+
+                    b.HasIndex("EstadoId", "ProximoIntentoUtc")
+                        .HasDatabaseName("IX_Notificacion_Cola");
+
                     b.HasIndex("EstadoId", "TipoId")
                         .HasDatabaseName("IX_Notificacion_Estado");
 
                     b.ToTable("NotificacionEnviada", "dbo");
                 });
 
-            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.OrdenTrabajoVisita", b =>
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.OrdenTrabajo", b =>
                 {
                     b.Property<string>("OrdenNumero")
                         .HasMaxLength(10)
@@ -3625,15 +3967,281 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("PLANTILLA");
 
+                    b.Property<string>("Cliente")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("CLIENTE");
+
+                    b.Property<string>("Contacto")
+                        .HasMaxLength(35)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(35)")
+                        .HasColumnName("CONTACTO");
+
+                    b.Property<string>("DescripTrabajo")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("DESCRIP_TRABAJO");
+
+                    b.Property<string>("Direccion")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("DIRECCION");
+
                     b.Property<string>("Estado")
                         .HasMaxLength(2)
                         .IsUnicode(false)
                         .HasColumnType("varchar(2)")
                         .HasColumnName("ESTADO");
 
+                    b.Property<DateOnly?>("FechaCreacion")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_CREACION");
+
+                    b.Property<DateOnly?>("FechaOrden")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_ORDEN");
+
+                    b.Property<TimeSpan?>("Hora")
+                        .HasColumnType("time")
+                        .HasColumnName("HORA");
+
+                    b.Property<string>("Instrucciones")
+                        .HasColumnType("text")
+                        .HasColumnName("INSTRUCCIONES");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("NOTAS");
+
+                    b.Property<string>("ServicioRealizado")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("SERVICIO_REALIZADO");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("TELEFONO");
+
+                    b.Property<string>("UsuarioCreacion")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("USUARIO_CREACION");
+
+                    b.Property<string>("Vehiculo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("VEHICULO");
+
                     b.HasKey("OrdenNumero", "IdVisita", "Plantilla");
 
                     b.ToTable("Orden_Trabajo", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.OrdenTrabajoDetalle", b =>
+                {
+                    b.Property<string>("OrdenNumero")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("ORDEN_NUMERO");
+
+                    b.Property<int>("Plantilla")
+                        .HasColumnType("int")
+                        .HasColumnName("PLANTILLA");
+
+                    b.Property<int>("Consecutivo")
+                        .HasColumnType("int")
+                        .HasColumnName("CONSECUTIVO");
+
+                    b.Property<decimal?>("Area")
+                        .HasColumnType("numeric(15,2)")
+                        .HasColumnName("AREA");
+
+                    b.Property<decimal?>("Cantidad")
+                        .HasColumnType("decimal(18,0)")
+                        .HasColumnName("CANTIDAD");
+
+                    b.Property<string>("CodigoArticulo")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("CODIGO_ARTICULO");
+
+                    b.Property<string>("CodigoDosificacion")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO_DOSIFICACION");
+
+                    b.Property<string>("Concentracion")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("CONCENTRACION");
+
+                    b.Property<decimal?>("CostoTotal")
+                        .HasColumnType("decimal(15,2)")
+                        .HasColumnName("COSTO_TOTAL");
+
+                    b.Property<decimal?>("CostoUnitario")
+                        .HasColumnType("decimal(18,6)")
+                        .HasColumnName("COSTO_UNITARIO");
+
+                    b.Property<string>("DescripArticulo")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DESCRIP_ARTICULO");
+
+                    b.Property<string>("LugarTratar")
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("LUGAR_TRATAR");
+
+                    b.Property<string>("MetodoAplicacion")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("METODO_APLICACION");
+
+                    b.Property<string>("TipoPlaga")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("TIPO_PLAGA");
+
+                    b.Property<string>("Umedida")
+                        .HasMaxLength(6)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(6)")
+                        .HasColumnName("UMEDIDA");
+
+                    b.HasKey("OrdenNumero", "Plantilla", "Consecutivo");
+
+                    b.ToTable("Orden_Trabajo_Detalle", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.OrdenTrabajoEquipo", b =>
+                {
+                    b.Property<string>("OrdenNumero")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("ORDEN_NUMERO");
+
+                    b.Property<int>("Plantilla")
+                        .HasColumnType("int")
+                        .HasColumnName("PLANTILLA");
+
+                    b.Property<int>("Consecutivo")
+                        .HasColumnType("int")
+                        .HasColumnName("CONSECUTIVO");
+
+                    b.Property<string>("CodigoEquipo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO_EQUIPO");
+
+                    b.Property<string>("Utilizado")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("UTILIZADO");
+
+                    b.HasKey("OrdenNumero", "Plantilla", "Consecutivo");
+
+                    b.ToTable("Orden_Trabajo_Equipos", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.OrdenTrabajoServicio", b =>
+                {
+                    b.Property<string>("OrdenNumero")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("ORDEN_NUMERO");
+
+                    b.Property<long>("Plantilla")
+                        .HasColumnType("bigint")
+                        .HasColumnName("PLANTILLA");
+
+                    b.Property<int>("Consecutivo")
+                        .HasColumnType("int")
+                        .HasColumnName("CONSECUTIVO");
+
+                    b.Property<string>("CodigoServicio")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO_SERVICIO");
+
+                    b.Property<string>("CodigoFrecuencia")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO_FRECUENCIA");
+
+                    b.HasKey("OrdenNumero", "Plantilla", "Consecutivo", "CodigoServicio", "CodigoFrecuencia");
+
+                    b.ToTable("Orden_Trabajo_Servicio", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.OrdenTrabajoTecnico", b =>
+                {
+                    b.Property<string>("OrdenNumero")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("ORDEN_NUMERO");
+
+                    b.Property<long>("Plantilla")
+                        .HasColumnType("bigint")
+                        .HasColumnName("PLANTILLA");
+
+                    b.Property<int>("Consecutivo")
+                        .HasColumnType("int")
+                        .HasColumnName("CONSECUTIVO");
+
+                    b.Property<string>("CodigoTecnico")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO_TECNICO");
+
+                    b.Property<string>("Iniciales")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("INICIALES");
+
+                    b.HasKey("OrdenNumero", "Plantilla", "Consecutivo", "CodigoTecnico", "Iniciales");
+
+                    b.ToTable("Orden_Trabajo_Tecnicos", "dbo", t =>
                         {
                             t.ExcludeFromMigrations();
                         });
@@ -4550,6 +5158,186 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.ToTable("RegistroAuditoria", "aud");
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.Requisa", b =>
+                {
+                    b.Property<string>("RequisaNumero")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("REQUISA_NUMERO");
+
+                    b.Property<string>("Cliente")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("CLIENTE");
+
+                    b.Property<string>("Estado")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ESTADO");
+
+                    b.Property<DateOnly?>("FechaCreacion")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_CREACION");
+
+                    b.Property<DateOnly?>("FechaOrden")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_ORDEN");
+
+                    b.Property<DateOnly>("FechaRequisa")
+                        .HasColumnType("date")
+                        .HasColumnName("FECHA_REQUISA");
+
+                    b.Property<string>("Instrucciones")
+                        .HasColumnType("text")
+                        .HasColumnName("INSTRUCCIONES");
+
+                    b.Property<string>("Locacion")
+                        .HasMaxLength(5)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(5)")
+                        .HasColumnName("LOCACION");
+
+                    b.Property<string>("OrdenNumero")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("ORDEN_NUMERO");
+
+                    b.Property<string>("RequisaPendiente")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("REQUISA_PENDIENTE");
+
+                    b.Property<string>("UsuarioCreacion")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("USUARIO_CREACION");
+
+                    b.HasKey("RequisaNumero");
+
+                    b.ToTable("Requisa", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.RequisaDetalle", b =>
+                {
+                    b.Property<string>("RequisaNumero")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("REQUISA_NUMERO");
+
+                    b.Property<int>("Consecutivo")
+                        .HasColumnType("int")
+                        .HasColumnName("CONSECUTIVO");
+
+                    b.Property<string>("Bodega")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("BODEGA");
+
+                    b.Property<decimal?>("CantidadDevuelta")
+                        .HasColumnType("numeric(15,0)")
+                        .HasColumnName("CANTIDAD_DEVUELTA");
+
+                    b.Property<decimal?>("CantidadEntregada")
+                        .HasColumnType("numeric(15,0)")
+                        .HasColumnName("CANTIDAD_ENTREGADA");
+
+                    b.Property<decimal?>("CantidadSobfal")
+                        .HasColumnType("numeric(15,0)")
+                        .HasColumnName("CANTIDAD_SOBFAL");
+
+                    b.Property<decimal?>("CantidadUtilizada")
+                        .HasColumnType("numeric(15,0)")
+                        .HasColumnName("CANTIDAD_UTILIZADA");
+
+                    b.Property<string>("CentroCosto")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("CENTRO_COSTO");
+
+                    b.Property<string>("CodigoArticulo")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("CODIGO_ARTICULO");
+
+                    b.Property<decimal?>("CostoTotal")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("COSTO_TOTAL");
+
+                    b.Property<decimal?>("CostoUnitario")
+                        .HasColumnType("numeric(18,6)")
+                        .HasColumnName("COSTO_UNITARIO");
+
+                    b.Property<string>("CuentaContable")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("CUENTA_CONTABLE");
+
+                    b.Property<string>("DescripArticulo")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DESCRIP_ARTICULO");
+
+                    b.Property<string>("Umedida")
+                        .HasMaxLength(6)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(6)")
+                        .HasColumnName("UMEDIDA");
+
+                    b.HasKey("RequisaNumero", "Consecutivo");
+
+                    b.ToTable("Requisa_Detalle", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.RequisaTecnico", b =>
+                {
+                    b.Property<string>("RequisaNumero")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("REQUISA_NUMERO");
+
+                    b.Property<int>("Consecutivo")
+                        .HasColumnType("int")
+                        .HasColumnName("CONSECUTIVO");
+
+                    b.Property<string>("CodigoTecnico")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO_TECNICO");
+
+                    b.Property<string>("Iniciales")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("INICIALES");
+
+                    b.HasKey("RequisaNumero", "Consecutivo", "CodigoTecnico", "Iniciales");
+
+                    b.ToTable("Requisa_Tecnicos", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.Rol", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5079,6 +5867,156 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                     b.ToTable("UsuarioPermiso", "seg");
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaArticuloErp", b =>
+                {
+                    b.Property<string>("CodigoArticulo")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("CODIGO_ARTICULO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(1)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("ACTIVO");
+
+                    b.Property<string>("Amortizable")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("AMORTIZABLE");
+
+                    b.Property<string>("ArticuloCuenta")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("ARTICULO_CUENTA");
+
+                    b.Property<string>("CCOSTO")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("CCOSTO");
+
+                    b.Property<string>("Clasificacion")
+                        .HasMaxLength(12)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(12)")
+                        .HasColumnName("CLASIFICACION");
+
+                    b.Property<decimal?>("CostoUnitario")
+                        .HasColumnType("decimal(18,6)")
+                        .HasColumnName("COSTO_UNITARIO");
+
+                    b.Property<string>("CuentaCosto")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("CUENTA_COSTO");
+
+                    b.Property<string>("DescripArticulo")
+                        .HasMaxLength(254)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(254)")
+                        .HasColumnName("DESCRIP_ARTICULO");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("DESCRIPCION");
+
+                    b.Property<string>("Tipo")
+                        .HasMaxLength(1)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("TIPO");
+
+                    b.Property<string>("UnidadAlmacen")
+                        .HasMaxLength(6)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(6)")
+                        .HasColumnName("UNIDAD_ALMACEN");
+
+                    b.Property<string>("UnidadEmpaque")
+                        .HasMaxLength(6)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(6)")
+                        .HasColumnName("UNIDAD_EMPAQUE");
+
+                    b.Property<string>("UnidadVenta")
+                        .HasMaxLength(6)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(6)")
+                        .HasColumnName("UNIDAD_VENTA");
+
+                    b.HasKey("CodigoArticulo");
+
+                    b.ToTable("vvArticulos", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaBodegaErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("BODEGA");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("U_ACTIVO");
+
+                    b.Property<string>("BodegaPrincipal")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("BODEGA_PRINCIPAL");
+
+                    b.Property<string>("ConsecutivoTraslados")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("CONSEC_TRASLADOS");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("DESCRIP_BODEGA");
+
+                    b.Property<string>("Direccion")
+                        .HasMaxLength(120)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(120)")
+                        .HasColumnName("DIRECCION");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(15)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(15)")
+                        .HasColumnName("TELEFONO");
+
+                    b.Property<string>("Tipo")
+                        .HasMaxLength(1)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("TIPO_BODEGA");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvBodegas", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaClienteErp", b =>
                 {
                     b.Property<string>("Cliente")
@@ -5107,6 +6045,104 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaDosificacionErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ACTIVO");
+
+                    b.Property<decimal?>("Cantidad")
+                        .HasColumnType("decimal(28,8)")
+                        .HasColumnName("CANTIDAD");
+
+                    b.Property<string>("CodigoUnidadMedida")
+                        .HasMaxLength(6)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(6)")
+                        .HasColumnName("CODUMEDIDA");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DESCRIPCION");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvDosificacion", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaEquipoErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ACTIVO");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DESCRIPCION");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvTipodeEquipos", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaFrecuenciaErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ACTIVO");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DESCRIPCION");
+
+                    b.Property<int?>("NumeroServicios")
+                        .HasColumnType("int")
+                        .HasColumnName("NOSERVICIOS");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvFrecuencia", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaLocacionErp", b =>
                 {
                     b.Property<string>("Codigo")
@@ -5127,9 +6163,71 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("CLIENTE");
 
+                    b.Property<string>("Nombre")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("LOCACION_NOMBRE");
+
                     b.HasKey("Codigo");
 
                     b.ToTable("vvLocacionesClientes", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaMetodoAplicacionErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ACTIVO");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DESCRIPCION");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvMetodosAplicacion", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaPlagaErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ACTIVO");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DESCRIPCION");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvTipodePlagas", "dbo", t =>
                         {
                             t.ExcludeFromMigrations();
                         });
@@ -5191,6 +6289,34 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaUbicacionErp", b =>
+                {
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(4)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(4)")
+                        .HasColumnName("CODIGO");
+
+                    b.Property<string>("Activo")
+                        .HasMaxLength(2)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("ACTIVO");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DESCRIPCION");
+
+                    b.HasKey("Codigo");
+
+                    b.ToTable("vvTipodeUbicaciones", "dbo", t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("Orkin.Cotizador.Core.Domain.Entidades.VistaVehiculoErp", b =>
                 {
                     b.Property<string>("Codigo")
@@ -5204,6 +6330,24 @@ namespace Orkin.Cotizador.Core.Infrastructure.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(2)")
                         .HasColumnName("ACTIVO");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(50)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("DESCRIPCION");
+
+                    b.Property<string>("Placa")
+                        .HasMaxLength(15)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(15)")
+                        .HasColumnName("PLACA");
+
+                    b.Property<string>("TipoVehiculo")
+                        .HasMaxLength(25)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(25)")
+                        .HasColumnName("TIPOVEHICULO");
 
                     b.HasKey("Codigo");
 

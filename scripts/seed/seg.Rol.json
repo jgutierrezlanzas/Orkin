@@ -58,7 +58,9 @@
         "ADMIN.USUARIOS",
         "ADMIN.ROLES",
         "ADMIN.PARAMETROS",
-        "AUDITORIA.VER"
+        "AUDITORIA.VER",
+        "NOTIFICACIONES.VER",
+        "NOTIFICACIONES.CONFIGURAR"
       ]
     },
     {
@@ -111,7 +113,8 @@
         "REPORTES.VER",
         "REPORTES.IMPRIMIR",
         "REPORTES.EXPORTAR",
-        "AUDITORIA.VER"
+        "AUDITORIA.VER",
+        "NOTIFICACIONES.VER"
       ]
     },
     {
@@ -138,7 +141,8 @@
         "OT.VER",
         "REQUISAS.VER",
         "INVENTARIO.VER",
-        "REPORTES.VER"
+        "REPORTES.VER",
+        "NOTIFICACIONES.VER"
       ]
     }
   ]

@@ -61,6 +61,9 @@
     { "Codigo": "ADMIN.ROLES", "Nombre": "Administrar roles y permisos", "ModuloId": "ADMIN", "Orden": 2 },
     { "Codigo": "ADMIN.PARAMETROS", "Nombre": "Administrar parametros", "Descripcion": "Mover umbrales de aprobacion, dias de vigencia, textos del PDF. Es el permiso mas sensible del sistema.", "ModuloId": "ADMIN", "Orden": 3 },
 
-    { "Codigo": "AUDITORIA.VER", "Nombre": "Ver la bitacora", "Descripcion": "Solo lectura sobre aud.RegistroAuditoria.", "ModuloId": "AUDITORIA", "Orden": 1 }
+    { "Codigo": "AUDITORIA.VER", "Nombre": "Ver la bitacora", "Descripcion": "Solo lectura sobre aud.RegistroAuditoria.", "ModuloId": "AUDITORIA", "Orden": 1 },
+
+    { "Codigo": "NOTIFICACIONES.VER", "Nombre": "Ver notificaciones", "Descripcion": "Ver la bandeja de la campana, marcar como leida y marcar todas como leidas.", "ModuloId": "NOTIFICACIONES", "Orden": 1 },
+    { "Codigo": "NOTIFICACIONES.CONFIGURAR", "Nombre": "Administrar notificaciones", "Descripcion": "Recoger avisos de los SPs legacy, drenar la cola, reenviar envios fallidos y consultar el estado del SMTP sin secretos.", "ModuloId": "NOTIFICACIONES", "Orden": 2 }
   ]
 }

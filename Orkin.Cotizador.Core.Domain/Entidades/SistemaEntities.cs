@@ -102,6 +102,24 @@ public class NotificacionEnviada : BaseEntity
     public string? IdExterno { get; set; }
 
     public string? Error { get; set; }
+
+    /// <summary>Cuerpo que entrega el proveedor. Se guarda para poder reenviar sin reconstruirlo.</summary>
+    public string? CuerpoHtml { get; set; }
+
+    /// <summary>
+    /// Clave determinista del origen (<c>VISITA|0042978|CORREO1</c>). Evita que dos vueltas del job
+    /// encolen el mismo aviso; no es única porque un reenvío manual sí puede repetirla.
+    /// </summary>
+    public string? ClaveNegocio { get; set; }
+
+    /// <summary>Cuándo se puede volver a intentar. Es la ventana que reclama el job.</summary>
+    public DateTime? ProximoIntentoUtc { get; set; }
+
+    /// <summary>
+    /// Cuándo el usuario abrió el aviso en la campana. <c>null</c> cuenta como no leído; no hace
+    /// falta otra tabla de "leídos" ni un estado nuevo en el catálogo de envíos.
+    /// </summary>
+    public DateTime? LeidoUtc { get; set; }
 }
 
 /// <summary>PDFs y archivos generados. La cotización se conserva aunque el PDF se borre del disco.</summary>

@@ -149,6 +149,9 @@ public class CotizadorDbContext : DbContext
     public DbSet<ErpFlujo> ErpFlujo => Set<ErpFlujo>();
     public DbSet<SincronizacionEjecucion> SincronizacionEjecucion => Set<SincronizacionEjecucion>();
 
+    /// <summary>Auditoría de corridas de jobs (Fase 8). No es un flujo ETL del ERP.</summary>
+    public DbSet<JobEjecucion> JobEjecucion => Set<JobEjecucion>();
+
     public CotizadorDbContext(DbContextOptions<CotizadorDbContext> options) : base(options)
     {
     }
@@ -1464,7 +1467,16 @@ public class CotizadorDbContext : DbContext
         notificacion.Property(n => n.EnviadoUtc).HasColumnName("EnviadoUtc").HasColumnType("datetime2(3)");
         notificacion.Property(n => n.IdExterno).HasColumnName("IdExterno").HasMaxLength(256);
         notificacion.Property(n => n.Error).HasColumnName("Error").HasMaxLength(2000);
+        notificacion.Property(n => n.CuerpoHtml).HasColumnName("CuerpoHtml").HasColumnType("nvarchar(max)");
+        notificacion.Property(n => n.ClaveNegocio).HasColumnName("ClaveNegocio").HasMaxLength(200);
+        notificacion.Property(n => n.ProximoIntentoUtc).HasColumnName("ProximoIntentoUtc").HasColumnType("datetime2(3)");
+        notificacion.Property(n => n.LeidoUtc).HasColumnName("LeidoUtc").HasColumnType("datetime2(3)");
         notificacion.HasIndex(n => new { n.EstadoId, n.TipoId }).HasDatabaseName("IX_Notificacion_Estado");
+        // La cola pregunta por PENDIENTE con ProximoIntentoUtc vencido; el índice compuesto evita
+        // recorrer toda la bitácora de correos cada vez que despierta el job.
+        notificacion.HasIndex(n => new { n.EstadoId, n.ProximoIntentoUtc })
+            .HasDatabaseName("IX_Notificacion_Cola");
+        notificacion.HasIndex(n => n.ClaveNegocio).HasDatabaseName("IX_Notificacion_ClaveNegocio");
 
         // ── dbo.DocumentoGenerado ────────────────────────────────────────────────
         var documento = modelBuilder.Entity<DocumentoGenerado>();
@@ -1683,6 +1695,27 @@ public class CotizadorDbContext : DbContext
         // conexión —"qué se corrió contra este ERP"— sin tener que unir con el flujo.
         ejecucion.HasOne(e => e.Conexion).WithMany().HasForeignKey(e => e.ErpConexionId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // ── int.JobEjecucion ──────────────────────────────────────────────────────
+        // Auditoría de jobs que no son flujos ETL. No copia dbo.logs ni la bitácora de correos:
+        // solo dice qué job corrió, cuándo y con qué resultado (Fase 8).
+        var job = modelBuilder.Entity<JobEjecucion>();
+        job.ToTable("JobEjecucion", Esquemas.Integracion);
+        job.HasKey(j => j.Id);
+        job.Property(j => j.Id).HasColumnName("Id").ValueGeneratedOnAdd();
+        job.Property(j => j.Nombre).HasColumnName("Nombre").HasMaxLength(100).IsRequired();
+        job.Property(j => j.Operacion).HasColumnName("Operacion").HasMaxLength(50).IsRequired();
+        job.Property(j => j.IniciadoUtc).HasColumnName("IniciadoUtc").HasColumnType("datetime2(3)").IsRequired();
+        job.Property(j => j.FinalizadoUtc).HasColumnName("FinalizadoUtc").HasColumnType("datetime2(3)");
+        job.Property(j => j.Estado).HasColumnName("Estado").HasMaxLength(20).IsRequired();
+        job.Property(j => j.Encolados).HasColumnName("Encolados").HasDefaultValue(0);
+        job.Property(j => j.Enviados).HasColumnName("Enviados").HasDefaultValue(0);
+        job.Property(j => j.Fallidos).HasColumnName("Fallidos").HasDefaultValue(0);
+        job.Property(j => j.Mensaje).HasColumnName("Mensaje").HasMaxLength(2000);
+        job.Property(j => j.UsuarioId).HasColumnName("UsuarioId");
+        job.Property(j => j.Usuario).HasColumnName("Usuario").HasMaxLength(200);
+        job.HasIndex(j => new { j.Nombre, j.IniciadoUtc })
+            .HasDatabaseName("IX_JobEjecucion_NombreInicio");
     }
 
     // ── Conversores de zona horaria ─────────────────────────────────────────────────────────────

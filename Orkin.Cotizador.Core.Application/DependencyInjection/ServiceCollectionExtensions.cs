@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orkin.Cotizador.Core.Application.Catalogos;
 using Orkin.Cotizador.Core.Application.Cotizaciones;
+using Orkin.Cotizador.Core.Application.Notificaciones;
 using Orkin.Cotizador.Core.Application.Sistema;
 using Orkin.Cotizador.Core.Infrastructure.Persistence;
 
@@ -21,10 +22,10 @@ namespace Orkin.Cotizador.Core.Application.DependencyInjection;
 /// <c>CotizadorDbContext</c>, que también es scoped. Un singleton que dependiera de él se
 /// comprobaría al registrar los servicios, y no la primera vez que se usara, que es la peor hora
 /// posible para descubrir que un <c>DbContext</c> no se puede compartir entre hilos.</para>
-/// <para><b>Por qué no recibe <c>IConfiguration</c>:</b> esta capa todavía no tiene opciones propias.
-/// Agregar el parámetro "por si acaso" es agregar un parámetro que nadie pasa valor y que hay que
-/// mantener. Cuando exista el primer parámetro de esta capa —el umbral de aprobación, el tamaño de
-/// página— se agrega y se enlaza aquí.</para>
+/// <para><b>Por qué no recibe <c>IConfiguration</c>:</b> las opciones de esta capa
+/// (<see cref="CorreoOpciones"/> y <see cref="NotificacionesOpciones"/>) se enlazan y validan en el
+/// composition root de la API, igual que las de seguridad. Esta capa solo las consume con
+/// <c>IOptions&lt;T&gt;</c>, de modo que una prueba puede pasar las suyas sin levantar configuración.</para>
 /// </summary>
 public static class ServiceCollectionExtensions
 {
@@ -58,6 +59,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Visitas.IGeneradorOrdenTrabajo, Visitas.GeneradorOrdenTrabajoService>();
         services.AddScoped<Visitas.VisitaService>();
         services.AddScoped<Visitas.ImportadorGoogleService>();
+
+        // ── Fase 8: notificaciones y cola de correo ──────────────────────────────────
+        // AddOptions sin parámetros da el IOptions<T> vacío que necesitan los Servicios cuando
+        // quien arma el contenedor no enlazó la sección (pruebas, hosts que no son la API). La API
+        // llama después a AddOptions<...>().Bind(...).ValidateOnStart(), y el último registro gana.
+        services.AddOptions();
+        services.AddScoped<ValidadorSpNotificacion>();
+        services.AddScoped<IProveedorCorreo, ProveedorCorreoSmtp>();
+        services.AddScoped<INotificacionService, NotificacionService>();
+        services.AddHostedService<NotificacionBackgroundService>();
 
         // Proceso de carga desde origen externo (Fase 2.5): un cargador por catálogo. El de
         // clientes va con el de productos porque el cliente de ORKIN también vive en su ERP, y
